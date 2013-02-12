@@ -1,0 +1,6 @@
+pyart.correct.dealias.dealias
+=============================
+
+.. currentmodule:: pyart.correct.dealias
+
+.. autofunction:: dealias

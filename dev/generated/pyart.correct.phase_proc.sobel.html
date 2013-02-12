@@ -8,7 +8,7 @@
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
     
-    <title>pyart.io.py4dd.dealias_radar &mdash; Py-ART Documentation (DRAFT)</title>
+    <title>pyart.correct.phase_proc.sobel &mdash; Py-ART Documentation (DRAFT)</title>
     
     <link rel="stylesheet" href="../_static/scipy.css" type="text/css" />
     <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
@@ -27,9 +27,9 @@
     <script type="text/javascript" src="../_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <link rel="top" title="Py-ART Documentation (DRAFT)" href="../index.html" />
-    <link rel="up" title="Input and output (pyart.io)" href="../io.html" />
-    <link rel="next" title="pyart.io.py4dd.dealias_radar_array" href="pyart.io.py4dd.dealias_radar_array.html" />
-    <link rel="prev" title="pyart.io.py4dd.dealias_radar_array" href="pyart.io.py4dd.dealias_radar_array.html" /> 
+    <link rel="up" title="Radar Corrections (pyart.correct)" href="../correct.html" />
+    <link rel="next" title="pyart.correct.phase_proc.unwrap_masked" href="pyart.correct.phase_proc.unwrap_masked.html" />
+    <link rel="prev" title="pyart.correct.phase_proc.noise" href="pyart.correct.phase_proc.noise.html" /> 
   </head>
   <body>
     <div class="related">
@@ -39,13 +39,13 @@
           <a href="../genindex.html" title="General Index"
              accesskey="I">index</a></li>
         <li class="right" >
-          <a href="pyart.io.py4dd.dealias_radar_array.html" title="pyart.io.py4dd.dealias_radar_array"
+          <a href="pyart.correct.phase_proc.unwrap_masked.html" title="pyart.correct.phase_proc.unwrap_masked"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="pyart.io.py4dd.dealias_radar_array.html" title="pyart.io.py4dd.dealias_radar_array"
+          <a href="pyart.correct.phase_proc.noise.html" title="pyart.correct.phase_proc.noise"
              accesskey="P">previous</a> |</li>
         <li><a href="../index.html">Py-ART Documentation (DRAFT)</a> &raquo;</li>
-          <li><a href="../io.html" accesskey="U">Input and output (<tt class="docutils literal"><span class="pre">pyart.io</span></tt>)</a> &raquo;</li> 
+          <li><a href="../correct.html" accesskey="U">Radar Corrections (<tt class="docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal"><span class="pre">pyart.correct</span></tt>)</a> &raquo;</li> 
       </ul>
     </div>  
 
@@ -54,51 +54,29 @@
         <div class="bodywrapper">
           <div class="body">
             
-  <div class="section" id="pyart-io-py4dd-dealias-radar">
-<h1>pyart.io.py4dd.dealias_radar<a class="headerlink" href="#pyart-io-py4dd-dealias-radar" title="Permalink to this headline">¶</a></h1>
+  <div class="section" id="pyart-correct-phase-proc-sobel">
+<h1>pyart.correct.phase_proc.sobel<a class="headerlink" href="#pyart-correct-phase-proc-sobel" title="Permalink to this headline">¶</a></h1>
 <dl class="function">
-<dt id="pyart.io.py4dd.dealias_radar">
-<tt class="descclassname">pyart.io.py4dd.</tt><tt class="descname">dealias_radar</tt><big>(</big><em>radar</em>, <em>vad_time</em>, <em>last_radar=None</em>, <em>sondfile=None</em>, <em>prep=1</em>, <em>DZindex=0</em>, <em>filt=1</em><big>)</big><a class="reference external" href="http://github.com/ARM-DOE/pyart/blob/master/io/py4dd.py#L508"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyart.io.py4dd.dealias_radar" title="Permalink to this definition">¶</a></dt>
-<dd><p>Dealias a RSL Radar object.</p>
+<dt id="pyart.correct.phase_proc.sobel">
+<tt class="descclassname">pyart.correct.phase_proc.</tt><tt class="descname">sobel</tt><big>(</big><em>x</em>, <em>window_len=11</em><big>)</big><a class="reference external" href="http://github.com/ARM-DOE/pyart/blob/master/correct/phase_proc.py#L258"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyart.correct.phase_proc.sobel" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sobel differential filter, useful for calculating KDP.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>radar</strong> : pointer to a Radar object (LP_Radar)</p>
+<tr class="field-odd field"><th class="field-name">Parameters :</th><td class="field-body"><p class="first"><strong>x</strong> : array</p>
 <blockquote>
-<div><p>RSL Radar object to dealias.</p>
+<div><p>Input signal.</p>
 </div></blockquote>
-<p><strong>vad_time</strong> : int</p>
+<p><strong>window_len</strong> : int</p>
 <blockquote>
-<div><p>Sounding time, format must be YYDDDHHMM.</p>
-</div></blockquote>
-<p><strong>last_radar</strong> : pointer to Radar object (LP_Radar) or None</p>
-<blockquote>
-<div><p>RSL Radar object containg last measurements. Either last_radar or
-sondfile must be supplied.</p>
-</div></blockquote>
-<p><strong>sondfile</strong> : str or None.</p>
-<blockquote>
-<div><p>Filename of sounding file.  Either sondfile or last_radar must be
-supplied.</p>
-</div></blockquote>
-<p><strong>prep</strong> : int, optional</p>
-<blockquote>
-<div><p>Thresholding flag, 1 = yes, 0 = no.</p>
-</div></blockquote>
-<p><strong>DZindex</strong> : int, optional</p>
-<blockquote>
-<div><p>Index of DZ measurements in RSL Radar object.</p>
-</div></blockquote>
-<p><strong>filt</strong> : int. optional</p>
-<blockquote>
-<div><p>Flag controlling Bergen and Albers filter, 1 = yes, 0 = no.</p>
+<div><p>Length of window.</p>
 </div></blockquote>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>unfoldedVolume</strong> : pointer to Radar object (LP_Radar)</p>
+<tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>output</strong> : array</p>
 <blockquote class="last">
-<div><p>Dealised RSL Radar object.</p>
+<div><p>Differential signal (Unscaled for gate spacing)</p>
 </div></blockquote>
 </td>
 </tr>
@@ -115,14 +93,14 @@ supplied.</p>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
   <h4>Previous topic</h4>
-  <p class="topless"><a href="pyart.io.py4dd.dealias_radar_array.html"
-                        title="previous chapter">pyart.io.py4dd.dealias_radar_array</a></p>
+  <p class="topless"><a href="pyart.correct.phase_proc.noise.html"
+                        title="previous chapter">pyart.correct.phase_proc.noise</a></p>
   <h4>Next topic</h4>
-  <p class="topless"><a href="pyart.io.py4dd.dealias_radar_array.html"
-                        title="next chapter">pyart.io.py4dd.dealias_radar_array</a></p>
+  <p class="topless"><a href="pyart.correct.phase_proc.unwrap_masked.html"
+                        title="next chapter">pyart.correct.phase_proc.unwrap_masked</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
-    <li><a href="../_sources/generated/pyart.io.py4dd.dealias_radar.txt"
+    <li><a href="../_sources/generated/pyart.correct.phase_proc.sobel.txt"
            rel="nofollow">Show Source</a></li>
   </ul>
 <div id="searchbox" style="display: none">
@@ -149,13 +127,13 @@ supplied.</p>
           <a href="../genindex.html" title="General Index"
              >index</a></li>
         <li class="right" >
-          <a href="pyart.io.py4dd.dealias_radar_array.html" title="pyart.io.py4dd.dealias_radar_array"
+          <a href="pyart.correct.phase_proc.unwrap_masked.html" title="pyart.correct.phase_proc.unwrap_masked"
              >next</a> |</li>
         <li class="right" >
-          <a href="pyart.io.py4dd.dealias_radar_array.html" title="pyart.io.py4dd.dealias_radar_array"
+          <a href="pyart.correct.phase_proc.noise.html" title="pyart.correct.phase_proc.noise"
              >previous</a> |</li>
         <li><a href="../index.html">Py-ART Documentation (DRAFT)</a> &raquo;</li>
-          <li><a href="../io.html" >Input and output (<tt class="docutils literal"><span class="pre">pyart.io</span></tt>)</a> &raquo;</li> 
+          <li><a href="../correct.html" >Radar Corrections (<tt class="docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal docutils literal"><span class="pre">pyart.correct</span></tt>)</a> &raquo;</li> 
       </ul>
     </div>
     <div class="footer">
