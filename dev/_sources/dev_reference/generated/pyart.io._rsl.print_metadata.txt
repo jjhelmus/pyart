@@ -1,0 +1,6 @@
+pyart.io._rsl.print_metadata
+============================
+
+.. currentmodule:: pyart.io._rsl
+
+.. autofunction:: print_metadata

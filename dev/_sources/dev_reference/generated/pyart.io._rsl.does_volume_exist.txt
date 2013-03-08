@@ -1,0 +1,6 @@
+pyart.io._rsl.does_volume_exist
+===============================
+
+.. currentmodule:: pyart.io._rsl
+
+.. autofunction:: does_volume_exist

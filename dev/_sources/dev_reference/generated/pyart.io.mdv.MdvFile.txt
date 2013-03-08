@@ -1,0 +1,21 @@
+pyart.io.mdv.MdvFile
+====================
+
+.. currentmodule:: pyart.io.mdv
+
+.. autoclass:: MdvFile
+
+   
+
+   .. HACK -- the point here is that we don't want this to appear in the output, but the autosummary should still generate the pages.
+      .. autosummary::
+         :toctree:
+      
+         MdvFile.close
+         MdvFile.read_a_field
+         MdvFile.read_all_fields
+
+
+
+   
+

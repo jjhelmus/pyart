@@ -1,0 +1,6 @@
+pyart.io.nc_utils.fix_variables
+===============================
+
+.. currentmodule:: pyart.io.nc_utils
+
+.. autofunction:: fix_variables

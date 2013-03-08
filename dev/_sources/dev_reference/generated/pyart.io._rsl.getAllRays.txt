@@ -1,0 +1,6 @@
+pyart.io._rsl.getAllRays
+========================
+
+.. currentmodule:: pyart.io._rsl
+
+.. autofunction:: getAllRays

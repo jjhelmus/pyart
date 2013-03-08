@@ -1,0 +1,6 @@
+pyart.io._rsl.create_PPI_array
+==============================
+
+.. currentmodule:: pyart.io._rsl
+
+.. autofunction:: create_PPI_array

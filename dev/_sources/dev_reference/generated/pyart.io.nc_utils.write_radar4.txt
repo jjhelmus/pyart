@@ -1,0 +1,6 @@
+pyart.io.nc_utils.write_radar4
+==============================
+
+.. currentmodule:: pyart.io.nc_utils
+
+.. autofunction:: write_radar4

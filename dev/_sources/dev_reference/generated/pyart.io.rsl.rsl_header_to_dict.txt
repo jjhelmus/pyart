@@ -1,0 +1,6 @@
+pyart.io.rsl.rsl_header_to_dict
+===============================
+
+.. currentmodule:: pyart.io.rsl
+
+.. autofunction:: rsl_header_to_dict

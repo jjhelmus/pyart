@@ -1,0 +1,6 @@
+pyart.io._rsl.find_librsl_path
+==============================
+
+.. currentmodule:: pyart.io._rsl
+
+.. autofunction:: find_librsl_path

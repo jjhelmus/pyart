@@ -1,0 +1,6 @@
+pyart.io.nc_utils.trans_dict_as_ncattr
+======================================
+
+.. currentmodule:: pyart.io.nc_utils
+
+.. autofunction:: trans_dict_as_ncattr

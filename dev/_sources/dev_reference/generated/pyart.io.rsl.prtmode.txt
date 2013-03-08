@@ -1,0 +1,6 @@
+pyart.io.rsl.prtmode
+====================
+
+.. currentmodule:: pyart.io.rsl
+
+.. autofunction:: prtmode

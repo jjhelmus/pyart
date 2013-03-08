@@ -1,0 +1,6 @@
+pyart.io.fourdd.dealias_radar_array
+===================================
+
+.. currentmodule:: pyart.io.fourdd
+
+.. autofunction:: dealias_radar_array

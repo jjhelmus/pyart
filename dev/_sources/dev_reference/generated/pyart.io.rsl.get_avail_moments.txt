@@ -1,0 +1,6 @@
+pyart.io.rsl.get_avail_moments
+==============================
+
+.. currentmodule:: pyart.io.rsl
+
+.. autofunction:: get_avail_moments

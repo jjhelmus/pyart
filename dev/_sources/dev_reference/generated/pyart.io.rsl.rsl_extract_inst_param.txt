@@ -1,0 +1,6 @@
+pyart.io.rsl.rsl_extract_inst_param
+===================================
+
+.. currentmodule:: pyart.io.rsl
+
+.. autofunction:: rsl_extract_inst_param

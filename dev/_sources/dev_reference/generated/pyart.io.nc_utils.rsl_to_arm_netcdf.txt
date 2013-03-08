@@ -1,0 +1,6 @@
+pyart.io.nc_utils.rsl_to_arm_netcdf
+===================================
+
+.. currentmodule:: pyart.io.nc_utils
+
+.. autofunction:: rsl_to_arm_netcdf
