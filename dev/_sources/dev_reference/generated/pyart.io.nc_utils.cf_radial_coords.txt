@@ -1,6 +1,0 @@
-pyart.io.nc_utils.cf_radial_coords
-==================================
-
-.. currentmodule:: pyart.io.nc_utils
-
-.. autofunction:: cf_radial_coords

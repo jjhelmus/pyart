@@ -1,6 +1,0 @@
-pyart.io.nc_utils.dms_to_d
-==========================
-
-.. currentmodule:: pyart.io.nc_utils
-
-.. autofunction:: dms_to_d

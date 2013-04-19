@@ -11,6 +11,8 @@ pyart.io.grid.pyGrid
       .. autosummary::
          :toctree:
       
+         pyGrid.PyGridCF_to_PyGrid
+         pyGrid.WRFGridCF_to_PyGrid
 
 
 

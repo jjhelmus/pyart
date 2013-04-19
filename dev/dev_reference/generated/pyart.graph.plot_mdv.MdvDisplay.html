@@ -65,7 +65,7 @@
 <h1>pyart.graph.plot_mdv.MdvDisplay<a class="headerlink" href="#pyart-graph-plot-mdv-mdvdisplay" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="pyart.graph.plot_mdv.MdvDisplay">
-<em class="property">class </em><tt class="descclassname">pyart.graph.plot_mdv.</tt><tt class="descname">MdvDisplay</tt><big>(</big><em>mdvfile</em><big>)</big><a class="reference external" href="http://github.com/ARM-DOE/pyart/blob/master/graph/plot_mdv.py#L20"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyart.graph.plot_mdv.MdvDisplay" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><tt class="descclassname">pyart.graph.plot_mdv.</tt><tt class="descname">MdvDisplay</tt><big>(</big><em>mdvfile</em><big>)</big><a class="reference external" href="http://github.com/ARM-DOE/pyart/blob/master/graph/plot_mdv.py#L25"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyart.graph.plot_mdv.MdvDisplay" title="Permalink to this definition">¶</a></dt>
 <dd><p>A display object for creating plots from data in a MdvFile objects.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
@@ -83,41 +83,32 @@
 <table border="1" class="docutils">
 <colgroup>
 <col width="14%" />
-<col width="19%" />
-<col width="67%" />
+<col width="86%" />
 </colgroup>
 <tbody valign="top">
 <tr class="row-odd"><td>plots</td>
-<td>list</td>
-<td>List of plots created.</td>
+<td>(list) List of plots created.</td>
 </tr>
 <tr class="row-even"><td>plot_vars</td>
-<td>list</td>
-<td>List of fields plotted, order matches plot list.</td>
+<td>(list) List of fields plotted, order matches plot list.</td>
 </tr>
 <tr class="row-odd"><td>cbs</td>
-<td>list</td>
-<td>List of colorbars created.</td>
+<td>(list) List of colorbars created.</td>
 </tr>
 <tr class="row-even"><td>loc</td>
-<td>(float, float)</td>
-<td>Latitude and Longitude of radar in degrees.</td>
+<td>((float, float)) Latitude and Longitude of radar in degrees.</td>
 </tr>
 <tr class="row-odd"><td>origin</td>
-<td>&#8216;Radar&#8217;</td>
-<td>&#8216;Radar&#8217;</td>
+<td>(&#8216;Radar&#8217;) &#8216;Radar&#8217;</td>
 </tr>
 <tr class="row-even"><td>time_begin</td>
-<td>datetime</td>
-<td>Time of first radar scan.</td>
+<td>(datetime) Time of first radar scan.</td>
 </tr>
 <tr class="row-odd"><td>radar_name</td>
-<td>str</td>
-<td>Radar name.</td>
+<td>(str) Radar name.</td>
 </tr>
 <tr class="row-even"><td>mdvfile</td>
-<td>MdvFile</td>
-<td>MdvFile object use to create plots.</td>
+<td>(MdvFile) MdvFile object use to create plots.</td>
 </tr>
 </tbody>
 </table>
@@ -197,10 +188,10 @@
 <tr class="row-even"><td><a class="reference internal" href="pyart.graph.plot_mdv.MdvDisplay._get_data.html#pyart.graph.plot_mdv.MdvDisplay._get_data" title="pyart.graph.plot_mdv.MdvDisplay._get_data"><tt class="xref py py-obj docutils literal"><span class="pre">_get_data</span></tt></a>(field,&nbsp;tilt,&nbsp;mask_tuple)</td>
 <td>Retrieve and return data from a plot function.</td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="pyart.graph.plot_mdv.MdvDisplay._get_x_y.html#pyart.graph.plot_mdv.MdvDisplay._get_x_y" title="pyart.graph.plot_mdv.MdvDisplay._get_x_y"><tt class="xref py py-obj docutils literal"><span class="pre">_get_x_y</span></tt></a>(tilt)</td>
+<tr class="row-odd"><td><a class="reference internal" href="pyart.graph.plot_mdv.MdvDisplay._get_x_y.html#pyart.graph.plot_mdv.MdvDisplay._get_x_y" title="pyart.graph.plot_mdv.MdvDisplay._get_x_y"><tt class="xref py py-obj docutils literal"><span class="pre">_get_x_y</span></tt></a>(field,&nbsp;tilt)</td>
 <td>Retrieve and return x and y coordinate in km.</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="pyart.graph.plot_mdv.MdvDisplay._get_x_y_z.html#pyart.graph.plot_mdv.MdvDisplay._get_x_y_z" title="pyart.graph.plot_mdv.MdvDisplay._get_x_y_z"><tt class="xref py py-obj docutils literal"><span class="pre">_get_x_y_z</span></tt></a>(tilt)</td>
+<tr class="row-even"><td><a class="reference internal" href="pyart.graph.plot_mdv.MdvDisplay._get_x_y_z.html#pyart.graph.plot_mdv.MdvDisplay._get_x_y_z" title="pyart.graph.plot_mdv.MdvDisplay._get_x_y_z"><tt class="xref py py-obj docutils literal"><span class="pre">_get_x_y_z</span></tt></a>(field,&nbsp;tilt)</td>
 <td>Retrieve and return x, y, and z coordinate in km.</td>
 </tr>
 <tr class="row-odd"><td><a class="reference internal" href="pyart.graph.plot_mdv.MdvDisplay._label_axes_ppi.html#pyart.graph.plot_mdv.MdvDisplay._label_axes_ppi" title="pyart.graph.plot_mdv.MdvDisplay._label_axes_ppi"><tt class="xref py py-obj docutils literal"><span class="pre">_label_axes_ppi</span></tt></a>(axis_labels,&nbsp;ax)</td>
@@ -286,7 +277,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013, Py-ART developers.
-      Last updated on Mar 08, 2013.
+      Last updated on Apr 19, 2013.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>

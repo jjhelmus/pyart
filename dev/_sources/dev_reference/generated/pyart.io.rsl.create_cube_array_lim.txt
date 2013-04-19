@@ -1,6 +1,0 @@
-pyart.io.rsl.create_cube_array_lim
-==================================
-
-.. currentmodule:: pyart.io.rsl
-
-.. autofunction:: create_cube_array_lim

@@ -1,6 +1,0 @@
-pyart.io.nc_utils.mdv_to_arm_netcdf
-===================================
-
-.. currentmodule:: pyart.io.nc_utils
-
-.. autofunction:: mdv_to_arm_netcdf

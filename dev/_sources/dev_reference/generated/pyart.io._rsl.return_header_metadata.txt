@@ -1,6 +1,0 @@
-pyart.io._rsl.return_header_metadata
-====================================
-
-.. currentmodule:: pyart.io._rsl
-
-.. autofunction:: return_header_metadata

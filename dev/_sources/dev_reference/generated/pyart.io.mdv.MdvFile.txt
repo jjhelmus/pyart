@@ -15,6 +15,34 @@ pyart.io.mdv.MdvFile
          MdvFile.read_a_field
          MdvFile.read_all_fields
 
+   |
+
+   **Private methods**
+   
+   .. autosummary::
+       :toctree:
+
+    
+         ~MdvFile.__init__
+         ~MdvFile._calc_geometry
+         ~MdvFile._get_calib
+         ~MdvFile._get_chunk_header
+         ~MdvFile._get_chunk_headers
+         ~MdvFile._get_chunks
+         ~MdvFile._get_compression_info
+         ~MdvFile._get_elevs
+         ~MdvFile._get_field_header
+         ~MdvFile._get_field_headers
+         ~MdvFile._get_master_header
+         ~MdvFile._get_radar_info
+         ~MdvFile._get_sweep_info
+         ~MdvFile._get_vlevel_header
+         ~MdvFile._get_vlevel_headers
+         ~MdvFile._make_carts_dict
+         ~MdvFile._make_fields_list
+         ~MdvFile._make_time_dict
+   
+   
 
 
    

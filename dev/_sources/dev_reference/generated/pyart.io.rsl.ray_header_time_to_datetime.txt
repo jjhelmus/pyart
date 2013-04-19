@@ -1,6 +1,0 @@
-pyart.io.rsl.ray_header_time_to_datetime
-========================================
-
-.. currentmodule:: pyart.io.rsl
-
-.. autofunction:: ray_header_time_to_datetime

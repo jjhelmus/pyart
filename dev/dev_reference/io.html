@@ -87,24 +87,6 @@
 </tbody>
 </table>
 </div>
-<span class="target" id="module-pyart.io.fourdd"></span><div class="section" id="pyart-io-fourdd">
-<h2>pyart.io.fourdd<a class="headerlink" href="#pyart-io-fourdd" title="Permalink to this headline">¶</a></h2>
-<p>Python wrapper around the Univ. Washington FourDD dealiasing code.</p>
-<table border="1" class="longtable docutils">
-<colgroup>
-<col width="10%" />
-<col width="90%" />
-</colgroup>
-<tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.fourdd.dealias_radar.html#pyart.io.fourdd.dealias_radar" title="pyart.io.fourdd.dealias_radar"><tt class="xref py py-obj docutils literal"><span class="pre">dealias_radar</span></tt></a>(radar,&nbsp;vad_time[,&nbsp;last_radar,&nbsp;...])</td>
-<td>Dealias a RSL Radar object.</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.fourdd.dealias_radar_array.html#pyart.io.fourdd.dealias_radar_array" title="pyart.io.fourdd.dealias_radar_array"><tt class="xref py py-obj docutils literal"><span class="pre">dealias_radar_array</span></tt></a>(radar,&nbsp;vad_time,&nbsp;height,&nbsp;...)</td>
-<td>Dealias a RSL Radar object using sond arrays.</td>
-</tr>
-</tbody>
-</table>
-</div>
 <span class="target" id="module-pyart.io.grid"></span><div class="section" id="pyart-io-grid">
 <h2>pyart.io.grid<a class="headerlink" href="#pyart-io-grid" title="Permalink to this headline">¶</a></h2>
 <p>A general gridded data object for radar data.</p>
@@ -136,11 +118,19 @@
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.mdv.MdvFile.html#pyart.io.mdv.MdvFile" title="pyart.io.mdv.MdvFile"><tt class="xref py py-obj docutils literal"><span class="pre">MdvFile</span></tt></a>(filename[,&nbsp;debug,&nbsp;read_fields])</td>
+<td>A file object for MDV data.</td>
+</tr>
+</tbody>
+</table>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
 <tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.mdv.read_mdv.html#pyart.io.mdv.read_mdv" title="pyart.io.mdv.read_mdv"><tt class="xref py py-obj docutils literal"><span class="pre">read_mdv</span></tt></a>(filename)</td>
 <td>Read a MDV file.</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.mdv.MdvFile.html#pyart.io.mdv.MdvFile" title="pyart.io.mdv.MdvFile"><tt class="xref py py-obj docutils literal"><span class="pre">MdvFile</span></tt></a>(filename[,&nbsp;debug,&nbsp;read_fields])</td>
-<td>A file object for MDV data.</td>
 </tr>
 </tbody>
 </table>
@@ -157,26 +147,8 @@
 <tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.is_moment.html#pyart.io.nc_utils.is_moment" title="pyart.io.nc_utils.is_moment"><tt class="xref py py-obj docutils literal"><span class="pre">is_moment</span></tt></a>(varname,&nbsp;moment_fixes)</td>
 <td></td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.is_radar.html#pyart.io.nc_utils.is_radar" title="pyart.io.nc_utils.is_radar"><tt class="xref py py-obj docutils literal"><span class="pre">is_radar</span></tt></a>(varname,&nbsp;radar_list)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.fix_variables.html#pyart.io.nc_utils.fix_variables" title="pyart.io.nc_utils.fix_variables"><tt class="xref py py-obj docutils literal"><span class="pre">fix_variables</span></tt></a>(cgfile)</td>
-<td></td>
-</tr>
 <tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.fix_variables_csapr.html#pyart.io.nc_utils.fix_variables_csapr" title="pyart.io.nc_utils.fix_variables_csapr"><tt class="xref py py-obj docutils literal"><span class="pre">fix_variables_csapr</span></tt></a>(cgfile)</td>
 <td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.cf_radial_coords.html#pyart.io.nc_utils.cf_radial_coords" title="pyart.io.nc_utils.cf_radial_coords"><tt class="xref py py-obj docutils literal"><span class="pre">cf_radial_coords</span></tt></a>(ncobj,&nbsp;radarobj)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.trans_dict_as_ncattr.html#pyart.io.nc_utils.trans_dict_as_ncattr" title="pyart.io.nc_utils.trans_dict_as_ncattr"><tt class="xref py py-obj docutils literal"><span class="pre">trans_dict_as_ncattr</span></tt></a>(mydict,&nbsp;ncobj,&nbsp;trans)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.write_radar.html#pyart.io.nc_utils.write_radar" title="pyart.io.nc_utils.write_radar"><tt class="xref py py-obj docutils literal"><span class="pre">write_radar</span></tt></a>(ncobj,&nbsp;radarobj,&nbsp;**kwargs)</td>
-<td>Writes a Py-ART antenna coordinate radar object to a CF-Radial</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.write_radar4.html#pyart.io.nc_utils.write_radar4" title="pyart.io.nc_utils.write_radar4"><tt class="xref py py-obj docutils literal"><span class="pre">write_radar4</span></tt></a>(ncobj,&nbsp;radarobj,&nbsp;**kwargs)</td>
-<td>Writes a Py-ART antenna coordinate radar object to a CF-Radial complaint</td>
 </tr>
 <tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.append_global_metatdata_csapr.html#pyart.io.nc_utils.append_global_metatdata_csapr" title="pyart.io.nc_utils.append_global_metatdata_csapr"><tt class="xref py py-obj docutils literal"><span class="pre">append_global_metatdata_csapr</span></tt></a>(cgfile)</td>
 <td></td>
@@ -193,37 +165,22 @@
 <tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.dt_to_dict.html#pyart.io.nc_utils.dt_to_dict" title="pyart.io.nc_utils.dt_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">dt_to_dict</span></tt></a>(dt,&nbsp;**kwargs)</td>
 <td></td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.dms_to_d.html#pyart.io.nc_utils.dms_to_d" title="pyart.io.nc_utils.dms_to_d"><tt class="xref py py-obj docutils literal"><span class="pre">dms_to_d</span></tt></a>(dms)</td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_netcdf_cube.html#pyart.io.nc_utils.save_netcdf_cube" title="pyart.io.nc_utils.save_netcdf_cube"><tt class="xref py py-obj docutils literal"><span class="pre">save_netcdf_cube</span></tt></a>(grids,&nbsp;output_file,&nbsp;myfile,&nbsp;...)</td>
 <td></td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.corner_to_point.html#pyart.io.nc_utils.corner_to_point" title="pyart.io.nc_utils.corner_to_point"><tt class="xref py py-obj docutils literal"><span class="pre">corner_to_point</span></tt></a>(corner,&nbsp;point)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.noncf_append_global_metatdata.html#pyart.io.nc_utils.noncf_append_global_metatdata" title="pyart.io.nc_utils.noncf_append_global_metatdata"><tt class="xref py py-obj docutils literal"><span class="pre">noncf_append_global_metatdata</span></tt></a>(cgfile)</td>
 <td></td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.ax_radius.html#pyart.io.nc_utils.ax_radius" title="pyart.io.nc_utils.ax_radius"><tt class="xref py py-obj docutils literal"><span class="pre">ax_radius</span></tt></a>(lat[,&nbsp;units])</td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.copy_meta.html#pyart.io.nc_utils.copy_meta" title="pyart.io.nc_utils.copy_meta"><tt class="xref py py-obj docutils literal"><span class="pre">copy_meta</span></tt></a>(myfile,&nbsp;ofile)</td>
 <td></td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.rsl_to_arm_netcdf.html#pyart.io.nc_utils.rsl_to_arm_netcdf" title="pyart.io.nc_utils.rsl_to_arm_netcdf"><tt class="xref py py-obj docutils literal"><span class="pre">rsl_to_arm_netcdf</span></tt></a>(rslobj,&nbsp;ofilename,&nbsp;**kwargs)</td>
-<td>Save an enhanced MDV object (containing gridded data) to a</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.mdv_to_arm_netcdf.html#pyart.io.nc_utils.mdv_to_arm_netcdf" title="pyart.io.nc_utils.mdv_to_arm_netcdf"><tt class="xref py py-obj docutils literal"><span class="pre">mdv_to_arm_netcdf</span></tt></a>(mdvobj,&nbsp;ofilename,&nbsp;**kwargs)</td>
-<td>Save an enhanced MDV object (containing gridded data) to a</td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_netcdf_cube.html#pyart.io.nc_utils.save_netcdf_cube" title="pyart.io.nc_utils.save_netcdf_cube"><tt class="xref py py-obj docutils literal"><span class="pre">save_netcdf_cube</span></tt></a>(grids,&nbsp;output_file,&nbsp;myfile,&nbsp;...)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.copy_axis.html#pyart.io.nc_utils.copy_axis" title="pyart.io.nc_utils.copy_axis"><tt class="xref py py-obj docutils literal"><span class="pre">copy_axis</span></tt></a>(myfile,&nbsp;cgfile)</td>
 <td></td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.noncf_append_global_metatdata.html#pyart.io.nc_utils.noncf_append_global_metatdata" title="pyart.io.nc_utils.noncf_append_global_metatdata"><tt class="xref py py-obj docutils literal"><span class="pre">noncf_append_global_metatdata</span></tt></a>(cgfile)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.copy_meta.html#pyart.io.nc_utils.copy_meta" title="pyart.io.nc_utils.copy_meta"><tt class="xref py py-obj docutils literal"><span class="pre">copy_meta</span></tt></a>(myfile,&nbsp;ofile)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.copy_axis.html#pyart.io.nc_utils.copy_axis" title="pyart.io.nc_utils.copy_axis"><tt class="xref py py-obj docutils literal"><span class="pre">copy_axis</span></tt></a>(myfile,&nbsp;cgfile)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_pyGrid.html#pyart.io.nc_utils.save_pyGrid" title="pyart.io.nc_utils.save_pyGrid"><tt class="xref py py-obj docutils literal"><span class="pre">save_pyGrid</span></tt></a>(ncfobj,&nbsp;pygrid,&nbsp;**kwargs)</td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_pyGrid.html#pyart.io.nc_utils.save_pyGrid" title="pyart.io.nc_utils.save_pyGrid"><tt class="xref py py-obj docutils literal"><span class="pre">save_pyGrid</span></tt></a>(ncfobj,&nbsp;pygrid,&nbsp;**kwargs)</td>
 <td>Saves a pyGrid object to a CF and ARM standard netcdf file</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_mdv_ncf.html#pyart.io.nc_utils.save_mdv_ncf" title="pyart.io.nc_utils.save_mdv_ncf"><tt class="xref py py-obj docutils literal"><span class="pre">save_mdv_ncf</span></tt></a>(myfile,&nbsp;output_file,&nbsp;parms,&nbsp;...)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_mdv_ncf.html#pyart.io.nc_utils.save_mdv_ncf" title="pyart.io.nc_utils.save_mdv_ncf"><tt class="xref py py-obj docutils literal"><span class="pre">save_mdv_ncf</span></tt></a>(myfile,&nbsp;output_file,&nbsp;parms,&nbsp;...)</td>
 <td></td>
 </tr>
 </tbody>
@@ -241,14 +198,20 @@
 <tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf.read_netcdf.html#pyart.io.netcdf.read_netcdf" title="pyart.io.netcdf.read_netcdf"><tt class="xref py py-obj docutils literal"><span class="pre">read_netcdf</span></tt></a>(filename)</td>
 <td>Read a netCDF file.</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._ncvar_to_dict.html#pyart.io.netcdf._ncvar_to_dict" title="pyart.io.netcdf._ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_ncvar_to_dict</span></tt></a>(ncvar)</td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf.write_netcdf.html#pyart.io.netcdf.write_netcdf" title="pyart.io.netcdf.write_netcdf"><tt class="xref py py-obj docutils literal"><span class="pre">write_netcdf</span></tt></a>(filename,&nbsp;radar[,&nbsp;format])</td>
+<td>Write a Radar object to a CF/Radial compliant netCDF file.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._ncvar_to_dict.html#pyart.io.netcdf._ncvar_to_dict" title="pyart.io.netcdf._ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_ncvar_to_dict</span></tt></a>(ncvar)</td>
 <td>Convert a NetCDF Dataset variable to a dictionary.</td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_ncvar_to_dict.html#pyart.io.netcdf._stream_ncvar_to_dict" title="pyart.io.netcdf._stream_ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_ncvar_to_dict</span></tt></a>(ncvar,&nbsp;sweeps,&nbsp;sweepe,&nbsp;...)</td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_ncvar_to_dict.html#pyart.io.netcdf._stream_ncvar_to_dict" title="pyart.io.netcdf._stream_ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_ncvar_to_dict</span></tt></a>(ncvar,&nbsp;sweeps,&nbsp;sweepe,&nbsp;...)</td>
 <td>Convert a Stream NetCDF Dataset variable to a dict.</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_to_2d.html#pyart.io.netcdf._stream_to_2d" title="pyart.io.netcdf._stream_to_2d"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_to_2d</span></tt></a>(data,&nbsp;sweeps,&nbsp;sweepe,&nbsp;ray_len,&nbsp;...)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_to_2d.html#pyart.io.netcdf._stream_to_2d" title="pyart.io.netcdf._stream_to_2d"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_to_2d</span></tt></a>(data,&nbsp;sweeps,&nbsp;sweepe,&nbsp;ray_len,&nbsp;...)</td>
 <td>Convert a 1D stream to a 2D array.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._create_ncvar.html#pyart.io.netcdf._create_ncvar" title="pyart.io.netcdf._create_ncvar"><tt class="xref py py-obj docutils literal"><span class="pre">_create_ncvar</span></tt></a>(dic,&nbsp;dataset,&nbsp;name,&nbsp;dimensions)</td>
+<td>Create and fill a Variable in a netCDF Dataset object.</td>
 </tr>
 </tbody>
 </table>
@@ -271,65 +234,8 @@
 </tbody>
 </table>
 </div>
-<span class="target" id="module-pyart.io._rsl"></span><div class="section" id="pyart-io-rsl">
-<h2>pyart.io._rsl<a class="headerlink" href="#pyart-io-rsl" title="Permalink to this headline">¶</a></h2>
-<p>ctypes wrapper around librsl and U. Washington FourDD dealias code.</p>
-<table border="1" class="longtable docutils">
-<colgroup>
-<col width="10%" />
-<col width="90%" />
-</colgroup>
-<tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.find_librsl_path.html#pyart.io._rsl.find_librsl_path" title="pyart.io._rsl.find_librsl_path"><tt class="xref py py-obj docutils literal"><span class="pre">find_librsl_path</span></tt></a>()</td>
-<td>Return the path of the RSL dynamic library.</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl.getAllRays.html#pyart.io._rsl.getAllRays" title="pyart.io._rsl.getAllRays"><tt class="xref py py-obj docutils literal"><span class="pre">getAllRays</span></tt></a>(radar[,&nbsp;fieldType])</td>
-<td>&#8220;</td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.does_volume_exist.html#pyart.io._rsl.does_volume_exist" title="pyart.io._rsl.does_volume_exist"><tt class="xref py py-obj docutils literal"><span class="pre">does_volume_exist</span></tt></a>(radar,&nbsp;vol_string,&nbsp;fieldTypes)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl.create_PPI_array.html#pyart.io._rsl.create_PPI_array" title="pyart.io._rsl.create_PPI_array"><tt class="xref py py-obj docutils literal"><span class="pre">create_PPI_array</span></tt></a>(sweep)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.return_header_metadata.html#pyart.io._rsl.return_header_metadata" title="pyart.io._rsl.return_header_metadata"><tt class="xref py py-obj docutils literal"><span class="pre">return_header_metadata</span></tt></a>(header)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl.print_metadata.html#pyart.io._rsl.print_metadata" title="pyart.io._rsl.print_metadata"><tt class="xref py py-obj docutils literal"><span class="pre">print_metadata</span></tt></a>(ray_header,&nbsp;info)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.fieldTypes.html#pyart.io._rsl.fieldTypes" title="pyart.io._rsl.fieldTypes"><tt class="xref py py-obj docutils literal"><span class="pre">fieldTypes</span></tt></a>()</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl.Ray_header.html#pyart.io._rsl.Ray_header" title="pyart.io._rsl.Ray_header"><tt class="xref py py-obj docutils literal"><span class="pre">Ray_header</span></tt></a></td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.Ray.html#pyart.io._rsl.Ray" title="pyart.io._rsl.Ray"><tt class="xref py py-obj docutils literal"><span class="pre">Ray</span></tt></a></td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl.Sweep_header.html#pyart.io._rsl.Sweep_header" title="pyart.io._rsl.Sweep_header"><tt class="xref py py-obj docutils literal"><span class="pre">Sweep_header</span></tt></a></td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.Sweep.html#pyart.io._rsl.Sweep" title="pyart.io._rsl.Sweep"><tt class="xref py py-obj docutils literal"><span class="pre">Sweep</span></tt></a></td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl.Volume_header.html#pyart.io._rsl.Volume_header" title="pyart.io._rsl.Volume_header"><tt class="xref py py-obj docutils literal"><span class="pre">Volume_header</span></tt></a></td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.Volume.html#pyart.io._rsl.Volume" title="pyart.io._rsl.Volume"><tt class="xref py py-obj docutils literal"><span class="pre">Volume</span></tt></a></td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl.Radar_header.html#pyart.io._rsl.Radar_header" title="pyart.io._rsl.Radar_header"><tt class="xref py py-obj docutils literal"><span class="pre">Radar_header</span></tt></a></td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl.Radar.html#pyart.io._rsl.Radar" title="pyart.io._rsl.Radar"><tt class="xref py py-obj docutils literal"><span class="pre">Radar</span></tt></a></td>
-<td></td>
-</tr>
-</tbody>
-</table>
-</div>
-<span class="target" id="module-pyart.io.rsl"></span><div class="section" id="id1">
-<h2>pyart.io.rsl<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<span class="target" id="module-pyart.io.rsl"></span><div class="section" id="pyart-io-rsl">
+<h2>pyart.io.rsl<a class="headerlink" href="#pyart-io-rsl" title="Permalink to this headline">¶</a></h2>
 <p>Python wrapper around the RSL library.</p>
 <table border="1" class="longtable docutils">
 <colgroup>
@@ -340,50 +246,46 @@
 <tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl.read_rsl.html#pyart.io.rsl.read_rsl" title="pyart.io.rsl.read_rsl"><tt class="xref py py-obj docutils literal"><span class="pre">read_rsl</span></tt></a>(filename[,&nbsp;add_meta])</td>
 <td>Read a file supported by RSL</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.rsl.get_avail_moments.html#pyart.io.rsl.get_avail_moments" title="pyart.io.rsl.get_avail_moments"><tt class="xref py py-obj docutils literal"><span class="pre">get_avail_moments</span></tt></a>(volumes)</td>
-<td>Return a list of fields present in a RSL Volumes object</td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl.create_cube_array_lim.html#pyart.io.rsl.create_cube_array_lim" title="pyart.io.rsl.create_cube_array_lim"><tt class="xref py py-obj docutils literal"><span class="pre">create_cube_array_lim</span></tt></a>(volume,&nbsp;nsweeps,&nbsp;nrays)</td>
-<td>Extract a field from an RSL Volume.</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.rsl.rsl_extract_inst_param.html#pyart.io.rsl.rsl_extract_inst_param" title="pyart.io.rsl.rsl_extract_inst_param"><tt class="xref py py-obj docutils literal"><span class="pre">rsl_extract_inst_param</span></tt></a>(sample_volume,&nbsp;...)</td>
-<td>Return an instrument parameter dictionary from an RSL Volume.</td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl.prtmode.html#pyart.io.rsl.prtmode" title="pyart.io.rsl.prtmode"><tt class="xref py py-obj docutils literal"><span class="pre">prtmode</span></tt></a>(h)</td>
-<td>Return the prt mode from a RSL ray header.</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.rsl.extract_rsl_pointing.html#pyart.io.rsl.extract_rsl_pointing" title="pyart.io.rsl.extract_rsl_pointing"><tt class="xref py py-obj docutils literal"><span class="pre">extract_rsl_pointing</span></tt></a>(volume,&nbsp;nsweeps,&nbsp;nrays)</td>
-<td>Extract the azimuth and elevation parameters from a RSL Volume.</td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl.rsl_header_to_dict.html#pyart.io.rsl.rsl_header_to_dict" title="pyart.io.rsl.rsl_header_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">rsl_header_to_dict</span></tt></a>(header)</td>
-<td>Return a dictionary containing the attributes in a RSL header.</td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.rsl.ray_header_time_to_datetime.html#pyart.io.rsl.ray_header_time_to_datetime" title="pyart.io.rsl.ray_header_time_to_datetime"><tt class="xref py py-obj docutils literal"><span class="pre">ray_header_time_to_datetime</span></tt></a>(h)</td>
-<td>Return a datetime object from a RSL ray header.</td>
-</tr>
 </tbody>
 </table>
 </div>
-<span class="target" id="module-pyart.io.rsl_utils"></span><div class="section" id="pyart-io-rsl-utils">
-<h2>pyart.io.rsl_utils<a class="headerlink" href="#pyart-io-rsl-utils" title="Permalink to this headline">¶</a></h2>
-<p>Utilities for converting to RSL radar objects.</p>
+<span class="target" id="module-pyart.io._rsl_interface"></span><div class="section" id="pyart-io-rsl-interface">
+<h2>pyart.io._rsl_interface<a class="headerlink" href="#pyart-io-rsl-interface" title="Permalink to this headline">¶</a></h2>
+<p>Cython wrapper around the NASA TRMM RSL library.</p>
 <table border="1" class="longtable docutils">
 <colgroup>
 <col width="10%" />
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl_utils.mdv_to_rsl.html#pyart.io.rsl_utils.mdv_to_rsl" title="pyart.io.rsl_utils.mdv_to_rsl"><tt class="xref py py-obj docutils literal"><span class="pre">mdv_to_rsl</span></tt></a>(myfile,&nbsp;trans)</td>
-<td>Convert a mdv object into a RSL Radar object</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl_interface.copy_volume.html#pyart.io._rsl_interface.copy_volume" title="pyart.io._rsl_interface.copy_volume"><tt class="xref py py-obj docutils literal"><span class="pre">copy_volume</span></tt></a>(volume)</td>
+<td>Return a copy of a _RslVolume object.</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.rsl_utils.radar_to_rsl.html#pyart.io.rsl_utils.radar_to_rsl" title="pyart.io.rsl_utils.radar_to_rsl"><tt class="xref py py-obj docutils literal"><span class="pre">radar_to_rsl</span></tt></a>(myradar,&nbsp;trans)</td>
-<td></td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl_interface.create_volume.html#pyart.io._rsl_interface.create_volume" title="pyart.io._rsl_interface.create_volume"><tt class="xref py py-obj docutils literal"><span class="pre">create_volume</span></tt></a>(arr)</td>
+<td>Create a _RslVolume object from a 3D float32 array.</td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl_utils.ppi_radar_to_rsl.html#pyart.io.rsl_utils.ppi_radar_to_rsl" title="pyart.io.rsl_utils.ppi_radar_to_rsl"><tt class="xref py py-obj docutils literal"><span class="pre">ppi_radar_to_rsl</span></tt></a>(myradar,&nbsp;trans)</td>
-<td>Convert a Radar object into a RSL Radar object</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl_interface._label_volume.html#pyart.io._rsl_interface._label_volume" title="pyart.io._rsl_interface._label_volume"><tt class="xref py py-obj docutils literal"><span class="pre">_label_volume</span></tt></a>(volume,&nbsp;radar)</td>
+<td>Add labels for dealiasing to a _RslVolume object from a radar object.</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.rsl_utils.rhi_radar_to_rsl.html#pyart.io.rsl_utils.rhi_radar_to_rsl" title="pyart.io.rsl_utils.rhi_radar_to_rsl"><tt class="xref py py-obj docutils literal"><span class="pre">rhi_radar_to_rsl</span></tt></a>(myradar,&nbsp;trans)</td>
-<td>Convert a Radar object into a RSL Radar object</td>
+</tbody>
+</table>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl_interface.RslFile.html#pyart.io._rsl_interface.RslFile" title="pyart.io._rsl_interface.RslFile"><tt class="xref py py-obj docutils literal"><span class="pre">RslFile</span></tt></a></td>
+<td>A object for accessing Radar data and parameter using the RSL library.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl_interface._RslVolume.html#pyart.io._rsl_interface._RslVolume" title="pyart.io._rsl_interface._RslVolume"><tt class="xref py py-obj docutils literal"><span class="pre">_RslVolume</span></tt></a></td>
+<td>A object for accessing RSL Volume data and header information.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io._rsl_interface._RslSweep.html#pyart.io._rsl_interface._RslSweep" title="pyart.io._rsl_interface._RslSweep"><tt class="xref py py-obj docutils literal"><span class="pre">_RslSweep</span></tt></a></td>
+<td>A object for accessing RSL Sweep data and header information.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io._rsl_interface._RslRay.html#pyart.io._rsl_interface._RslRay" title="pyart.io._rsl_interface._RslRay"><tt class="xref py py-obj docutils literal"><span class="pre">_RslRay</span></tt></a></td>
+<td>A object for accessing RSL Ray data and header information</td>
 </tr>
 </tbody>
 </table>
@@ -402,9 +304,6 @@
 <li><a class="reference internal" href="#pyart-io-common">pyart.io.common</a><ul>
 </ul>
 </li>
-<li><a class="reference internal" href="#pyart-io-fourdd">pyart.io.fourdd</a><ul>
-</ul>
-</li>
 <li><a class="reference internal" href="#pyart-io-grid">pyart.io.grid</a><ul>
 </ul>
 </li>
@@ -420,13 +319,10 @@
 <li><a class="reference internal" href="#pyart-io-radar">pyart.io.radar</a><ul>
 </ul>
 </li>
-<li><a class="reference internal" href="#pyart-io-rsl">pyart.io._rsl</a><ul>
+<li><a class="reference internal" href="#pyart-io-rsl">pyart.io.rsl</a><ul>
 </ul>
 </li>
-<li><a class="reference internal" href="#id1">pyart.io.rsl</a><ul>
-</ul>
-</li>
-<li><a class="reference internal" href="#pyart-io-rsl-utils">pyart.io.rsl_utils</a><ul>
+<li><a class="reference internal" href="#pyart-io-rsl-interface">pyart.io._rsl_interface</a><ul>
 </ul>
 </li>
 </ul>
@@ -485,7 +381,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013, Py-ART developers.
-      Last updated on Mar 08, 2013.
+      Last updated on Apr 19, 2013.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>

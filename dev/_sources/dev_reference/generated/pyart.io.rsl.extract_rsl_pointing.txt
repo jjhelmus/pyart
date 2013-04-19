@@ -1,6 +1,0 @@
-pyart.io.rsl.extract_rsl_pointing
-=================================
-
-.. currentmodule:: pyart.io.rsl
-
-.. autofunction:: extract_rsl_pointing

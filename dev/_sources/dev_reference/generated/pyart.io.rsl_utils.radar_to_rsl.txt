@@ -1,6 +1,0 @@
-pyart.io.rsl_utils.radar_to_rsl
-===============================
-
-.. currentmodule:: pyart.io.rsl_utils
-
-.. autofunction:: radar_to_rsl
