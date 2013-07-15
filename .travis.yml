@@ -12,8 +12,9 @@ before_install:
     - export RSL_PATH=/usr
     
 install: 
+    - SITE_PKG_DIR=$VIRTUAL_ENV/lib/python$TRAVIS_PYTHON_VERSION/site-packages
     - rm -f $VIRTUAL_ENV/lib/python$TRAVIS_PYTHON_VERSION/no-global-site-packages.txt
     - python -V
     - python -c "import numpy; print numpy.__version__"
     - python setup.py build_ext --inplace
-script: xvfb-run --server-args="-screen 0 1024x768x24" nosetests -e "rsl" -v pyart
+script: xvfb-run nosetests -e "rsl" -v pyart
