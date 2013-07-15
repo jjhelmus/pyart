@@ -6,7 +6,7 @@ before_install:
     - sudo apt-get update -qq
     - sudo apt-get install -qq librsl-dev
     - sudo apt-get install -qq python-scipy python-nose python-matplotlib 
-    - sudo add-apt-repository ppa:adrian-m-benson/ppa
+    - sudo add-apt-repository -y ppa:adrian-m-benson/ppa
     - sudo apt-get update -qq
     - sudo apt-get install -qq python-netcdf4
     - export RSL_PATH=/usr
