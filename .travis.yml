@@ -4,8 +4,9 @@ python:
 before_install:
     - deactivate
     - sudo apt-get update -qq
-    - sudo apt-get install librsl-dev
-    - sudo apt-get install -qq python-scipy python-nose python-matplotlib
+    - sudo apt-get install -qq librsl-dev
+    - sudo apt-get install -qq python-scipy python-nose python-matplotlib 
+    - sudo apt-get install -qq python-netcdf
     - export RSL_PATH=/usr
     - virtualenv --system-site-packages ~/virtualenv/this
     - source ~/virtualenv/this/bin/activate
