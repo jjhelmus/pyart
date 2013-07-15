@@ -6,7 +6,7 @@ before_install:
     - sudo apt-get update -qq
     - sudo apt-get install librsl-dev
     - sudo apt-get install -qq python-scipy python-nose python-matplotlib
-    - export RSL_PATH=/usr/lib
+    - export RSL_PATH=/usr
     - virtualenv --system-site-packages ~/virtualenv/this
     - source ~/virtualenv/this/bin/activate
 install: python setup.py build_ext --inplace
