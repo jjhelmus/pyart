@@ -494,6 +494,7 @@ def test_cart():
     assert mdvfile.carts['z'].shape == (1, 360, 110)
     assert round(mdvfile.carts['x'][0, 1, 2], 2) == 6.24
     assert round(mdvfile.carts['y'][0, 1, 2], 2) == 357.63
+    print mdvfile.carts['z'][0, 1, 2]
     assert round(mdvfile.carts['z'][0, 1, 2], 2) == 4.69
 
 
