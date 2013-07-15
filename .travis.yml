@@ -2,11 +2,11 @@ language: python
 python:
     - "2.6"
     - "2.7"
-install: 
-    - "pip install nose"
-    - "pip install numpy"
-    - "pip install scipy"
-    - "pip install matplotlib"
-    - "pip install netCDF4"
-    - "python setup.py build_ext --inplace"
+before_install:
+    - deactivate
+    - sudo apt-get update -qq
+    - sudo apt-get install -qq python-scipy python-nose python-matplotlib
+    - virtualenv --system-site-packages ~/virtualenv/this
+    - source ~/virtualenv/this/bin/activate
+install: python setup.py build_ext --inplace
 script: nosetests -s -v pyart
