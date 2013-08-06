@@ -29,7 +29,7 @@
     <link rel="top" title="Py-ART Documentation (DRAFT)" href="../../index.html" />
     <link rel="up" title="pyart.map" href="../map.html" />
     <link rel="next" title="pyart.map.grid_mapper._load_nn_field_data" href="pyart.map.grid_mapper._load_nn_field_data.html" />
-    <link rel="prev" title="pyart.map.grid_mapper.NNLocator.__init__" href="pyart.map.grid_mapper.NNLocator.__init__.html" /> 
+    <link rel="prev" title="pyart.map.grid_mapper.grid_from_radars" href="pyart.map.grid_mapper.grid_from_radars.html" /> 
   </head>
   <body>
     <div class="related">
@@ -48,7 +48,7 @@
           <a href="pyart.map.grid_mapper._load_nn_field_data.html" title="pyart.map.grid_mapper._load_nn_field_data"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="pyart.map.grid_mapper.NNLocator.__init__.html" title="pyart.map.grid_mapper.NNLocator.__init__"
+          <a href="pyart.map.grid_mapper.grid_from_radars.html" title="pyart.map.grid_mapper.grid_from_radars"
              accesskey="P">previous</a> |</li>
         <li><a href="../../index.html">Py-ART Documentation (DRAFT)</a> &raquo;</li>
           <li><a href="../index.html" >Developer Reference Manual</a> &raquo;</li>
@@ -65,7 +65,7 @@
 <h1>pyart.map.grid_mapper.map_to_grid<a class="headerlink" href="#pyart-map-grid-mapper-map-to-grid" title="Permalink to this headline">¶</a></h1>
 <dl class="function">
 <dt id="pyart.map.grid_mapper.map_to_grid">
-<tt class="descclassname">pyart.map.grid_mapper.</tt><tt class="descname">map_to_grid</tt><big>(</big><em>radars</em>, <em>grid_shape=(81</em>, <em>81</em>, <em>69)</em>, <em>grid_limits=((-30000.0</em>, <em>20000)</em>, <em>(-20000.0</em>, <em>20000.0)</em>, <em>(0</em>, <em>17000.0))</em>, <em>grid_origin=None</em>, <em>fields=None</em>, <em>refl_field='reflectivity_horizontal'</em>, <em>max_refl=190.0</em>, <em>qrf_func=None</em>, <em>map_roi=True</em>, <em>weighting_function='Barnes'</em>, <em>toa=17000.0</em>, <em>h_factor=1.0</em>, <em>nb=1.5</em>, <em>bsp=1.0</em>, <em>copy_field_data=True</em>, <em>algorithm='kd_tree'</em>, <em>leafsize=10</em>, <em>badval=-9999.0</em><big>)</big><a class="reference external" href="http://github.com/ARM-DOE/pyart/blob/master/map/grid_mapper.py#L94"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyart.map.grid_mapper.map_to_grid" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">pyart.map.grid_mapper.</tt><tt class="descname">map_to_grid</tt><big>(</big><em>radars</em>, <em>grid_shape=(81</em>, <em>81</em>, <em>69)</em>, <em>grid_limits=((-30000.0</em>, <em>20000)</em>, <em>(-20000.0</em>, <em>20000.0)</em>, <em>(0</em>, <em>17000.0))</em>, <em>grid_origin=None</em>, <em>fields=None</em>, <em>refl_field='reflectivity_horizontal'</em>, <em>max_refl=190.0</em>, <em>qrf_func=None</em>, <em>map_roi=True</em>, <em>weighting_function='Barnes'</em>, <em>toa=17000.0</em>, <em>h_factor=1.0</em>, <em>nb=1.5</em>, <em>bsp=1.0</em>, <em>min_radius=500.0</em>, <em>copy_field_data=True</em>, <em>algorithm='kd_tree'</em>, <em>leafsize=10</em>, <em>badval=-9999.0</em><big>)</big><a class="reference external" href="http://github.com/ARM-DOE/pyart/blob/master/pyart/map/grid_mapper.py#L242"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pyart.map.grid_mapper.map_to_grid" title="Permalink to this definition">¶</a></dt>
 <dd><p>Map one or more radars to a Cartesian grid.</p>
 <p>Generate a Cartesian grid of points for the requested fields from the
 collected points from one or more radars.  The field value for a grid
@@ -140,15 +140,67 @@ not included in the interpolation.</p>
 </td>
 </tr>
 <tr class="field-even field"><th class="field-name">Returns :</th><td class="field-body"><p class="first"><strong>grids</strong> : dict</p>
-<blockquote class="last">
+<blockquote>
 <div><p>Dictionary of mapped fields.  The keysof the dictionary are given by
 parameter fields.  Each elements is a <cite>grid_size</cite> float64 array
 containing the interpolated grid for that field.</p>
 </div></blockquote>
 </td>
 </tr>
+<tr class="field-odd field"><th class="field-name" colspan="2">Other Parameters:</th></tr>
+<tr class="field-odd field"><td>&nbsp;</td><td class="field-body"><p class="first"><strong>h_factor</strong> : float</p>
+<blockquote>
+<div><p>H factor which influences the increase in the radius of influence as
+elevation increases.  Only used when qrf_func is None.</p>
+</div></blockquote>
+<p><strong>nb</strong> : float</p>
+<blockquote>
+<div><p>Virtual beam width. Only used when qrf_func is None.</p>
+</div></blockquote>
+<p><strong>bsp</strong> : float</p>
+<blockquote>
+<div><p>Virtual beam spacing. Only used when qrf_func is None.</p>
+</div></blockquote>
+<p><strong>min_radius</strong> : float</p>
+<blockquote>
+<div><p>Minimum radius of influence. Only used when qrf_func is None.</p>
+</div></blockquote>
+<p><strong>copy_field_data</strong> : bool</p>
+<blockquote>
+<div><p>True to copy the data within the radar fields for faster gridding,
+False will not copy the data which will use less memory but result in
+significantly fast gridding times.</p>
+</div></blockquote>
+<p><strong>algorithm</strong> : &#8216;kd_tree&#8217; or &#8216;ball_tree&#8217;</p>
+<blockquote>
+<div><p>Algorithms to use for finding the nearest neighbors. &#8216;kd_tree&#8217; tends
+to be faster.  This value should only effects the speed of the
+gridding, not the results.</p>
+</div></blockquote>
+<p><strong>leafsize</strong> : int</p>
+<blockquote>
+<div><p>Leaf size passed to the neighbor lookup tree. This can affect the
+speed of the construction and query, as well as the memory required
+to store the tree. The optimal value depends on the nature of the
+problem. This value should only effect the speed of the gridding,
+not the results.</p>
+</div></blockquote>
+<p><strong>badval</strong> : float</p>
+<blockquote class="last">
+<div><p>Value to set points in the grid to which have no valid collected
+points within  the radius of influence.  These points are also masked.</p>
+</div></blockquote>
+</td>
+</tr>
 </tbody>
 </table>
+<div class="admonition-see-also admonition seealso">
+<p class="first admonition-title">See also</p>
+<dl class="last docutils">
+<dt><a class="reference internal" href="pyart.map.grid_mapper.grid_from_radars.html#pyart.map.grid_mapper.grid_from_radars" title="pyart.map.grid_mapper.grid_from_radars"><tt class="xref py py-obj docutils literal"><span class="pre">grid_from_radars</span></tt></a></dt>
+<dd>Map to grid and return a Grid object.</dd>
+</dl>
+</div>
 </dd></dl>
 
 </div>
@@ -160,8 +212,8 @@ containing the interpolated grid for that field.</p>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
   <h4>Previous topic</h4>
-  <p class="topless"><a href="pyart.map.grid_mapper.NNLocator.__init__.html"
-                        title="previous chapter">pyart.map.grid_mapper.NNLocator.__init__</a></p>
+  <p class="topless"><a href="pyart.map.grid_mapper.grid_from_radars.html"
+                        title="previous chapter">pyart.map.grid_mapper.grid_from_radars</a></p>
   <h4>Next topic</h4>
   <p class="topless"><a href="pyart.map.grid_mapper._load_nn_field_data.html"
                         title="next chapter">pyart.map.grid_mapper._load_nn_field_data</a></p>
@@ -203,7 +255,7 @@ containing the interpolated grid for that field.</p>
           <a href="pyart.map.grid_mapper._load_nn_field_data.html" title="pyart.map.grid_mapper._load_nn_field_data"
              >next</a> |</li>
         <li class="right" >
-          <a href="pyart.map.grid_mapper.NNLocator.__init__.html" title="pyart.map.grid_mapper.NNLocator.__init__"
+          <a href="pyart.map.grid_mapper.grid_from_radars.html" title="pyart.map.grid_mapper.grid_from_radars"
              >previous</a> |</li>
         <li><a href="../../index.html">Py-ART Documentation (DRAFT)</a> &raquo;</li>
           <li><a href="../index.html" >Developer Reference Manual</a> &raquo;</li>
@@ -212,7 +264,7 @@ containing the interpolated grid for that field.</p>
     </div>
     <div class="footer">
         &copy; Copyright 2013, Py-ART developers.
-      Last updated on Apr 19, 2013.
+      Last updated on Aug 06, 2013.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>

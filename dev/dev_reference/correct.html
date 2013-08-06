@@ -29,7 +29,7 @@
     <link rel="top" title="Py-ART Documentation (DRAFT)" href="../index.html" />
     <link rel="up" title="Developer Reference Manual" href="index.html" />
     <link rel="next" title="pyart.correct.attenuation.calculate_attenuation" href="generated/pyart.correct.attenuation.calculate_attenuation.html" />
-    <link rel="prev" title="pyart.io._rsl_interface._RslRay.__subclasshook__" href="generated/pyart.io._rsl_interface._RslRay.__subclasshook__.html" /> 
+    <link rel="prev" title="pyart.io.sigmet._unpack_ingest_header" href="generated/pyart.io.sigmet._unpack_ingest_header.html" /> 
   </head>
   <body>
     <div class="related">
@@ -48,7 +48,7 @@
           <a href="generated/pyart.correct.attenuation.calculate_attenuation.html" title="pyart.correct.attenuation.calculate_attenuation"
              accesskey="N">next</a> |</li>
         <li class="right" >
-          <a href="generated/pyart.io._rsl_interface._RslRay.__subclasshook__.html" title="pyart.io._rsl_interface._RslRay.__subclasshook__"
+          <a href="generated/pyart.io.sigmet._unpack_ingest_header.html" title="pyart.io.sigmet._unpack_ingest_header"
              accesskey="P">previous</a> |</li>
         <li><a href="../index.html">Py-ART Documentation (DRAFT)</a> &raquo;</li>
           <li><a href="index.html" accesskey="U">Developer Reference Manual</a> &raquo;</li> 
@@ -66,7 +66,7 @@
 <span class="target" id="module-pyart.correct.attenuation"></span><div class="section" id="pyart-correct-attenuation">
 <h2>pyart.correct.attenuation<a class="headerlink" href="#pyart-correct-attenuation" title="Permalink to this headline">¶</a></h2>
 <p>Attenuation correction from polarimetric radars.</p>
-<p>Code adapted from XXX by Scott Giangrande et al</p>
+<p>Code adapted from method in Gu et al, JAMC 2011, 50, 39.</p>
 <p>Adapted by Scott Collis and Scott Giangrande, refactored by Jonathan Helmus.</p>
 <table border="1" class="longtable docutils">
 <colgroup>
@@ -75,7 +75,7 @@
 </colgroup>
 <tbody valign="top">
 <tr class="row-odd"><td><a class="reference internal" href="generated/pyart.correct.attenuation.calculate_attenuation.html#pyart.correct.attenuation.calculate_attenuation" title="pyart.correct.attenuation.calculate_attenuation"><tt class="xref py py-obj docutils literal"><span class="pre">calculate_attenuation</span></tt></a>(radar,&nbsp;z_offset[,&nbsp;...])</td>
-<td>Calculate the attenuation from a polarimetric radar using XXX</td>
+<td>Calculate the attenuation from a polarimetric radar using Z-PHI method.</td>
 </tr>
 </tbody>
 </table>
@@ -200,8 +200,8 @@
 </ul>
 
   <h4>Previous topic</h4>
-  <p class="topless"><a href="generated/pyart.io._rsl_interface._RslRay.__subclasshook__.html"
-                        title="previous chapter">pyart.io._rsl_interface._RslRay.__subclasshook__</a></p>
+  <p class="topless"><a href="generated/pyart.io.sigmet._unpack_ingest_header.html"
+                        title="previous chapter">pyart.io.sigmet._unpack_ingest_header</a></p>
   <h4>Next topic</h4>
   <p class="topless"><a href="generated/pyart.correct.attenuation.calculate_attenuation.html"
                         title="next chapter">pyart.correct.attenuation.calculate_attenuation</a></p>
@@ -243,7 +243,7 @@
           <a href="generated/pyart.correct.attenuation.calculate_attenuation.html" title="pyart.correct.attenuation.calculate_attenuation"
              >next</a> |</li>
         <li class="right" >
-          <a href="generated/pyart.io._rsl_interface._RslRay.__subclasshook__.html" title="pyart.io._rsl_interface._RslRay.__subclasshook__"
+          <a href="generated/pyart.io.sigmet._unpack_ingest_header.html" title="pyart.io.sigmet._unpack_ingest_header"
              >previous</a> |</li>
         <li><a href="../index.html">Py-ART Documentation (DRAFT)</a> &raquo;</li>
           <li><a href="index.html" >Developer Reference Manual</a> &raquo;</li> 
@@ -251,7 +251,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013, Py-ART developers.
-      Last updated on Apr 19, 2013.
+      Last updated on Aug 06, 2013.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>

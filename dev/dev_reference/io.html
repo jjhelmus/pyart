@@ -28,7 +28,7 @@
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
     <link rel="top" title="Py-ART Documentation (DRAFT)" href="../index.html" />
     <link rel="up" title="Developer Reference Manual" href="index.html" />
-    <link rel="next" title="pyart.io.common.dms_to_d" href="generated/pyart.io.common.dms_to_d.html" />
+    <link rel="next" title="pyart.io.auto_read.read" href="generated/pyart.io.auto_read.read.html" />
     <link rel="prev" title="Developer Reference Manual" href="index.html" /> 
   </head>
   <body>
@@ -45,7 +45,7 @@
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="generated/pyart.io.common.dms_to_d.html" title="pyart.io.common.dms_to_d"
+          <a href="generated/pyart.io.auto_read.read.html" title="pyart.io.auto_read.read"
              accesskey="N">next</a> |</li>
         <li class="right" >
           <a href="index.html" title="Developer Reference Manual"
@@ -63,6 +63,24 @@
   <div class="section" id="pyart-io">
 <h1>pyart.io<a class="headerlink" href="#pyart-io" title="Permalink to this headline">¶</a></h1>
 <p>Input/Output routines.</p>
+<span class="target" id="module-pyart.io.auto_read"></span><div class="section" id="pyart-io-auto-read">
+<h2>pyart.io.auto_read<a class="headerlink" href="#pyart-io-auto-read" title="Permalink to this headline">¶</a></h2>
+<p>Automatic reading of radar files by detecting format.</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.auto_read.read.html#pyart.io.auto_read.read" title="pyart.io.auto_read.read"><tt class="xref py py-obj docutils literal"><span class="pre">read</span></tt></a>(filename[,&nbsp;callid,&nbsp;use_rsl])</td>
+<td>Read a radar file and return a radar object.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.auto_read.determine_filetype.html#pyart.io.auto_read.determine_filetype" title="pyart.io.auto_read.determine_filetype"><tt class="xref py py-obj docutils literal"><span class="pre">determine_filetype</span></tt></a>(filename)</td>
+<td>Return the filetype of a given file by examining the first few bytes.</td>
+</tr>
+</tbody>
+</table>
+</div>
 <span class="target" id="module-pyart.io.common"></span><div class="section" id="pyart-io-common">
 <h2>pyart.io.common<a class="headerlink" href="#pyart-io-common" title="Permalink to this headline">¶</a></h2>
 <p>Input/output routines common to many file formats.</p>
@@ -76,9 +94,9 @@
 <td>Degrees, minutes, seconds to degrees</td>
 </tr>
 <tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.common.radar_coords_to_cart.html#pyart.io.common.radar_coords_to_cart" title="pyart.io.common.radar_coords_to_cart"><tt class="xref py py-obj docutils literal"><span class="pre">radar_coords_to_cart</span></tt></a>(rng,&nbsp;az,&nbsp;ele[,&nbsp;debug])</td>
-<td>Assumes standard atmosphere, ie R=4Re/3</td>
+<td>Calculate Cartesian coordinate from radar coordinates</td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.common.make_tu_str.html#pyart.io.common.make_tu_str" title="pyart.io.common.make_tu_str"><tt class="xref py py-obj docutils literal"><span class="pre">make_tu_str</span></tt></a>(dtobj)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.common.make_time_unit_str.html#pyart.io.common.make_time_unit_str" title="pyart.io.common.make_time_unit_str"><tt class="xref py py-obj docutils literal"><span class="pre">make_time_unit_str</span></tt></a>(dtobj)</td>
 <td>Return a time unit string from a datetime object.</td>
 </tr>
 <tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.common.get_metadata.html#pyart.io.common.get_metadata" title="pyart.io.common.get_metadata"><tt class="xref py py-obj docutils literal"><span class="pre">get_metadata</span></tt></a>(p)</td>
@@ -89,21 +107,35 @@
 </div>
 <span class="target" id="module-pyart.io.grid"></span><div class="section" id="pyart-io-grid">
 <h2>pyart.io.grid<a class="headerlink" href="#pyart-io-grid" title="Permalink to this headline">¶</a></h2>
-<p>A general gridded data object for radar data.</p>
+<p>Reading and writing Grid objects.</p>
 <table border="1" class="longtable docutils">
 <colgroup>
 <col width="10%" />
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.grid.grid2.html#pyart.io.grid.grid2" title="pyart.io.grid.grid2"><tt class="xref py py-obj docutils literal"><span class="pre">grid2</span></tt></a>(radars,&nbsp;**kwargs)</td>
-<td>map tuples of Py-Radar objects to a cartesian grid..</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.grid.read_grid.html#pyart.io.grid.read_grid" title="pyart.io.grid.read_grid"><tt class="xref py py-obj docutils literal"><span class="pre">read_grid</span></tt></a>(filename)</td>
+<td>Read a netCDF grid file</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.grid.ncvar_to_field.html#pyart.io.grid.ncvar_to_field" title="pyart.io.grid.ncvar_to_field"><tt class="xref py py-obj docutils literal"><span class="pre">ncvar_to_field</span></tt></a>(ncvar)</td>
-<td></td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.grid.write_grid.html#pyart.io.grid.write_grid" title="pyart.io.grid.write_grid"><tt class="xref py py-obj docutils literal"><span class="pre">write_grid</span></tt></a>(filename,&nbsp;grid[,&nbsp;format])</td>
+<td>Write a Grid object to a CF-1.5 and ARM standard netcdf file</td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.grid.pyGrid.html#pyart.io.grid.pyGrid" title="pyart.io.grid.pyGrid"><tt class="xref py py-obj docutils literal"><span class="pre">pyGrid</span></tt></a>(*args,&nbsp;**kwargs)</td>
-<td></td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.grid._read_grid_cf.html#pyart.io.grid._read_grid_cf" title="pyart.io.grid._read_grid_cf"><tt class="xref py py-obj docutils literal"><span class="pre">_read_grid_cf</span></tt></a>(filename)</td>
+<td>Read a CF compliant netCDF file containing a grid.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.grid._read_grid_wrf.html#pyart.io.grid._read_grid_wrf" title="pyart.io.grid._read_grid_wrf"><tt class="xref py py-obj docutils literal"><span class="pre">_read_grid_wrf</span></tt></a>(filename)</td>
+<td>Read a WRF netCDF file containing a grid.</td>
+</tr>
+</tbody>
+</table>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.grid.Grid.html#pyart.io.grid.Grid" title="pyart.io.grid.Grid"><tt class="xref py py-obj docutils literal"><span class="pre">Grid</span></tt></a>(fields,&nbsp;axes,&nbsp;metadata)</td>
+<td>An object for holding gridded Radar data.</td>
 </tr>
 </tbody>
 </table>
@@ -135,57 +167,6 @@
 </tbody>
 </table>
 </div>
-<span class="target" id="module-pyart.io.nc_utils"></span><div class="section" id="pyart-io-nc-utils">
-<h2>pyart.io.nc_utils<a class="headerlink" href="#pyart-io-nc-utils" title="Permalink to this headline">¶</a></h2>
-<p>Utilities for saving mapped and radar co-ordinate radar data.</p>
-<table border="1" class="longtable docutils">
-<colgroup>
-<col width="10%" />
-<col width="90%" />
-</colgroup>
-<tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.is_moment.html#pyart.io.nc_utils.is_moment" title="pyart.io.nc_utils.is_moment"><tt class="xref py py-obj docutils literal"><span class="pre">is_moment</span></tt></a>(varname,&nbsp;moment_fixes)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.fix_variables_csapr.html#pyart.io.nc_utils.fix_variables_csapr" title="pyart.io.nc_utils.fix_variables_csapr"><tt class="xref py py-obj docutils literal"><span class="pre">fix_variables_csapr</span></tt></a>(cgfile)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.append_global_metatdata_csapr.html#pyart.io.nc_utils.append_global_metatdata_csapr" title="pyart.io.nc_utils.append_global_metatdata_csapr"><tt class="xref py py-obj docutils literal"><span class="pre">append_global_metatdata_csapr</span></tt></a>(cgfile)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.append_global_metatdata_xsapr.html#pyart.io.nc_utils.append_global_metatdata_xsapr" title="pyart.io.nc_utils.append_global_metatdata_xsapr"><tt class="xref py py-obj docutils literal"><span class="pre">append_global_metatdata_xsapr</span></tt></a>(cgfile)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.append_coords.html#pyart.io.nc_utils.append_coords" title="pyart.io.nc_utils.append_coords"><tt class="xref py py-obj docutils literal"><span class="pre">append_coords</span></tt></a>(cgfile,&nbsp;xar,&nbsp;yar,&nbsp;zar,&nbsp;radar_loc)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.fix_time.html#pyart.io.nc_utils.fix_time" title="pyart.io.nc_utils.fix_time"><tt class="xref py py-obj docutils literal"><span class="pre">fix_time</span></tt></a>(cgfile,&nbsp;time)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.dt_to_dict.html#pyart.io.nc_utils.dt_to_dict" title="pyart.io.nc_utils.dt_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">dt_to_dict</span></tt></a>(dt,&nbsp;**kwargs)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_netcdf_cube.html#pyart.io.nc_utils.save_netcdf_cube" title="pyart.io.nc_utils.save_netcdf_cube"><tt class="xref py py-obj docutils literal"><span class="pre">save_netcdf_cube</span></tt></a>(grids,&nbsp;output_file,&nbsp;myfile,&nbsp;...)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.noncf_append_global_metatdata.html#pyart.io.nc_utils.noncf_append_global_metatdata" title="pyart.io.nc_utils.noncf_append_global_metatdata"><tt class="xref py py-obj docutils literal"><span class="pre">noncf_append_global_metatdata</span></tt></a>(cgfile)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.copy_meta.html#pyart.io.nc_utils.copy_meta" title="pyart.io.nc_utils.copy_meta"><tt class="xref py py-obj docutils literal"><span class="pre">copy_meta</span></tt></a>(myfile,&nbsp;ofile)</td>
-<td></td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.copy_axis.html#pyart.io.nc_utils.copy_axis" title="pyart.io.nc_utils.copy_axis"><tt class="xref py py-obj docutils literal"><span class="pre">copy_axis</span></tt></a>(myfile,&nbsp;cgfile)</td>
-<td></td>
-</tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_pyGrid.html#pyart.io.nc_utils.save_pyGrid" title="pyart.io.nc_utils.save_pyGrid"><tt class="xref py py-obj docutils literal"><span class="pre">save_pyGrid</span></tt></a>(ncfobj,&nbsp;pygrid,&nbsp;**kwargs)</td>
-<td>Saves a pyGrid object to a CF and ARM standard netcdf file</td>
-</tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nc_utils.save_mdv_ncf.html#pyart.io.nc_utils.save_mdv_ncf" title="pyart.io.nc_utils.save_mdv_ncf"><tt class="xref py py-obj docutils literal"><span class="pre">save_mdv_ncf</span></tt></a>(myfile,&nbsp;output_file,&nbsp;parms,&nbsp;...)</td>
-<td></td>
-</tr>
-</tbody>
-</table>
-</div>
 <span class="target" id="module-pyart.io.netcdf"></span><div class="section" id="pyart-io-netcdf">
 <h2>pyart.io.netcdf<a class="headerlink" href="#pyart-io-netcdf" title="Permalink to this headline">¶</a></h2>
 <p>Utilities for reading netcdf files.</p>
@@ -201,17 +182,126 @@
 <tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf.write_netcdf.html#pyart.io.netcdf.write_netcdf" title="pyart.io.netcdf.write_netcdf"><tt class="xref py py-obj docutils literal"><span class="pre">write_netcdf</span></tt></a>(filename,&nbsp;radar[,&nbsp;format])</td>
 <td>Write a Radar object to a CF/Radial compliant netCDF file.</td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._ncvar_to_dict.html#pyart.io.netcdf._ncvar_to_dict" title="pyart.io.netcdf._ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_ncvar_to_dict</span></tt></a>(ncvar)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._find_all_meta_group_vars.html#pyart.io.netcdf._find_all_meta_group_vars" title="pyart.io.netcdf._find_all_meta_group_vars"><tt class="xref py py-obj docutils literal"><span class="pre">_find_all_meta_group_vars</span></tt></a>(ncvars,&nbsp;...)</td>
+<td>Return a list of all variables which are in a given meta_group.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._ncvar_to_dict.html#pyart.io.netcdf._ncvar_to_dict" title="pyart.io.netcdf._ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_ncvar_to_dict</span></tt></a>(ncvar)</td>
 <td>Convert a NetCDF Dataset variable to a dictionary.</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_ncvar_to_dict.html#pyart.io.netcdf._stream_ncvar_to_dict" title="pyart.io.netcdf._stream_ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_ncvar_to_dict</span></tt></a>(ncvar,&nbsp;sweeps,&nbsp;sweepe,&nbsp;...)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_ncvar_to_dict.html#pyart.io.netcdf._stream_ncvar_to_dict" title="pyart.io.netcdf._stream_ncvar_to_dict"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_ncvar_to_dict</span></tt></a>(ncvar,&nbsp;sweeps,&nbsp;sweepe,&nbsp;...)</td>
 <td>Convert a Stream NetCDF Dataset variable to a dict.</td>
 </tr>
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_to_2d.html#pyart.io.netcdf._stream_to_2d" title="pyart.io.netcdf._stream_to_2d"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_to_2d</span></tt></a>(data,&nbsp;sweeps,&nbsp;sweepe,&nbsp;ray_len,&nbsp;...)</td>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._stream_to_2d.html#pyart.io.netcdf._stream_to_2d" title="pyart.io.netcdf._stream_to_2d"><tt class="xref py py-obj docutils literal"><span class="pre">_stream_to_2d</span></tt></a>(data,&nbsp;sweeps,&nbsp;sweepe,&nbsp;ray_len,&nbsp;...)</td>
 <td>Convert a 1D stream to a 2D array.</td>
 </tr>
-<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.netcdf._create_ncvar.html#pyart.io.netcdf._create_ncvar" title="pyart.io.netcdf._create_ncvar"><tt class="xref py py-obj docutils literal"><span class="pre">_create_ncvar</span></tt></a>(dic,&nbsp;dataset,&nbsp;name,&nbsp;dimensions)</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.netcdf._create_ncvar.html#pyart.io.netcdf._create_ncvar" title="pyart.io.netcdf._create_ncvar"><tt class="xref py py-obj docutils literal"><span class="pre">_create_ncvar</span></tt></a>(dic,&nbsp;dataset,&nbsp;name,&nbsp;dimensions)</td>
 <td>Create and fill a Variable in a netCDF Dataset object.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<span class="target" id="module-pyart.io.nexrad_archive"></span><div class="section" id="pyart-io-nexrad-archive">
+<h2>pyart.io.nexrad_archive<a class="headerlink" href="#pyart-io-nexrad-archive" title="Permalink to this headline">¶</a></h2>
+<p>Functions for reading NEXRAD Level II Archive files.</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_archive.read_nexrad_archive.html#pyart.io.nexrad_archive.read_nexrad_archive" title="pyart.io.nexrad_archive.read_nexrad_archive"><tt class="xref py py-obj docutils literal"><span class="pre">read_nexrad_archive</span></tt></a>(filename[,&nbsp;bzip,&nbsp;...])</td>
+<td>Read a NEXRAD Level 2 Archive file.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nexrad_archive._radar_from_nexradl2.html#pyart.io.nexrad_archive._radar_from_nexradl2" title="pyart.io.nexrad_archive._radar_from_nexradl2"><tt class="xref py py-obj docutils literal"><span class="pre">_radar_from_nexradl2</span></tt></a>(nfile,&nbsp;moments,&nbsp;scans,&nbsp;...)</td>
+<td>Create a radar object from a NEXRADLevel2File object.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_archive.ARCHIVE_MAPPING.html#pyart.io.nexrad_archive.ARCHIVE_MAPPING" title="pyart.io.nexrad_archive.ARCHIVE_MAPPING"><tt class="xref py py-obj docutils literal"><span class="pre">ARCHIVE_MAPPING</span></tt></a></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nexrad_archive.NEXRAD_METADATA.html#pyart.io.nexrad_archive.NEXRAD_METADATA" title="pyart.io.nexrad_archive.NEXRAD_METADATA"><tt class="xref py py-obj docutils literal"><span class="pre">NEXRAD_METADATA</span></tt></a></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<span class="target" id="module-pyart.io.nexrad_cdm"></span><div class="section" id="pyart-io-nexrad-cdm">
+<h2>pyart.io.nexrad_cdm<a class="headerlink" href="#pyart-io-nexrad-cdm" title="Permalink to this headline">¶</a></h2>
+<p>Functions for accessing Common Data Model (CDM) NEXRAD Level 2 files.</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_cdm.read_nexrad_cdm.html#pyart.io.nexrad_cdm.read_nexrad_cdm" title="pyart.io.nexrad_cdm.read_nexrad_cdm"><tt class="xref py py-obj docutils literal"><span class="pre">read_nexrad_cdm</span></tt></a>(filename[,&nbsp;field_mapping,&nbsp;...])</td>
+<td>Read a Common Data Model (CDM) NEXRAD Level 2 file.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nexrad_cdm._gen_vnames.html#pyart.io.nexrad_cdm._gen_vnames" title="pyart.io.nexrad_cdm._gen_vnames"><tt class="xref py py-obj docutils literal"><span class="pre">_gen_vnames</span></tt></a>(field,&nbsp;high_res)</td>
+<td>Return a dictionary of variables/dimension names in a CDM dataset.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_cdm._radar_from_cdm.html#pyart.io.nexrad_cdm._radar_from_cdm" title="pyart.io.nexrad_cdm._radar_from_cdm"><tt class="xref py py-obj docutils literal"><span class="pre">_radar_from_cdm</span></tt></a>(dataset,&nbsp;vnames,&nbsp;...)</td>
+<td>Return a Radar from a CDM dataset.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nexrad_cdm.CDM_FIELD_MAPPING.html#pyart.io.nexrad_cdm.CDM_FIELD_MAPPING" title="pyart.io.nexrad_cdm.CDM_FIELD_MAPPING"><tt class="xref py py-obj docutils literal"><span class="pre">CDM_FIELD_MAPPING</span></tt></a></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_cdm.NEXRAD_METADATA.html#pyart.io.nexrad_cdm.NEXRAD_METADATA" title="pyart.io.nexrad_cdm.NEXRAD_METADATA"><tt class="xref py py-obj docutils literal"><span class="pre">NEXRAD_METADATA</span></tt></a></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<span class="target" id="module-pyart.io.nexrad_common"></span><div class="section" id="pyart-io-nexrad-common">
+<h2>pyart.io.nexrad_common<a class="headerlink" href="#pyart-io-nexrad-common" title="Permalink to this headline">¶</a></h2>
+<p>Variables common to the NEXRAD format.</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_common.NEXRAD_METADATA.html#pyart.io.nexrad_common.NEXRAD_METADATA" title="pyart.io.nexrad_common.NEXRAD_METADATA"><tt class="xref py py-obj docutils literal"><span class="pre">NEXRAD_METADATA</span></tt></a></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<span class="target" id="module-pyart.io.nexrad_level2"></span><div class="section" id="pyart-io-nexrad-level2">
+<h2>pyart.io.nexrad_level2<a class="headerlink" href="#pyart-io-nexrad-level2" title="Permalink to this headline">¶</a></h2>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_level2.NEXRADLevel2File.html#pyart.io.nexrad_level2.NEXRADLevel2File" title="pyart.io.nexrad_level2.NEXRADLevel2File"><tt class="xref py py-obj docutils literal"><span class="pre">NEXRADLevel2File</span></tt></a>(filename[,&nbsp;bzip])</td>
+<td>Class for accessing data in a NEXRAD (WSR-88D) Level II file.</td>
+</tr>
+</tbody>
+</table>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_level2._decompress_records.html#pyart.io.nexrad_level2._decompress_records" title="pyart.io.nexrad_level2._decompress_records"><tt class="xref py py-obj docutils literal"><span class="pre">_decompress_records</span></tt></a>(file_handler)</td>
+<td>Decompressed the records from an BZ2 compressed Archive 2 file.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nexrad_level2._get_record_from_buf.html#pyart.io.nexrad_level2._get_record_from_buf" title="pyart.io.nexrad_level2._get_record_from_buf"><tt class="xref py py-obj docutils literal"><span class="pre">_get_record_from_buf</span></tt></a>(buf,&nbsp;pos)</td>
+<td>Retrieve and unpack a NEXRAD record from a buffer.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_level2._get_msg31_data_block.html#pyart.io.nexrad_level2._get_msg31_data_block" title="pyart.io.nexrad_level2._get_msg31_data_block"><tt class="xref py py-obj docutils literal"><span class="pre">_get_msg31_data_block</span></tt></a>(buf,&nbsp;ptr)</td>
+<td>Unpack a msg_31 data block into a dictionary.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nexrad_level2._structure_size.html#pyart.io.nexrad_level2._structure_size" title="pyart.io.nexrad_level2._structure_size"><tt class="xref py py-obj docutils literal"><span class="pre">_structure_size</span></tt></a>(structure)</td>
+<td>Find the size of a structure in bytes.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.nexrad_level2._unpack_from_buf.html#pyart.io.nexrad_level2._unpack_from_buf" title="pyart.io.nexrad_level2._unpack_from_buf"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_from_buf</span></tt></a>(buf,&nbsp;pos,&nbsp;structure)</td>
+<td>Unpack a structure from a buffer.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.nexrad_level2._unpack_structure.html#pyart.io.nexrad_level2._unpack_structure" title="pyart.io.nexrad_level2._unpack_structure"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_structure</span></tt></a>(string,&nbsp;structure)</td>
+<td>Unpack a structure from a string</td>
 </tr>
 </tbody>
 </table>
@@ -225,8 +315,8 @@
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.radar.Radar.html#pyart.io.radar.Radar" title="pyart.io.radar.Radar"><tt class="xref py py-obj docutils literal"><span class="pre">Radar</span></tt></a>(nsweeps,&nbsp;nrays,&nbsp;ngates,&nbsp;scan_type,&nbsp;...)</td>
-<td>A class for storing antenna coordinate radar data which will interact</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.radar.Radar.html#pyart.io.radar.Radar" title="pyart.io.radar.Radar"><tt class="xref py py-obj docutils literal"><span class="pre">Radar</span></tt></a>(time,&nbsp;_range,&nbsp;fields,&nbsp;metadata,&nbsp;...[,&nbsp;...])</td>
+<td>A class for storing antenna coordinate radar data.</td>
 </tr>
 <tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.radar.join_radar.html#pyart.io.radar.join_radar" title="pyart.io.radar.join_radar"><tt class="xref py py-obj docutils literal"><span class="pre">join_radar</span></tt></a>(radar1,&nbsp;radar2)</td>
 <td></td>
@@ -243,7 +333,7 @@
 <col width="90%" />
 </colgroup>
 <tbody valign="top">
-<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl.read_rsl.html#pyart.io.rsl.read_rsl" title="pyart.io.rsl.read_rsl"><tt class="xref py py-obj docutils literal"><span class="pre">read_rsl</span></tt></a>(filename[,&nbsp;add_meta])</td>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.rsl.read_rsl.html#pyart.io.rsl.read_rsl" title="pyart.io.rsl.read_rsl"><tt class="xref py py-obj docutils literal"><span class="pre">read_rsl</span></tt></a>(filename[,&nbsp;radar_format,&nbsp;callid,&nbsp;...])</td>
 <td>Read a file supported by RSL</td>
 </tr>
 </tbody>
@@ -290,6 +380,66 @@
 </tbody>
 </table>
 </div>
+<span class="target" id="module-pyart.io.sigmet"></span><div class="section" id="pyart-io-sigmet">
+<h2>pyart.io.sigmet<a class="headerlink" href="#pyart-io-sigmet" title="Permalink to this headline">¶</a></h2>
+<p>Reading and writing of Sigmet (raw format) files</p>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet.read_sigmet.html#pyart.io.sigmet.read_sigmet" title="pyart.io.sigmet.read_sigmet"><tt class="xref py py-obj docutils literal"><span class="pre">read_sigmet</span></tt></a>(filename[,&nbsp;field_names,&nbsp;...])</td>
+<td>Read a Sigmet (IRIS) product file.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet.SigmetFile.html#pyart.io.sigmet.SigmetFile" title="pyart.io.sigmet.SigmetFile"><tt class="xref py py-obj docutils literal"><span class="pre">SigmetFile</span></tt></a>(filename[,&nbsp;debug])</td>
+<td>A class for accessing data from Sigmet (IRIS) product files.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet.convert_sigmet_data.html#pyart.io.sigmet.convert_sigmet_data" title="pyart.io.sigmet.convert_sigmet_data"><tt class="xref py py-obj docutils literal"><span class="pre">convert_sigmet_data</span></tt></a>(data_type,&nbsp;data)</td>
+<td>Convert sigmet data.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet.bin2_to_angle.html#pyart.io.sigmet.bin2_to_angle" title="pyart.io.sigmet.bin2_to_angle"><tt class="xref py py-obj docutils literal"><span class="pre">bin2_to_angle</span></tt></a>(bin2)</td>
+<td>Return an angle from Sigmet bin2 encoded value (or array).</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet.bin4_to_angle.html#pyart.io.sigmet.bin4_to_angle" title="pyart.io.sigmet.bin4_to_angle"><tt class="xref py py-obj docutils literal"><span class="pre">bin4_to_angle</span></tt></a>(bin4)</td>
+<td>Return an angle from Sigmet bin4 encoded value (or array).</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet.ymds_time_to_datetime.html#pyart.io.sigmet.ymds_time_to_datetime" title="pyart.io.sigmet.ymds_time_to_datetime"><tt class="xref py py-obj docutils literal"><span class="pre">ymds_time_to_datetime</span></tt></a>(ymds)</td>
+<td>Return a datetime object from a Sigmet ymds_time dictionary.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet._data_types_from_mask.html#pyart.io.sigmet._data_types_from_mask" title="pyart.io.sigmet._data_types_from_mask"><tt class="xref py py-obj docutils literal"><span class="pre">_data_types_from_mask</span></tt></a>(word0,&nbsp;word1)</td>
+<td>Return a list of the data types from the words in the data_type mask.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet._is_bit_set.html#pyart.io.sigmet._is_bit_set" title="pyart.io.sigmet._is_bit_set"><tt class="xref py py-obj docutils literal"><span class="pre">_is_bit_set</span></tt></a>(number,&nbsp;bit)</td>
+<td>Return True if bit is set in number.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet._parse_ray_headers.html#pyart.io.sigmet._parse_ray_headers" title="pyart.io.sigmet._parse_ray_headers"><tt class="xref py py-obj docutils literal"><span class="pre">_parse_ray_headers</span></tt></a>(ray_headers)</td>
+<td>Parse the metadata from Sigmet ray headers.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet._unpack_structure.html#pyart.io.sigmet._unpack_structure" title="pyart.io.sigmet._unpack_structure"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_structure</span></tt></a>(string,&nbsp;structure)</td>
+<td>Unpack a structure</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet._unpack_key.html#pyart.io.sigmet._unpack_key" title="pyart.io.sigmet._unpack_key"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_key</span></tt></a>(dic,&nbsp;key,&nbsp;structure)</td>
+<td>Unpack a key.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet._unpack_ingest_data_headers.html#pyart.io.sigmet._unpack_ingest_data_headers" title="pyart.io.sigmet._unpack_ingest_data_headers"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_ingest_data_headers</span></tt></a>(record,&nbsp;ndata_types)</td>
+<td>Unpack one or more ingest_data_header from a record.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet._unpack_ingest_data_header.html#pyart.io.sigmet._unpack_ingest_data_header" title="pyart.io.sigmet._unpack_ingest_data_header"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_ingest_data_header</span></tt></a>(record,&nbsp;number)</td>
+<td>Unpack a single ingest_data_header from record.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet._unpack_raw_prod_bhdr.html#pyart.io.sigmet._unpack_raw_prod_bhdr" title="pyart.io.sigmet._unpack_raw_prod_bhdr"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_raw_prod_bhdr</span></tt></a>(record)</td>
+<td>Return a dict with the unpacked raw_prod_bhdr from a record.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="generated/pyart.io.sigmet._unpack_product_hdr.html#pyart.io.sigmet._unpack_product_hdr" title="pyart.io.sigmet._unpack_product_hdr"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_product_hdr</span></tt></a>(record)</td>
+<td>Return a dict with the unpacked product_hdr from the first record.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="generated/pyart.io.sigmet._unpack_ingest_header.html#pyart.io.sigmet._unpack_ingest_header" title="pyart.io.sigmet._unpack_ingest_header"><tt class="xref py py-obj docutils literal"><span class="pre">_unpack_ingest_header</span></tt></a>(record)</td>
+<td>Return a dict with the unpacked ingest_header from the second record.</td>
+</tr>
+</tbody>
+</table>
+</div>
 </div>
 
 
@@ -301,6 +451,9 @@
   <h3><a href="../index.html">Table Of Contents</a></h3>
   <ul>
 <li><a class="reference internal" href="#">pyart.io</a><ul>
+<li><a class="reference internal" href="#pyart-io-auto-read">pyart.io.auto_read</a><ul>
+</ul>
+</li>
 <li><a class="reference internal" href="#pyart-io-common">pyart.io.common</a><ul>
 </ul>
 </li>
@@ -310,10 +463,19 @@
 <li><a class="reference internal" href="#pyart-io-mdv">pyart.io.mdv</a><ul>
 </ul>
 </li>
-<li><a class="reference internal" href="#pyart-io-nc-utils">pyart.io.nc_utils</a><ul>
+<li><a class="reference internal" href="#pyart-io-netcdf">pyart.io.netcdf</a><ul>
 </ul>
 </li>
-<li><a class="reference internal" href="#pyart-io-netcdf">pyart.io.netcdf</a><ul>
+<li><a class="reference internal" href="#pyart-io-nexrad-archive">pyart.io.nexrad_archive</a><ul>
+</ul>
+</li>
+<li><a class="reference internal" href="#pyart-io-nexrad-cdm">pyart.io.nexrad_cdm</a><ul>
+</ul>
+</li>
+<li><a class="reference internal" href="#pyart-io-nexrad-common">pyart.io.nexrad_common</a><ul>
+</ul>
+</li>
+<li><a class="reference internal" href="#pyart-io-nexrad-level2">pyart.io.nexrad_level2</a><ul>
 </ul>
 </li>
 <li><a class="reference internal" href="#pyart-io-radar">pyart.io.radar</a><ul>
@@ -325,6 +487,9 @@
 <li><a class="reference internal" href="#pyart-io-rsl-interface">pyart.io._rsl_interface</a><ul>
 </ul>
 </li>
+<li><a class="reference internal" href="#pyart-io-sigmet">pyart.io.sigmet</a><ul>
+</ul>
+</li>
 </ul>
 </li>
 </ul>
@@ -333,8 +498,8 @@
   <p class="topless"><a href="index.html"
                         title="previous chapter">Developer Reference Manual</a></p>
   <h4>Next topic</h4>
-  <p class="topless"><a href="generated/pyart.io.common.dms_to_d.html"
-                        title="next chapter">pyart.io.common.dms_to_d</a></p>
+  <p class="topless"><a href="generated/pyart.io.auto_read.read.html"
+                        title="next chapter">pyart.io.auto_read.read</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="../_sources/dev_reference/io.txt"
@@ -370,7 +535,7 @@
           <a href="../np-modindex.html" title="Python Module Index"
              >modules</a> |</li>
         <li class="right" >
-          <a href="generated/pyart.io.common.dms_to_d.html" title="pyart.io.common.dms_to_d"
+          <a href="generated/pyart.io.auto_read.read.html" title="pyart.io.auto_read.read"
              >next</a> |</li>
         <li class="right" >
           <a href="index.html" title="Developer Reference Manual"
@@ -381,7 +546,7 @@
     </div>
     <div class="footer">
         &copy; Copyright 2013, Py-ART developers.
-      Last updated on Apr 19, 2013.
+      Last updated on Aug 06, 2013.
       Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
     </div>
   </body>
