@@ -8,7 +8,7 @@ def configuration(parent_package='', top_path=None):
     # echo classifier module
     config.add_extension(
         '_echo_classification',
-        sources=['src/steiner.f90'])
+        sources=['src/steiner.f90', 'src/biggerstaff.f90'])
     return config
 
 
