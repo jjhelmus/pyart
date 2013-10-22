@@ -1,2 +1,19 @@
+"""
+========================================
+Radar Retrievals (:mod:`pyart.retrieve`)
+========================================
 
-import qpe
+.. currentmodule:: pyart.retrieve
+
+Py-ART can perform retrievals on radar data mapped to Cartesian grids.
+
+.. autosummary::
+    :toctree: generated/
+
+    echo_classification_steiner
+
+"""
+
+from .echo_classification import echo_classification_steiner
+
+__all__ = [s for s in dir() if not s.startswith('_')]
