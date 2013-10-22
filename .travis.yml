@@ -17,7 +17,7 @@ before_install:
     # Install the SciPy stack
     - sudo apt-get install -qq python-scipy python-nose python-matplotlib 
     # Install additional Py-ART dependencies
-    - sudo apt-get install -qq python-cvxopt python-netcdf4
+    - sudo apt-get install -qq python-cvxopt python-netcdf4 gfortran
     - virtualenv --system-site-packages ~/virtualenv/this
     - source ~/virtualenv/this/bin/activate
 install: python setup.py build_ext --inplace
