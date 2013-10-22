@@ -21,4 +21,5 @@ Documentation is broken down by directory and module.
     correct
     graph
     map
+    retrieve
     testing

@@ -55,8 +55,8 @@ def echo_classification_steiner(grid, refl_field, work_lev,
     fill_val : float, optional
         Masked array fill value.
 
-    Return
-    ------
+    Returns
+    -------
     echo_dict : dict
         Grid field dictionary containing convective/statiform echo
         classification.  Masked values indicate the gate was not
