@@ -78,6 +78,8 @@ def echo_classification_steiner(grid, refl_field, work_lev,
     dx = x[1] - x[0]
     dy = y[1] - y[0]
     ze = grid.fields[refl_field]['data']
+    if type(ze) is np.ma.MaskedArray:
+        ze = ze.filled(fill_value)
 
     # perform classification
     eclass = _echo_classification.steiner(
