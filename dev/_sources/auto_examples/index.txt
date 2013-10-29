@@ -166,6 +166,34 @@ Performing radar moment corrections in antenna (radial) coordinates.
         <div class="docstringWrapper">
 
 
+.. figure:: correct/images/thumb/plot_attenuation.png
+   :target: ./correct/plot_attenuation.html
+
+   :ref:`example_correct_plot_attenuation.py`
+
+
+.. raw:: html
+
+
+    <p>In this example the reflectivity attenuation is calculated and then corrected for a polarimetri...
+    </p></div>
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   correct/plot_attenuation
+
+
+
+.. raw:: html
+
+
+    <div class="thumbnailContainer">
+        <div class="docstringWrapper">
+
+
 .. figure:: correct/images/thumb/plot_dealias.png
    :target: ./correct/plot_dealias.html
 
@@ -184,6 +212,106 @@ Performing radar moment corrections in antenna (radial) coordinates.
    :hidden:
 
    correct/plot_dealias
+
+
+
+.. raw:: html
+
+
+    <div class="thumbnailContainer">
+        <div class="docstringWrapper">
+
+
+.. figure:: correct/images/thumb/plot_lp_phase_proc.png
+   :target: ./correct/plot_lp_phase_proc.html
+
+   :ref:`example_correct_plot_lp_phase_proc.py`
+
+
+.. raw:: html
+
+
+    <p>An example of using linear processing to process the differential phase fields of a ARM C-SAPR ...
+    </p></div>
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   correct/plot_lp_phase_proc
+
+
+.. raw:: html
+
+    <div style="clear: both"></div>
+    
+
+
+.. _mapping_examples:
+
+Mapping examples
+----------------
+
+Mapping one or multiple radars from antenna coordinates to a Cartesian grid.
+
+
+
+
+
+.. raw:: html
+
+
+    <div class="thumbnailContainer">
+        <div class="docstringWrapper">
+
+
+.. figure:: mapping/images/thumb/plot_map_one_radar_to_grid.png
+   :target: ./mapping/plot_map_one_radar_to_grid.html
+
+   :ref:`example_mapping_plot_map_one_radar_to_grid.py`
+
+
+.. raw:: html
+
+
+    <p>Map the reflectivity field of a single radar from Antenna coordinates to a Cartesian grid.
+    </p></div>
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   mapping/plot_map_one_radar_to_grid
+
+
+
+.. raw:: html
+
+
+    <div class="thumbnailContainer">
+        <div class="docstringWrapper">
+
+
+.. figure:: mapping/images/thumb/plot_map_two_radars_to_grid.png
+   :target: ./mapping/plot_map_two_radars_to_grid.html
+
+   :ref:`example_mapping_plot_map_two_radars_to_grid.py`
+
+
+.. raw:: html
+
+
+    <p>Map the reflectivity field of two nearby ARM XSARP radars from antenna coordinates to a Cartesi...
+    </p></div>
+    </div>
+
+
+.. toctree::
+   :hidden:
+
+   mapping/plot_map_two_radars_to_grid
 
 
 .. raw:: html
@@ -415,7 +543,7 @@ Plotting real world radar data with Py-ART.
 .. raw:: html
 
 
-    <p>An example which creates a multiple panel RHI plot of a CF/Radial file using both a NetcdfDispl...
+    <p>An example which creates a multiple panel RHI plot of a CF/Radial file using both a CFRadialDis...
     </p></div>
     </div>
 
