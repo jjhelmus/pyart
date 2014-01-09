@@ -19,8 +19,8 @@ before_install:
     # Install additional Py-ART dependencies
     - sudo apt-get install -qq python-cvxopt python-netcdf4
     # Coveralls packages
-    - pip install --use-mirrors nose-cov
-    - pip install --use-mirrors python-coveralls
+    - sudo pip install --use-mirrors nose-cov
+    - sudo pip install --use-mirrors python-coveralls
     - virtualenv --system-site-packages ~/virtualenv/this
     - source ~/virtualenv/this/bin/activate
 install: python setup.py build_ext --inplace
