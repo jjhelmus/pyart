@@ -5,7 +5,7 @@ import sys, os, re
 
 
 print "Whooooo"
-import mocks
+import mock
 MOCK_MODULES = ['netCDF4', 'mpl_toolkits', 'pyproj']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
