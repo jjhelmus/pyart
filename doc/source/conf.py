@@ -52,7 +52,9 @@ except:
     pass
 
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.mathjax',
-              'sphinx.ext.autosummary', 'numpydoc', 'gen_rst']
+              'sphinx.ext.autosummary', 'numpydoc']
+              #'sphinx.ext.autosummary', 'numpydoc', 'gen_rst']
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
