@@ -3,6 +3,28 @@
 
 import sys, os, re
 
+class Mock(object):
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def __call__(self, *args, **kwargs):
+        return Mock()
+
+    @classmethod
+    def __getattr__(cls, name):
+        if name in ('__file__', '__path__'):
+            return '/dev/null'
+        elif name[0] == name[0].upper():
+            mockType = type(name, (), {})
+            mockType.__module__ = __name__
+            return mockType
+        else:
+            return Mock()
+
+MOCK_MODULES = ['netCDF4',]
+for mod_name in MOCK_MODULES:
+    sys.modules[mod_name] = Mock()
+
 # Check Sphinx version
 import sphinx
 if sphinx.__version__ < "1.0.1":
@@ -25,7 +47,7 @@ try:
 except:
     pass
 
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.mathjax', 
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.mathjax',
               'sphinx.ext.autosummary', 'numpydoc', 'gen_rst']
 
 # Add any paths that contain templates here, relative to this directory.
@@ -151,7 +173,7 @@ html_file_suffix = '.html'
 htmlhelp_basename = 'pyart'
 
 # ---------------------------------------------------------------------------
-# LaTeX output 
+# LaTeX output
 #----------------------------------------------------------------------------
 
 latex_elements = {
