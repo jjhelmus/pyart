@@ -18,9 +18,14 @@ before_install:
     - sudo apt-get install -qq python-scipy python-nose python-matplotlib 
     # Install additional Py-ART dependencies
     - sudo apt-get install -qq python-cvxopt python-netcdf4
+    # Coveralls packages
+    - pip install --use-mirrors nose-cov
+    - pip install --use-mirrors python-coveralls
     - virtualenv --system-site-packages ~/virtualenv/this
     - source ~/virtualenv/this/bin/activate
 install: python setup.py build_ext --inplace
 # run the tests inside a virtual X server so that matplotlib can plot
 # No RSL related tests are executed as we do not install RSL
-script: xvfb-run nosetests -v pyart
+script: xvfb-run nosetests -v --with-cov --cov pyart pyart
+after_success:
+    - coveralls
