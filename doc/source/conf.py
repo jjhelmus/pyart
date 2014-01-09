@@ -24,7 +24,7 @@ class Mock(object):
         else:
             return Mock()
 
-MOCK_MODULES = ['netCDF4']
+MOCK_MODULES = ['netCDF4', 'pyart.io._rsl_interface', 'pyproj']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = Mock()
 
