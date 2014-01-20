@@ -1,5 +1,4 @@
 [run]
-branch = True
 source = pyart
 include = */pyart/*
 omit =
