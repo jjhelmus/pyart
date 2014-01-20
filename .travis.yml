@@ -29,6 +29,11 @@ before_install:
   - conda install --yes -c http://conda.binstar.org/jjhelmus pyproj trmm_rsl
   # LP solver cylp and its dependancy CBC
   - conda install --yes -c http://conda.binstar.org/jjhelmus cbc cylp
+  # LP solvers pyglpk based on GLPK
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq libglpk-dev
+  - conda install --yes -c http://conda.binstar.org/jjhelmus pyglpk
+
 
 install:
   - export RSL_PATH=~/anaconda/envs/testenv
