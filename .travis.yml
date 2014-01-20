@@ -26,7 +26,7 @@ before_install:
   # Install dependencies from the anaconda repo to the environment
   - conda install --yes numpy scipy matplotlib netcdf4 basemap nose
   # Install additional packages from Binstar
-  - conda install -c http://conda.binstar.org/jjhelmus pyproj
+  - conda install --yes -c http://conda.binstar.org/jjhelmus pyproj
 
 install: 
   - python setup.py build_ext --inplace
