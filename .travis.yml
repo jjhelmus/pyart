@@ -35,12 +35,12 @@ before_install:
   - conda install --yes -c http://conda.binstar.org/jjhelmus pyglpk
   # LP solvers cvxopt with GLPK support
   - conda install --yes -c http://conda.binstar.org/jjhelmus cvxopt_glpk
-  # Coverage packages
-  - sudo pip install --use-mirrors nose-cov
-  - sudo pip install --use-mirrors python-coveralls
 install:
   - export RSL_PATH=~/anaconda/envs/testenv
+  - pip install python-coveralls --use-mirrors
+  - pip install nose-cov --use-mirrors
   - python setup.py build_ext --inplace
+
 script: xvfb-run nosetests -v --with-cov --cov pyart pyart
 after_success:
     - coveralls
