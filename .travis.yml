@@ -30,5 +30,8 @@ before_install:
 
 install:
   - export RSL_PATH=~/anaconda/env/testenv
+  - ls $RSL_PATH
+  - ls $RSL_PATH/lib
+  - ls $RSL_PATH/include
   - python setup.py build_ext --inplace
 script: xvfb-run nosetests -v pyart
