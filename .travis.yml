@@ -33,7 +33,8 @@ before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq libglpk-dev
   - conda install --yes -c http://conda.binstar.org/jjhelmus pyglpk
-
+  # LP solvers cvxopt with GLPK support
+  - conda install --yes -c http://conda.binstar.org/jjhelmus cvxopt_glpk
 
 install:
   - export RSL_PATH=~/anaconda/envs/testenv
