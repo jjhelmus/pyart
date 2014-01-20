@@ -23,7 +23,14 @@ before_install:
   - conda create -n testenv --yes pip python=$TRAVIS_PYTHON_VERSION
   - source activate testenv
   # Install required dependencies to the environment
-  - conda install --yes numpy scipy matplotlib netcdf4
+  - conda install --yes numpy scipy matplotlib netcdf4 nose
 
-install: python setup.py build_ext --inplace
+install: 
+  - which python
+  - python setup.py build_ext --inplace
+  - python -c "import numpy; print numpy.__file__"
+  - python -c "import scipy; print scipy.__file__"
+  - python -c "import matplotlib; print matplotlib.__file__"
+  - python -c "import netCDF4; print netCDF4.__file__"
+  - which nosetests
 script: xvfb-run nosetests -v pyart
