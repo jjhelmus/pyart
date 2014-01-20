@@ -10,7 +10,7 @@
 language: python
 python:
     - "2.7"
-    - "2.6"
+#    - "2.6"        # disable while testing, also broken
 before_install:
   # Download and install Miniconda
   - wget http://repo.continuum.io/miniconda/Miniconda-2.2.2-Linux-x86_64.sh -O miniconda.sh
@@ -23,8 +23,8 @@ before_install:
   # Create a testenv
   - conda create -n testenv --yes pip python=$TRAVIS_PYTHON_VERSION
   - source activate testenv
-  # Install required dependencies to the environment
-  - conda install --yes numpy scipy matplotlib netcdf4 nose
+  # Install dependencies from the anaconda repo to the environment
+  - conda install --yes numpy scipy matplotlib netcdf4 basemap nose cvxopt
 
 install: 
   - python setup.py build_ext --inplace
