@@ -24,7 +24,9 @@ before_install:
   - conda create -n testenv --yes pip python=$TRAVIS_PYTHON_VERSION
   - source activate testenv
   # Install dependencies from the anaconda repo to the environment
-  - conda install --yes numpy scipy matplotlib netcdf4 basemap nose cvxopt
+  - conda install --yes numpy scipy matplotlib netcdf4 basemap nose
+  # Install additional packages from Binstar
+  - conda install -c http://conda.binstar.org/jjhelmus pyproj
 
 install: 
   - python setup.py build_ext --inplace
