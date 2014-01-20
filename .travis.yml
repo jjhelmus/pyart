@@ -10,6 +10,7 @@
 language: python
 python:
     - "2.7"
+    - "2.6"
 before_install:
   # Download and install Miniconda
   - wget http://repo.continuum.io/miniconda/Miniconda-2.2.2-Linux-x86_64.sh -O miniconda.sh
@@ -26,11 +27,5 @@ before_install:
   - conda install --yes numpy scipy matplotlib netcdf4 nose
 
 install: 
-  - which python
   - python setup.py build_ext --inplace
-  - python -c "import numpy; print numpy.__file__"
-  - python -c "import scipy; print scipy.__file__"
-  - python -c "import matplotlib; print matplotlib.__file__"
-  - python -c "import netCDF4; print netCDF4.__file__"
-  - which nosetests
 script: xvfb-run nosetests -v pyart
