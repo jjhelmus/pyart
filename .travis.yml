@@ -2,8 +2,8 @@
 # This is a modified version of the .travis.yml file from the scikit-learn
 # project: https://github.com/scikit-learn/scikit-learn
 #
-# We are using Miniconda to provide a Scientific Python environment.  This
-# allows us to perform a binary install of the SciPy stack on multiple
+# We are using Miniconda to provide a Python environment.  This
+# allows us to perform a conda based install of the SciPy stack on multiple
 # versions of python as well as use conda and binstar to install additional
 # module which are not in the default Anaconda repository.
 #
@@ -27,11 +27,10 @@ before_install:
   - conda install --yes numpy scipy matplotlib netcdf4 basemap nose
   # Install additional packages from Binstar
   - conda install --yes -c http://conda.binstar.org/jjhelmus pyproj trmm_rsl
+  # LP solver cylp and its dependancy CBC
+  - conda install --yes -c http://conda.binstar.org/jjhelmus cbc cylp
 
 install:
   - export RSL_PATH=~/anaconda/envs/testenv
-  - ls $RSL_PATH
-  - ls $RSL_PATH/lib
-  - ls $RSL_PATH/include
   - python setup.py build_ext --inplace
 script: xvfb-run nosetests -v pyart
