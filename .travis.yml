@@ -8,8 +8,8 @@ before_install:
   - wget http://repo.continuum.io/miniconda/Miniconda-3.0.5-MacOSX-x86_64.sh -O miniconda.sh
   - chmod +x miniconda.sh
   - ./miniconda.sh -b
-  - pwd
-  - export PATH=/Users/travis/anaconda/bin:$PATH
+  - ls -al /Users/travis
+  - export PATH=/Users/travis/miniconda/bin:$PATH
   
   # Update conda
   - conda update --yes conda
