@@ -35,6 +35,7 @@ before_install:
   - conda install --yes -c http://conda.binstar.org/jjhelmus pyglpk
   # LP solvers cvxopt with GLPK support
   - conda install --yes -c http://conda.binstar.org/jjhelmus cvxopt_glpk
+  - conda install --yes sphinx
 install:
   - export RSL_PATH=~/anaconda/envs/testenv
   - python setup.py install
