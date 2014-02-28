@@ -19,14 +19,8 @@ needs_sphinx = '1.0'
 
 sys.path.insert(0, os.path.abspath('../sphinxext'))
 
-# Try to override the matplotlib configuration
-try:
-    import gen_rst
-except:
-    pass
-
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.mathjax', 
-              'sphinx.ext.autosummary', 'numpydoc', 'gen_rst']
+extensions = ['sphinx.ext.autodoc', 'sphinx.ext.mathjax',
+              'sphinx.ext.autosummary', 'numpydoc']
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -151,7 +145,7 @@ html_file_suffix = '.html'
 htmlhelp_basename = 'pyart'
 
 # ---------------------------------------------------------------------------
-# LaTeX output 
+# LaTeX output
 #----------------------------------------------------------------------------
 
 latex_elements = {
