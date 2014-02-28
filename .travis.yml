@@ -10,7 +10,6 @@
 language: python
 python:
     - "2.7"
-    - "2.6"
 before_install:
   # Download and install Miniconda
   - wget http://repo.continuum.io/miniconda/Miniconda-2.2.2-Linux-x86_64.sh -O miniconda.sh
@@ -25,23 +24,22 @@ before_install:
   - source activate testenv
   # Install dependencies from the anaconda repo to the environment
   - conda install --yes numpy scipy matplotlib netcdf4 nose
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then conda install --yes basemap ; fi
+  - conda install --yes basemap
   # Install RSL from binstar
   - conda install --yes -c http://conda.binstar.org/jjhelmus trmm_rsl
   # LP solver cylp and its dependancy CBC
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then conda install --yes -c http://conda.binstar.org/jjhelmus cbc cylp ; fi
+  - conda install --yes -c http://conda.binstar.org/jjhelmus cbc cylp
   # LP solvers pyglpk based on GLPK
   - sudo apt-get update -qq
   - sudo apt-get install -qq libglpk-dev
   - conda install --yes -c http://conda.binstar.org/jjhelmus pyglpk
   # LP solvers cvxopt with GLPK support
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then conda install --yes -c http://conda.binstar.org/jjhelmus cvxopt_glpk ; fi
+  - conda install --yes -c http://conda.binstar.org/jjhelmus cvxopt_glpk
 install:
   - export RSL_PATH=~/anaconda/envs/testenv
-  - pip install python-coveralls --use-mirrors
-  - pip install nose-cov --use-mirrors
-  - python setup.py build_ext --inplace
+  - python setup.py install
 
-script: xvfb-run nosetests -v --with-cov --cov pyart pyart
-after_success:
-    - coveralls
+script: 
+  - cd
+  - pwd
+  - xvfb-run nosetests -exe pyart
