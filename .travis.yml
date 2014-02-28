@@ -40,6 +40,10 @@ install:
   - python setup.py install
 
 script: 
+  - pwd
+  - cd doc
+  - pwd
+  - make html
   - cd
   - pwd
   - xvfb-run nosetests -exe pyart
