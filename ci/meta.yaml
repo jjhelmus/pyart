@@ -1,0 +1,47 @@
+package:
+  name: pyart
+  version: git
+
+source:
+  url: file:///home/jhelmus/python/pyart/
+
+requirements:
+  build:
+    - python
+    - numpy
+    - trmm_rsl
+
+  run:
+    - python
+    - numpy
+    - scipy
+    - matplotlib
+    - netcdf4
+    - trmm_rsl
+    - cylp
+    - basemap
+
+test:
+  # Python imports
+  imports:
+    - pyart
+
+  # commands:
+    # You can put test commands to be run here.  Use this to test that the
+    # entry points work.
+
+
+  # You can also put a file called run_test.py in the recipe that will be run
+  # at test time.
+
+  requires:
+    # Put any additional test requirements here.  For example
+    - nose
+
+about:
+  home: http://arm-doe.github.io/pyart/
+  license: BSD
+
+# See
+# http://docs.continuum.io/conda/build.html for
+# more information about meta.yaml
