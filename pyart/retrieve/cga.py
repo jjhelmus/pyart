@@ -5,7 +5,6 @@ pyart.retrieve.cga
 """
 
 import time
-
 import numpy as np
 
 from warnings import warn
@@ -24,12 +23,9 @@ def _cost_wind(x, *args):
 		The value of the cost function at x
 	"""
 	
-	
-	# This is a very important step
-	#
-	# Parse the parameters. Note that this step will have to be changed if
-	# the parameter values change inside the main wind retrieval code
-	
+	# This is a very important step. Parse the parameters. Note that this
+	# step will have to be changed if the parameter values change inside the
+	# main wind retrieval code
 	nx, ny, nz, N = args[0:4]
 	grids = args[4]
 	ub, vb, wb = args[5:8]
@@ -46,54 +42,39 @@ def _cost_wind(x, *args):
 	vel_field = args[28]
 	debug, verbose = args[29:31]
 	
-	
 	if verbose:
 		print 'Calculating value of cost function at x'
 		
-	
 	# Get axes variables
-	
 	z = grids[0].axes['z_disp']['data']
 	
 	
-	# This is an important step
-	#
-	# Get control variables from analysis vector. This requires us to keep
-	# track of how the analysis vector is ordered, since the way in which we
-	# slice it requires this knowledge. We will assume the analysis vector is
-	# of the form,
+	# This is an important step. Get the control variables from the analysis
+	# vector. This requires us to keep track of how the analysis vector is
+	# ordered, since the way in which we slice it requires this knowledge. We
+	# assume the analysis vector is of the form,
 	#
 	# x = x(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
 	#
 	# so u is packed first, then v, and finally w
-	
 	u = x[0:N]
 	v = x[N:2*N]
 	w = x[2*N:3*N]
 	
-	
-	# This is an important step
-	#
-	# Permute the control variables back to the grid space (3-D). This brings
-	# the problem back into its more natural state where finite differences
-	# are more easily computed
-	
+	# This is an important step. Permute the control variables back to the
+	# grid space (3-D). This brings the problem back into its more natural
+	# state where finite differences are more easily computed
 	u = np.reshape(u, (nz,ny,nx))
 	v = np.reshape(v, (nz,ny,nx))
 	w = np.reshape(w, (nz,ny,nx))
 	
-	
-	# First calculate the observation cost Jo
-	#
-	# We need to loop over all the grids in order to get the contribution 
-	# from each radar
-	#
-	# We define the observation cost Jo as,
+	# First calculate the observation cost Jo. We need to loop over all the
+	# grids in order to get the contribution from each radar. We define the
+	# observation cost Jo as,
 	#
 	# Jo = 0.5 * sum( wgt_o * [ vr - vr_obs ]**2 )
 	#
 	# where the summation is over all grids and the N Cartesian grid points
-	
 	Jo = 0.0
 	
 	for grid in grids:
@@ -103,8 +84,7 @@ def _cost_wind(x, *args):
 		#
 		# 1. Observed Doppler (radial) velocity
 		# 2. Doppler velocity observation weights
-		# 3. (x,y,z) components 
-		
+		# 3. Cartesian components 
 		vr_obs = grid.fields[vel_field]['data']
 		wgt_o = grid.fields['observation_weight']['data']
 		ic = grid.fields['x_component']['data']
@@ -112,34 +92,24 @@ def _cost_wind(x, *args):
 		kc = grid.fields['z_component']['data']
 		
 		# Calculate the radial velocity observed by the current grid (radar) 
-		# for the current analysis (u,v,w)
-		
+		# for the current analysis (u, v, w)
 		vr = u * ic + v * jc + (w + vt) * kc
 		
 		# Now compute Jo for the current grid
+		Jo = Jo + np.sum(0.5 * wgt_o * (vr - vr_obs)**2, dtype=np.float64)
 		
-		Jo = Jo + np.sum(0.5 * wgt_o * (vr - vr_obs)**2, dtype='float64')
+	# This step may not be needed. Order the wind field arrays in Fortran
+	# memory order
+	u = np.asfortranarray(u, dtype=np.float64)
+	v = np.asfortranarray(v, dtype=np.float64)
+	w = np.asfortranarray(w, dtype=np.float64) 
 		
-	
-	# This step may not be needed
-	#
-	# Lay out wind field arrays in Fortran memory order
-	
-	u = np.asfortranarray(u, dtype='float64')
-	v = np.asfortranarray(v, dtype='float64')
-	w = np.asfortranarray(w, dtype='float64') 
-		
-	
-	# Now calculate the anelastic air mass continuity cost Jc
-	#
-	# Regardless of the method selected, we need to calculate the wind field
-	# divergence, either the full 3-D divergence field or the horizontal
-	# divergence field
-	
+	# Now calculate the anelastic air mass continuity cost Jc. Regardless of
+	# the method selected, we need to calculate the wind field divergence,
+	# either the full 3-D divergence field or the horizontal divergence field
 	if continuity_cost is None:
-		
 		Jc = 0.0
-	
+		
 	elif continuity_cost == 'potvin':
 		
 		# First calculate the full 3-D wind field divergence which consists
@@ -147,36 +117,34 @@ def _cost_wind(x, *args):
 		# are approximated by finite differences
 		#
 		# The Fortran routine returns the 3-D wind divergence field as well
-		# as du/dx, dv/dy, and dw/dz
+		# as du/dx, dv/dy, and dw/dz, in that order
 		
 		div, du, dv, dw = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
-									finite_scheme=finite_scheme,
-									fill_value=fill_value, proc=proc)
+											finite_scheme=finite_scheme,
+											fill_value=fill_value, proc=proc)
 		
-		# Now calculate the continuity cost Jc
-		
+		# Now calculate the anelastic continuity cost Jc
 		Jc = continuity.wind_cost_potvin(w, du, dv, dw, rho, drho,
-									wgt_c=wgt_c, fill_value=fill_value)
+								wgt_c=wgt_c, fill_value=fill_value)
 		
 		
-	elif continuity_cost == 'original':
+	elif continuity_cost == 'integrate':
 		
 		# First calculate the horizontal wind divergence which consists of
 		# the 2 terms du/dx and dv/dy. These partial derivatives are
 		# approximated by finite differences
 		#
 		# The Fortran routine returns the horizontal wind divergence field
-		# as well as du/dx and dv/dy
+		# as well as du/dx and dv/dy, in that order
 		
 		div, du, dv = divergence.horiz_wind(u, v, dx=dx, dy=dy,
-									finite_scheme=finite_scheme,
-									fill_value=fill_value, proc=proc)
+										finite_scheme=finite_scheme,
+										fill_value=fill_value,
+										proc=proc)
 		
 		# If the user specifies the sub-beam divergence criteria, then
 		# we address that here
-		
 		if sub_beam:
-			
 			divergence.sub_beam(div, base, column, z, proc=proc,
 							fill_value=fill_value)
 			
@@ -187,28 +155,20 @@ def _cost_wind(x, *args):
 		
 		wu = continuity.integrate_up(div, rho, drho, dz=dz,
 									fill_value=fill_value)
-		
 		wd = continuity.integrate_down(div, top, rho, drho, z, dz=dz,
 									fill_value=fill_value)
-		
 		wc = continuity.weight_protat(wu, wd, top, z, fill_value=fill_value)
 		
 		
-		# Now we can calculate the continuity cost Jc
-		
+		# Now we can calculate the anelastic continuity cost Jc
 		Jc = continuity.wind_cost_orig(w, wc, wgt_c, fill_value=fill_value)
 			
-	
 	else:
 		raise ValueError('Unsupported continuity cost')
 		
-	
-	# Now calculate the smoothness cost Js
-	#
-	# The smoothness cost is defined as a series of second order partial
-	# derivatives, so these will have to be calculated via finite differences
-	# first before we compute Js
-	
+	# Now calculate the smoothness cost Js. The smoothness cost is defined as
+	# a series of second order partial derivatives, so these will have to be
+	# calculated via finite differences first before we compute Js
 	if smooth_cost == 'potvin':
 		
 		# Calculate the second order partial derivatives, in this case the
@@ -222,50 +182,41 @@ def _cost_wind(x, *args):
 		# so we will need to unpack these in the proper order after we call
 		# the Fortran routine
 		
-		results = laplace.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
-						finite_scheme=finite_scheme, fill_value=fill_value)
+		res = laplace.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
+					finite_scheme=finite_scheme, fill_value=fill_value)
 		
-		dux, duy, duz = results[0:3]
-		dvx, dvy, dvz = results[3:6]
-		dwx, dwy, dwz = results[6:9]
+		dux, duy, duz = res[0:3]
+		dvx, dvy, dvz = res[3:6]
+		dwx, dwy, dwz = res[6:9]
 		
 		# Now before calculating Js we need to unpack the smoothness weights
-		
 		wgt_s1, wgt_s2, wgt_s3, wgt_s4 = wgt_s[1:5]
 		
 		# Now calculate the smoothness cost Js
-		
 		Js = smooth.wind_cost_potvin(dux, duy, duz, dvx, dvy, dvz, dwx, dwy,
-							dwz, wgt_s1=wgt_s1, wgt_s2=wgt_s2, wgt_s3=wgt_s3,
-							wgt_s4=wgt_s4, fill_value=fill_value)
+									dwz, wgt_s1=wgt_s1, wgt_s2=wgt_s2,
+									wgt_s3=wgt_s3, wgt_s4=wgt_s4,
+									fill_value=fill_value)
 		
 	else:
 		raise ValueError('Unsupported smoothness cost')
 	
-	
-	# Now calculate the background cost Jb
-	#
-	# First we need to unpack the background weights
-	
+	# Now calculate the background cost Jb. First we need to unpack the
+	# background weights
 	wgt_ub, wgt_vb, wgt_wb = wgt_b
 	
 	# Now compute the background cost Jb
-	
 	Jb = background.wind_cost(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
-						wgt_vb=wgt_vb, wgt_wb=wgt_wb, wgt_w0=wgt_w0,
-						fill_value=fill_value, proc=proc)
-	
+					wgt_vb=wgt_vb, wgt_wb=wgt_wb, wgt_w0=wgt_w0,
+					fill_value=fill_value, proc=proc)
 	
 	if verbose:
-		
 		print 'Observation cost at x          = %1.5e' %Jo
 		print 'Anelastic continuity cost at x = %1.5e' %Jc
 		print 'Smoothness cost at x           = %1.5e' %Js
 		print 'Background cost at x           = %1.5e' %Jb
-		
 		print 'Total cost at x                = %1.5e' %(Jo + Jc + Js + Jb)
 		
-	
 	return Jo + Jc + Js + Jb
 
 
@@ -280,15 +231,13 @@ def _grad_wind(x, *args):
 	Returns
 	-------
 	g : np.ndarray
-		Gradient of the cost function at x
+		Gradient of the cost function at x.
 	
 	"""
 	
-	# This is a very important step
-	#
-	# Parse the parameters. Note that this step will have to be changed if
-	# the parameter values change inside the main wind retrieval code
-	
+	# This is a very important step. Parse the parameters. Note that this
+	# step will have to be changed if the parameter values change inside the
+	# main wind retrieval code
 	nx, ny, nz, N = args[0:4]
 	grids = args[4]
 	ub, vb, wb = args[5:8]
@@ -305,13 +254,10 @@ def _grad_wind(x, *args):
 	vel_field = args[28]
 	debug, verbose = args[29:31]
 	
-	
 	if verbose:
 		print 'Calculating gradient of cost function at x'
 		
-		
 	if debug:
-		
 		print 'The analysis domain has %i grid points' %N
 		print 'The number of radars used in the retrieval is %i' %len(grids)
 		print 'The observation weight is                   %1.3e' %wgt_o
@@ -332,66 +278,54 @@ def _grad_wind(x, *args):
 		print 'The fill value is %5.1f' %fill_value
 		print 'The number of processors requested is %i' %proc
 		
-		
 	# Get axes variables
-	
 	z = grids[0].axes['z_disp']['data']
 	
 	
-	# This is an important step
-	#
-	# Get control variables from analysis vector. This requires us to keep
-	# track of how the analysis vector is ordered, since the way in which
-	# we slice it requires this knowledge. We will assume the analysis
-	# vector is of the form,
+	# This is an important step. Get the control variables from the analysis
+	# vector. This requires us to keep track of how the analysis vector is
+	# ordered, since the way in which we slice it requires this knowledge. We
+	# assume the analysis vector is of the form,
 	#
 	# x = x(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
 	#
 	# so u is packed first, then v, and finally w
-	
 	u = x[0:N]
 	v = x[N:2*N]
 	w = x[2*N:3*N]
 	
-	
-	# This is an important step
-	#
-	# Permute the control variables back to the grid space (3-D). This brings
-	# the problem back into its more natural state where finite differences
-	# are more easily computed
-	
+	# This is an important step. Permute the control variables back to the
+	# grid space (3-D). This brings the problem back into its more natural
+	# state where finite differences are more easily computed
 	u = np.reshape(u, (nz,ny,nx))
 	v = np.reshape(v, (nz,ny,nx))
 	w = np.reshape(w, (nz,ny,nx))
 	
 	
 	# First calculate the gradient of the observation cost Jo with respect to
-	# the 3 control variables (u,v,w), which means we need to compute dJo/du,
-	# dJo/dv, and dJo/dw. 
-	#
-	# We need to loop over all the grids in order to get the contribution 
-	# from each radar.
+	# the 3 control variables (u, v, w), which means we need to compute
+	# dJo/du, dJo/dv, and dJo/dw. Furthermore we need to loop over all the
+	# grids in order to get the contribution from each radar
 	#
 	# We define the observation cost Jo as,
 	#
 	# Jo = 0.5 * sum( wgt_o * [ vr - vr_obs ]**2 )
 	#
-	# where the summation is over all the grids and the N Cartesian grid points. 
-	# 
-	# The radial velocity vr of the current analysis as seen by the radar is 
-	# given by,
+	# where the summation is over all the grids and the N Cartesian grid
+	# points. The radial velocity of the current analysis as seen by the radar
+	# is given by,
 	#
 	# vr = u * i + v * j + (w + vt) * k
 	#
-	# From the equations of Jo and vr above, it is easy to see that,
+	# From the equations of Jo and the radial velocity above, it is easy to
+	# see that,
 	#
 	# dJo/du = wgt_o * (vr - vr_obs) * i
 	# dJo/dv = wgt_o * (vr - vr_obs) * j
 	# dJo/dw = wgt_o * (vr - vr_obs) * k
-	
-	dJou = np.zeros((nz,ny,nx), dtype='float64')
-	dJov = np.zeros((nz,ny,nx), dtype='float64')
-	dJow = np.zeros((nz,ny,nx), dtype='float64')
+	dJou = np.zeros((nz,ny,nx), dtype=np.float64)
+	dJov = np.zeros((nz,ny,nx), dtype=np.float64)
+	dJow = np.zeros((nz,ny,nx), dtype=np.float64)
 	
 	for grid in grids:
 		
@@ -400,8 +334,7 @@ def _grad_wind(x, *args):
 		#
 		# 1. Observed Doppler (radial) velocity
 		# 2. Doppler velocity observation weights
-		# 3. (x,y,z) components 
-		
+		# 3. Cartesian components 
 		vr_obs = grid.fields[vel_field]['data']
 		wgt_o = grid.fields['observation_weight']['data']
 		ic = grid.fields['x_component']['data']
@@ -410,31 +343,23 @@ def _grad_wind(x, *args):
 		
 		# Calculate the radial velocity observed by the radar for the
 		# current analysis
-		
 		vr = u * ic + v * jc + (w + vt) * kc
 		
 		# Now compute dJo/du, dJo/dv, and dJo/dw for the current grid
-		
 		dJou = dJou + wgt_o * (vr - vr_obs) * ic
 		dJov = dJov + wgt_o * (vr - vr_obs) * jc
 		dJow = dJow + wgt_o * (vr - vr_obs) * kc
 		
-	
-	# This step may not be needed
-	#
-	# Lay out wind field arrays in Fortran memory order
-	
-	u = np.asfortranarray(u, dtype='float64')
-	v = np.asfortranarray(v, dtype='float64')
-	w = np.asfortranarray(w, dtype='float64') 
-	
+	# This step may not be needed. Order the wind field arrays in Fortran
+	# memory order
+	u = np.asfortranarray(u, dtype=np.float64)
+	v = np.asfortranarray(v, dtype=np.float64)
+	w = np.asfortranarray(w, dtype=np.float64) 
 	
 	# Now calculate the gradient of the anelastic air mass continuity cost
-	# Jc with respect to the control variables (u,v,w), which means we
-	# need to compute dJc/du, dJc/dv, and dJc/dw
-	
+	# Jc with respect to the control variables (u, v, w), which means we need
+	# to compute dJc/du, dJc/dv, and dJc/dw
 	if continuity_cost is None:
-		
 		dJcu = np.zeros((nz,ny,nx), dtype='float64')
 		dJcv = np.zeros((nz,ny,nx), dtype='float64')
 		dJcw = np.zeros((nz,ny,nx), dtype='float64')
@@ -446,8 +371,7 @@ def _grad_wind(x, *args):
 		# are approximated by finite differences
 		#
 		# The Fortran routine returns the 3-D wind divergence field as well
-		# as du/dx, dv/dy, and dw/dz
-		
+		# as du/dx, dv/dy, and dw/dz, in that order
 		div, du, dv, dw = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
 							finite_scheme=finite_scheme, fill_value=fill_value,
 							proc=proc)
@@ -455,32 +379,26 @@ def _grad_wind(x, *args):
 		# Now calculate the gradient of the continuity cost. The Fortran
 		# routine returns the 3 terms dJc/du, dJc/dv, and dJc/dw. We will
 		# unpack these after
+		res = continuity.wind_grad_potvin(w, du, dv, dw, rho, drho,
+									wgt_c=wgt_c, dx=dx, dy=dy, dz=dz,
+									finite_scheme=finite_scheme,
+									fill_value=fill_value)
+		dJcu, dJcv, dJcw = res
 		
-		results = continuity.wind_grad_potvin(w, du, dv, dw, rho, drho,
-										wgt_c=wgt_c, dx=dx, dy=dy, dz=dz,
-										finite_scheme=finite_scheme,
-										fill_value=fill_value)
-		
-		dJcu, dJcv, dJcw = results
-		
-		
-	elif continuity_cost == 'original':
+	elif continuity_cost == 'integrate':
 		
 		# First calculate the horizontal wind divergence which consists of
 		# the 2 terms du/dx and dv/dy. These partial derivatives are
 		# approximated by finite differences
 		#
 		# The Fortran routine returns the horizontal wind divergence field
-		# as well as du/dx and dv/dy
-		
+		# as well as du/dx and dv/dy, in that order
 		div, du, dv = divergence.horiz_wind(u, v, dx=dx, dy=dy, proc=proc,
 						finite_scheme=finite_scheme, fill_value=fill_value)
 		
 		# If the user specifies the sub-beam divergence criteria, then
 		# we address that here
-		
 		if sub_beam:
-			
 			divergence.sub_beam(div, base, column, z, proc=proc,
 							fill_value=fill_value)
 			
@@ -488,36 +406,27 @@ def _grad_wind(x, *args):
 		# equation both upwards and downwards. Once we have the
 		# estimation of w from both integrations, we weight the 2
 		# solutions together to estimate the true w in the column
-		
 		wu = continuity.integrate_up(div, rho, drho, dz=dz,
 									fill_value=fill_value)
-		
 		wd = continuity.integrate_down(div, top, rho, drho, z, dz=dz,
 									fill_value=fill_value)
-		
 		wc = continuity.weight_protat(wu, wd, top, z, fill_value=fill_value)
 		
 		# Now calculate the gradient of the continuity cost. The Fortran
 		# routine returns the 3 terms dJc/du, dJc/dv, and dJc/dw, and so
 		# we will unpack these after
+		res = continuity.wind_grad_orig(w, wc, wgt_c, fill_value=fill_value)
+		dJcu, dJcv, dJcw = res
 		
-		results = continuity.wind_grad_orig(w, wc, wgt_c, fill_value=fill_value)
-		
-		dJcu, dJcv, dJcw = results
-			
-	
 	else:
 		raise ValueError('Unsupported continuity cost')
 	
 	
 	# Now calculate the gradient of the smoothness cost Js with respect to
-	# the 3 control variables (u,v,w), which means we need to calculate
-	# dJs/du, dJs/dv, and dJs/dw
-	#
-	# The smoothness cost is defined as a series of second order partial
-	# derivatives, so these will have to be calculated via finite differences
-	# first before we compute these terms
-	
+	# the 3 control variables (u, v, w), which means we need to calculate
+	# dJs/du, dJs/dv, and dJs/dw. The smoothness cost is defined as a series
+	# of second order partial derivatives, so these will have to be calculated
+	# via finite differences first before we compute these terms
 	if smooth_cost == 'potvin':
 		
 		# Calculate the second order partial derivatives, in this case the
@@ -530,58 +439,44 @@ def _grad_wind(x, *args):
 		#
 		# so we will need to unpack these in the proper order after we call
 		# the Fortran routine
-		
-		results = laplace.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
-								finite_scheme=finite_scheme,
-								fill_value=fill_value,
-								proc=proc)
-		
-		dux, duy, duz = results[0:3]
-		dvx, dvy, dvz = results[3:6]
-		dwx, dwy, dwz = results[6:9]
+		res = laplace.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
+							finite_scheme=finite_scheme,
+							fill_value=fill_value,
+							proc=proc)
+		dux, duy, duz = res[0:3]
+		dvx, dvy, dvz = res[3:6]
+		dwx, dwy, dwz = res[6:9]
 		
 		# Now before calculating the gradient of the smoothness cost Js we
 		# need to unpack the smoothness weights
-		
 		wgt_s1, wgt_s2, wgt_s3, wgt_s4 = wgt_s[1:5]
 		
-		# Now calculate the gradient of the smoothness cost Js. 
-		#
-		# The Fortran routine returns the 3 terms dJs/du, dJs/dv, and 
-		# dJs/dw, and so we will unpack these after
-		
-		results = smooth.wind_grad_potvin(dux, duy, duz, dvx, dvy, dvz, dwx, dwy,
-										dwz, wgt_s1=wgt_s1, wgt_s2=wgt_s2,
-										wgt_s3=wgt_s3, wgt_s4=wgt_s4, dx=dx, dy=dy,
-										dz=dz, finite_scheme=finite_scheme,
-										fill_value=fill_value)
-		
-		dJsu, dJsv, dJsw = results
-		
+		# Now calculate the gradient of the smoothness cost Js. The Fortran
+		# routine returns the 3 terms dJs/du, dJs/dv, and dJs/dw, and so we
+		# will unpack these after
+		res = smooth.wind_grad_potvin(dux, duy, duz, dvx, dvy, dvz, dwx, dwy,
+									dwz, wgt_s1=wgt_s1, wgt_s2=wgt_s2,
+									wgt_s3=wgt_s3, wgt_s4=wgt_s4, dx=dx, dy=dy,
+									dz=dz, finite_scheme=finite_scheme,
+									fill_value=fill_value)
+		dJsu, dJsv, dJsw = res
 		
 	else:
-		raise ValueError('Unrecongnized smoothness cost')
-	
+		raise ValueError('Unsupported smoothness cost')
 	
 	# Now calculate the gradient of the background cost Jb with respect to
 	# the 3 control variables (u,v,w), which means we need to compute
-	# dJb/du, dJb/dv, and dJb/dw
-	#
-	# First we need to unpack the background weights
-	
+	# dJb/du, dJb/dv, and dJb/dw. First we need to unpack the background
+	# weights
 	wgt_ub, wgt_vb, wgt_wb = wgt_b
 	
 	# Now compute the gradient of the background cost Jb. The Fortran
 	# routine returns the 3 terms dJb/du, dJb/dv, and dJb/dw, so
 	# we will unpack these after
-	
-	results = background.wind_grad(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
-								wgt_vb=wgt_vb, wgt_wb=wgt_wb, wgt_w0=wgt_w0,
-								fill_value=fill_value,
-								proc=proc)
-	
-	dJbu, dJbv, dJbw = results
-	
+	res = background.wind_grad(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
+							wgt_vb=wgt_vb, wgt_wb=wgt_wb, wgt_w0=wgt_w0,
+							fill_value=fill_value, proc=proc)
+	dJbu, dJbv, dJbw = res
 	
 	# Now sum all the u-derivative, v-derivative, and w-derivative terms
 	# together. We then permute these back into the vector space. Once again
@@ -595,7 +490,6 @@ def _grad_wind(x, *args):
 	# dx/d(u,v,w) = (dx/du1,...,dx/duN,dx/dv1,...,dx/dvN,dx/dw1,...,dx/dwN)
 	#
 	# so we must preserve this order
-	
 	dJu = dJou + dJcu + dJsu + dJbu
 	dJv = dJov + dJcv + dJsv + dJbv
 	dJw = dJow + dJcw + dJsw + dJbw
@@ -606,13 +500,9 @@ def _grad_wind(x, *args):
 	
 	g = np.concatenate((dJu,dJv,dJw), axis=0)
 	
-	
 	if verbose:
-		
 		gn = np.linalg.norm(g)
-		
 		print 'Current gradient norm at x = %1.5e' %gn
-	
 	
 	return g
 	
