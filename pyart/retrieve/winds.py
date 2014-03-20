@@ -901,52 +901,53 @@ def _check_analysis(grids, network, u, v, w, T, u0, v0, w0, dx=500.0,
     
 
 def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
-                     dz=500.0, mds=0.0, ncp_min=0.3, rhv_min=0.7,
-                     technique='3d-var', solver='scipy.fmin_cg',gtol=1.0e-5,
-                     ftol=1.0e7, maxcor=10, maxiter=200, disp=True,
-                     retall=False, finite_scheme='basic', first_guess='zero',
-                     background='sounding', wgt_o=3.0, wgt_c=3.0,
-                     wgt_s=[0.05,1.0,1.0,1.0,0.1], wgt_b=[0.01,0.01,0.0],
-                     wgt_w0=0.0, length_scale=None, smooth_cost='original',
-                     continuity_cost='original', fall_speed='caya',
-                     min_layer=1500.0, top_offset=500.0, first_pass=True,
-                     use_qc=True, sub_beam=True, window_size=5,
-                     window_max=0.85, fill_value=None, proc=1, verbose=False,
-                     debug=False, refl_field=None, vel_field=None,
-                     ncp_field=None, rhv_field=None):
+                     dz=500.0, mds=0.0, vel_max=50.0, ncp_min=0.3,
+                     rhv_min=0.7, technique='3d-var', solver='scipy.fmin_cg',
+                     gtol=1.0e-5, ftol=1.0e7, maxcor=10, maxiter=200,
+                     disp=True, retall=False, finite_scheme='basic',
+                     first_guess='zero', background='sounding', wgt_o=3.0,
+                     wgt_c=3.0, wgt_s=[0.05,1.0,1.0,1.0,0.1],
+                     wgt_b=[0.01,0.01,0.0], wgt_w0=0.0, length_scale=None,
+                     smooth_cost='original', continuity_cost='integrate',
+                     fall_speed='caya', min_layer=1500.0, top_offset=500.0,
+                     first_pass=True, use_qc=True, sub_beam=True,
+                     standard_density=False, window_size=5, window_max=0.85,
+                     fill_value=None, proc=1, verbose=False, debug=False,
+                     refl_field=None, vel_field=None, ncp_field=None,
+                     rhv_field=None):
     """
     Parameters
     ----------
     grids : list
-        All available radar grids to use in the wind retrieval
-    network : Grid object
+        All available radar grids to use in the wind retrieval.
+    network : Grid
         This grid should represent the large-scale coverage within
         the analysis domain. Note that this is only applicable to
         fields like reflectivity. It will be used to estimate the echo
-        base and top heights
+        base and top heights.
     sonde : netCDF4.Dataset
-        Sounding dataset
+        Sounding dataset.
     target : datetime
         
     Optional parameters
     -------------------
     dx, dy, dz : float
-        Grid resolution in x-, y-, and z-dimension, respectively
+        Grid resolution in x-, y-, and z-dimension, respectively.
     wgt_o : float
         Observation weight used at each grid point with valid observations.
-        Only applicable when 'technique' is '3d-var'
+        Only applicable when 'technique' is '3d-var'.
     wgt_c : float
         Weight given to the anelastic air mass continuity constraint. Only
-        applicable when 'technique' is '3d-var'
+        applicable when 'technique' is '3d-var'.
     wgt_s : list of 5 floats
-        Weight given to the smoothness constraint
+        Weight given to the smoothness constraint.
     wgt_b : list of 3 floats
-        Weight given to the background field
+        Weight given to the background field.
     wgt_w0 : float
-        Weight given to satisfying the impermeability condition at the surface
+        Weight given to satisfying the impermeability condition at the surface.
     mds : float
         Minimum detectable signal in dBZ used to define the minimum
-        reflectivity value
+        reflectivity value.
     ncp_min, rhv_min : float
         Minimum values allowed in the normalized coherent power
         and correlation coefficient fields, respectively
@@ -1008,7 +1009,6 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
         
     if verbose:
         print 'Observations from %i radar(s) will be used' %len(grids)
-        
     
     # We copy the grids since they are mutable objects when they are passed
     # by reference and therefore any changes we make to them will be reflected
@@ -1029,7 +1029,6 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     if verbose:
         print 'We have to minimize a function of %i variables' %(3 * N)
         
-    
     # Multiply each weighting coefficient (tuning parameter) by the length
     # scale, if necessary. The length scale is designed to make the
     # dimensionality of each cost uniform, as well as bring each cost within
@@ -1043,10 +1042,10 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     
     # Use the ARM interpolated or merged sounding product to get the
     # atmospheric thermodynamic and horizontal wind profiles
-    T, P, rho, drho, us, vs = _arm_merge_sonde(grids[0], sonde, target,
-                                    fill_value=fill_value,
+    T, P, rho, drho, us, vs = _arm_interp_sonde(grids[0], sonde, target,
                                     standard_density=standard_density,
-                                    debug=debug, verbose=verbose)
+                                    fill_value=fill_value, debug=debug,
+                                    verbose=verbose)
               
     # Get the first guess field. Here we will put the variables into their
     # vector space,
@@ -1120,7 +1119,6 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     # Get column types
     column = _column_types(cover, base, fill_value=fill_value)
     
-    
     # This is an important step. We turn the velocity fields for every grid
     # from NumPy masked arrays into NumPy arrays
     for grid in grids:
@@ -1166,7 +1164,6 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
             
         else:
             raise ValueError('Unsupported SciPy solver')
-        
         
         # This is a very important step. Group the required arguments for the
         # cost function and gradient together. The order at which the

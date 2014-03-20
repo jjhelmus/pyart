@@ -20,7 +20,7 @@ def _cost_wind(x, *args):
 	Returns
 	-------
 	J : float
-		The value of the cost function at x
+		The value of the cost function at x.
 	"""
 	
 	# This is a very important step. Parse the parameters. Note that this
