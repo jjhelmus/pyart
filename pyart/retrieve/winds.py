@@ -10,7 +10,7 @@ import numpy as np
 from warnings import warn
 from copy import deepcopy
 from scipy.optimize import minimize
-from pyproj import Proj
+from mpl_toolkits.basemap import pyproj
 
 from ..util import datetime_utils
 from ..config import get_fillvalue, get_field_name, get_metadata
@@ -94,7 +94,6 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80',
         List of grids with added Cartesian components fields.
     """
     
-    
     # Get axes
     x = grids[0].axes['x_disp']['data']
     y = grids[0].axes['y_disp']['data']
@@ -111,8 +110,8 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80',
         lon_r = grid.metadata['radar_0_lon']
         
         # Create map projection centered at the analysis domain origin
-        p = Proj(proj=proj, datum=datum, ellps=ellps, lat_0=lat_0,
-                 lon_0=lon_0, x_0=0.0, y_0=0.0)
+        p = pyproj.Proj(proj=proj, datum=datum, ellps=ellps, lat_0=lat_0,
+                        lon_0=lon_0, x_0=0.0, y_0=0.0)
         
         # Get the (x,y) location of the radar in the analysis domain from
         # the projection
