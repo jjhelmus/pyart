@@ -739,3 +739,106 @@ subroutine weight_protat(wu, wd, top, z, fill_value, nx, ny, nz, w)
    return
 
 end subroutine weight_protat
+
+
+subroutine boundary_conditions(ze, z, mds, min_layer, fill_value, proc, &
+                               nx, ny, nz, base, top)
+
+   implicit none
+
+   integer(kind=4), intent(in)                   :: nx, ny, nz, proc
+   real(kind=8), intent(in)                      :: mds, min_layer, &
+                                                    fill_value
+   real(kind=8), intent(in), dimension(nz)       :: z
+   real(kind=8), intent(in), dimension(nz,ny,nx) :: ze
+   real(kind=8), intent(out), dimension(ny,nx)   :: base, top
+
+
+!  Define local variables ====================================================
+
+   logical, dimension(nz,ny,nx) :: m_ze
+
+   integer(kind=4)              :: i, j, k
+
+!  ===========================================================================
+
+
+!  F2PY directives ===========================================================
+
+   !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
+   !f2py integer(kind=4), intent(in)           :: proc
+   !f2py real(kind=4), intent(in)              :: mds, min_layer, fill_value
+   !f2py real(kind=8), intent(in)              :: ze, z
+   !f2py real(kind=8), intent(out)             :: base, top
+
+!  ===========================================================================
+
+
+!  Calculate the echo base and top heights using a minimum detectable signal
+!  for reflectivity
+
+   base = fill_value
+   top = fill_value
+
+   m_ze = ze /= fill_value
+
+   !$omp parallel num_threads(proc)
+
+   !$omp do
+   do i = 1, nx
+      do j = 1, ny
+
+!        First look for the echo base by starting from the surface and
+!        moving upwards, looking for the first grid point that equals
+!        or exceeds the minimum detectable signal
+
+         do k = 1, nz
+
+            if (m_ze(k,j,i)) then
+
+            if (ze(k,j,i) >= mds) then
+               base(j,i) = z(k) ! (m)
+               exit
+            endif
+
+            endif
+
+         enddo
+
+!        Now look for the echo top by starting from the top of the grid and
+!        moving downwards, looking for the first grid point that equals
+!        or exceeds the minimum detectable signal
+
+         do k = nz, 1, -1
+
+            if (m_ze(k,j,i)) then
+
+            if (ze(k,j,i) >= mds .and. z(k) > 2000.d0) then
+               top(j,i) = z(k) ! (m)
+               exit
+
+            endif
+
+            endif
+
+         enddo
+
+!     Now do a final check to see how thick the cloud layer is. This is done
+!     by checking the difference between the estimated echo base and top. If
+!     the cloud is too thin, we will assume the column is contaminated by
+!     noise
+
+      if (top(j,i) - base(j,i) < min_layer) then
+         base(j,i) = fill_value
+         top(j,i) = fill_value
+      endif
+
+      enddo
+   enddo
+   !$omp end do
+
+   !$omp end parallel
+
+   return
+
+end subroutine boundary_conditions
