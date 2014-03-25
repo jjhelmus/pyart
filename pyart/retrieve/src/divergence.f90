@@ -532,7 +532,6 @@ subroutine sub_beam(div, base, column, z, fill_value, proc, nx, ny, nz)
          if (base(j,i) > z(1)) then
             k = minloc(abs(z - base(j,i)), dim=1)
             div(1:k,j,i) = div(k,j,i)
-
          endif
 
          endif

@@ -413,8 +413,6 @@ subroutine full_wind(u, v, w, dx, dy, dz, finite_scheme, fill_value, proc, &
       enddo
       !$omp end do
 
-   endif
-
 
 !  The second block is for high-order finite difference schemes
 
