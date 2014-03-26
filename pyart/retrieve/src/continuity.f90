@@ -842,3 +842,167 @@ subroutine boundary_conditions(ze, z, mds, min_layer, fill_value, proc, &
    return
 
 end subroutine boundary_conditions
+
+
+subroutine column_type(cover, base, fill_value, nx, ny, nz, column)
+
+   implicit none
+
+   integer(kind=4), intent(in)                      :: nx, ny, nz
+   real(kind=8), intent(in)                         :: fill_value
+   real(kind=8), intent(in), dimension(ny,nx)       :: base
+   integer(kind=4), intent(in), dimension(nz,ny,nx) :: cover
+   integer(kind=4), intent(out), dimension(ny,nx)   :: column
+
+
+!  Define local variables ====================================================
+
+   integer(kind=4)                   :: sum_p
+
+   integer(kind=4), dimension(ny,nx) :: n
+
+   logical, dimension(ny,nx)         :: m_base
+
+   logical, dimension(nz,ny,nx)      :: m_cover
+
+   integer(kind=4)                   :: i, j, k
+
+!  ===========================================================================
+
+
+!  F2PY directives ===========================================================
+
+   !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
+   !f2py integer(kind=4), intent(in)           :: cover
+   !f2py real(kind=8), intent(in)              :: base, fill_value
+   !f2py integer(kind=4), intent(out)          :: column
+
+!  ===========================================================================
+
+
+!  We will determine the column type by investigating both the number of
+!  discontinuities in the coverage in each column, as well as the height of
+!  the echo base. Columns are classified as follows,
+!
+!  0 = Undefined
+!  1 = Well-defined
+!  2 = Top-defined
+!  3 = Anvil-like
+!  4 = Transition-like
+!  5 = Discontinuous
+!
+!  First we will have to count the number of discontinuities in the coverage
+!  of each column. Here we say a discontinuity happens in the column whenever
+!  adjacent grid points differ from having no observations to at least 1
+!  observation
+
+   column = 0
+   n = 0
+
+   m_base = base /= fill_value
+   m_cover = cover > 0
+
+   !$omp parallel
+
+   !$omp do
+   do i = 1, nx
+      do j = 1, ny
+
+         if (m_base(j,i)) then
+
+!        First initialize the count for the number of discontinuities in
+!        each column
+
+         sum_p = 0
+
+         do k = 1, nz
+
+!           For most of the column we can check whether the difference
+!           between the current grid point and the adjacent one above.
+!           However, at the top of the grid, we have to check the difference
+!           between the current grid point and the adjacent one below
+
+            if (k < nz) then
+
+               if (m_cover(k,j,i) .neqv. m_cover(k+1,j,i)) then
+                  sum_p = sum_p + 1
+               endif
+
+            else
+
+               if (m_cover(k,j,i) .neqv. m_cover(k-1,j,i)) then
+                  sum_p = sum_p + 1
+               endif
+
+            endif
+
+         enddo
+
+         n(j,i) = sum_p
+
+         endif
+
+      enddo
+   enddo
+   !$omp end do
+
+
+!  Now use the discontinuities count and echo base height data to fully
+!  classify each column in the grid
+
+   !$omp do
+   do i = 1, nx
+      do j = 1, ny
+
+         if (m_base(j,i)) then
+
+!        If the number of discontinuities in the column is less than or equal
+!        to 2, then the column is not discontinuous, and will be classified
+!        as one of the remaining 4 types
+
+         if (n(j,i) <= 2) then
+
+!           First check if the column is well-defined. The criteria for this
+!           is the echo base height being at the surface or very close to it
+
+            if (base(j,i) <= 500.d0) then
+               column(j,i) = 1
+
+!           Check if the column is top-defined. The criteria for this is the
+!           echo base height being close to the surface but not actually
+!           extending to the surface
+
+            elseif (base(j,i) > 500.d0 .and. base(j,i) <= 1000.d0) then
+               column(j,i) = 2
+
+!           Check if the column is anvil-like. The criteria for this is the
+!           echo base height being well above the surface
+
+            elseif (base(j,i) > 4000.d0) then
+               column(j,i) = 3
+
+!           If the column has yet to be classified, then it must fit the
+!           transition-like column type
+
+            else
+               column(j,i) = 4
+            endif
+
+!        If the number of discontinuities in the column is greater than 2 the
+!        column must be, by definition, discontinuous
+
+         else
+            column(j,i) = 5
+         endif
+
+         endif
+
+      enddo
+   enddo
+   !$omp end do
+
+   !$omp end parallel
+
+   return
+
+end subroutine column_type

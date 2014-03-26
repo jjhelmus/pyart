@@ -380,27 +380,28 @@ def _column_types(cover, base, fill_value=None):
     Returns
     -------
     column : dict
-        Column type data dictionary.
+        Column classification dictionary.
     """
     
     # Get fill value
-    
     if fill_value is None:
         fill_value = get_fillvalue()
+        
+    cover = cover['data'].astype(np.int32)
+    base = base['data'].astype(np.float64)
     
-    # Get the column types using radar coverage data and echo base heights
-    cover = np.asfortranarray(cover['data'], dtype=np.int32)
-    base = np.asfortranarray(base['data'], dtype=np.float64)
-    column = qc.column_type(cover, base, fill_value=fill_value)
+    # Get the column types using the radar coverage and echo base heights
+    column = continuity.column_type(cover, base, fill_value=fill_value)
      
-    return {'data': column.astype('int32'),
+    return {'data': column.astype(np.int32),
             'standard_name': 'column_type',
             'long_name': 'Column classifications',
             'valid_min': 0,
             'valid_max': 5,
             'comment': ('0 = Undefined, 1 = Well-defined, '
                         '2 = Top-defined, 3 = Anvil-like, '
-                        '4 = Transition-like, 5 = Discontinuous')}
+                        '4 = Transition-like, '
+                        '5 = Discontinuous')}
 
 
 def _arm_interp_sonde(grid, sonde, target, fill_value=None,
