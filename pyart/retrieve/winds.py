@@ -15,7 +15,7 @@ from mpl_toolkits.basemap import pyproj
 from ..util import datetime_utils
 from ..config import get_fillvalue, get_field_name, get_metadata
 from ..retrieve import cga
-from ..retrieve import qc, bcs, divergence, fall_speed, forward
+from ..retrieve import divergence, fall_speed
                    
 
 def _radar_coverage(grids, refl_field=None, vel_field=None):
@@ -65,8 +65,7 @@ def _radar_coverage(grids, refl_field=None, vel_field=None):
             'standard_name': 'radar_coverage',
             'long_name': 'Radar coverage flags',
             'valid_min': 0,
-            'valid_max': len(grids),
-            'comment': ''}
+            'valid_max': len(grids)}
     
 
 def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80',
@@ -110,30 +109,36 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80',
         lon_r = grid.metadata['radar_0_lon']
         
         # Create map projection centered at the analysis domain origin
-        p = pyproj.Proj(proj=proj, datum=datum, ellps=ellps, lat_0=lat_0,
-                        lon_0=lon_0, x_0=0.0, y_0=0.0)
+        proj = pyproj.Proj(proj=proj, datum=datum, ellps=ellps, lat_0=lat_0,
+                           lon_0=lon_0, x_0=0.0, y_0=0.0)
         
-        # Get the (x,y) location of the radar in the analysis domain from
+        # Get the (x, y) location of the radar in the analysis domain from
         # the projection
-        x_r, y_r = p(lon_r, lat_r)
+        x_r, y_r = proj(lon_r, lat_r)
+        
+        # Create the grid mesh which has an origin at the radar location
+        Z, Y, X = np.meshgrid(z, y-y_r, x-x_r, indexing='ij')
+        R = np.sqrt(X**2 + Y**2 + Z**2)
         
         # Compute Cartesian components for the current grid
-        ic, jc, kc = forward.radar_comps(x, y, z, x_r=x_r, y_r=y_r, proc=proc)
+        ic = X / R
+        jc = Y / R
+        kc = Z / R
         
         # Create dictionaries of results
-        ic = {'data': ic,
+        ic = {'data': ic.astype(np.float64),
               'standard_name': 'x_component',
               'long_name': 'Eastward component',
               'valid_min': -1.0,
               'valid_max': 1.0}
         
-        jc = {'data': jc,
+        jc = {'data': jc.astype(np.float64),
               'standard_name': 'y_component',
               'long_name': 'Northward component',
               'valid_min': -1.0,
               'valid_max': 1.0}
         
-        kc = {'data': kc,
+        kc = {'data': kc.astype(np.float64),
               'standard_name': 'z_component',
               'long_name': 'Vertical component',
               'valid_min': -1.0,
@@ -294,81 +299,6 @@ def _observation_weight(grids, wgt_o=3.0, refl_field=None, vel_field=None):
 
     return grids
     
-
-def _steiner_class(network, dx=500.0, dy=500.0, intense=42.0, work_lev=3000.0,
-                   peak_relation='default', bkg_rad=11000.0, use_intense=True,
-                   area_relation='medium', fill_value=None, refl_field=None):
-    """
-    Parameters
-    ----------
-    network : Grid object
-        This grid should represent the large-scale coverage within
-        the analysis domain. Note that this is only applicable to
-        fields like reflectivity.
-    
-    Optional Parameters
-    -------------------
-    dx, dy : float
-        Grid resolution in x- and y-dimension, respectively.
-    intense : float
-    work_lev : float
-        Height of working level in meters.
-    bkg_rad : float
-        Background radius in meters.
-    peak_relation : 'default', 'sgp'
-        Peakedness relation to use.
-    area_relation : 'small', 'medium', 'large', 'sgp'
-        Convective radius criteria to use.
-    use_intense : bool
-        Set True to use the intensity criterion, False not to use
-        this criterion.
-    fill_value : float
-        Missing value used to signify bad data points. A value of None
-        will use the default fill value as defined in the Py-ART
-        configuration file.
-    refl_field : str
-        Name of reflectivity field which will be used to estimate the fall
-        speed. A value of None will use the default field name as defined in
-        the Py-ART configuration file.
-        
-    Returns
-    -------
-    sclass : dict
-        Steiner echo classification data dictionary.
-    """
-    
-    # Get fill value
-    if fill_value is None:
-        fill_value = get_fillvalue()
-    
-    # Parse the field parameters
-    if refl_field is None:
-        refl_field = get_field_name('corrected_reflectivity')
-    
-    # Get axes
-    x = network.axes['x_disp']['data']
-    y = network.axes['y_disp']['data']
-    z = network.axes['z_disp']['data']
-        
-    # Get reflectivity data
-    ze = deepcopy(network.fields[refl_field]['data'])
-    ze = np.ma.filled(ze, fill_value)
-    ze = np.asfortranarray(ze, dtype=np.float64)
-        
-    # Call Steiner routine
-    sclass = echo_class.steiner(ze, x, y, z, dx=dx, dy=dy, bkg_rad=bkg_rad,
-                    work_lev=work_lev, intense=intense, fill_value=fill_value,
-                    peak_relation=peak_relation, area_relation=area_relation,
-                    use_intense=use_intense)
-        
-    # Return dictionary of results
-    return {'data': sclass.astype(np.int32),
-            'standard_name': 'echo_class',
-            'long_name': 'Steiner echo classification',
-            'valid_min': 0,
-            'valid_max': 2,
-            'comment': 'Echo classification from Steiner et al. (1995)'}
-    
             
 def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7, 
               window_size=5, window_max=0.85, fill_value=None, 
@@ -463,10 +393,7 @@ def _column_types(cover, base, fill_value=None):
     cover = np.asfortranarray(cover['data'], dtype=np.int32)
     base = np.asfortranarray(base['data'], dtype=np.float64)
     column = qc.column_type(cover, base, fill_value=fill_value)
-    
-    # Return dictionary of results
-    comment = 
-    
+     
     return {'data': column.astype('int32'),
             'standard_name': 'column_type',
             'long_name': 'Column classifications',
@@ -490,7 +417,7 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
         Missing value used to signify bad data points. A value of None
         will use the default fill value as defined in the Py-ART
         configuration file.
-    finite_scheme : str
+    finite_scheme : 'basic' or 'high-order'
         Finite difference scheme to use when calculating density gradient.
         Only applicable if 'standard' is False.
     standard_density : bool
@@ -536,19 +463,20 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
         print 'Closest merged sounding time to target is %s' %dt_sonde[t]
     
     # Get data from sounding
-    T = sonde.variables['temp'][t,:] # in (C)
-    P = sonde.variables['bar_pres'][t,:] # in (kPa)
-    u = sonde.variables['u_wind'][t,:] # in (m/s)
-    v = sonde.variables['v_wind'][t,:] # in (m/s)
+    T = sonde.variables['temp'][t,:] # (C)
+    P = sonde.variables['bar_pres'][t,:] # (kPa)
+    u = sonde.variables['u_wind'][t,:] # (m/s)
+    v = sonde.variables['v_wind'][t,:] # (m/s)
     
     # Now compute the density of dry air and its first derivative with
     # respect to height
     if standard_density:
         rho = rho0 * np.exp(-z_sonde / H)
         drho = -(rho0 / H) * np.exp(-z_sonde / H)
+        
     else:
-        R = 287.058 # in (J K^-1 mol^1)
-        rho = (P * 1000.0) / (R * (T + 273.15)) # in (kg m^-3)
+        R = 287.058 # (J K^-1 mol^1)
+        rho = (P * 1000.0) / (R * (T + 273.15)) # (kg m^-3)
         drho = continuity.density_gradient(rho, z_sonde,
                                     fill_value=fill_value,
                                     finite_scheme=finite_scheme)
