@@ -12,6 +12,7 @@ from copy import deepcopy
 from scipy.optimize import minimize
 from mpl_toolkits.basemap import pyproj
 
+from ..io import Grid
 from ..util import datetime_utils
 from ..config import get_fillvalue, get_field_name, get_metadata
 from ..retrieve import cga
@@ -205,13 +206,12 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
     
     # Get reflectivity data
     ze = deepcopy(network.fields[refl_field]['data'])
-    ze = np.ma.filled(ze, fill_value)
-    ze = np.asfortranarray(ze, dtype=np.float64)
+    ze = np.ma.filled(ze, fill_value).astype(np.float64)
         
-    # Estimate echo base and top heights
-    # Add offset to echo top heights
-    base, top = bcs.echo_bounds(ze, z, mds=mds, min_layer=min_layer,
-                                proc=proc, fill_value=fill_value)
+    # Estimate echo base and top heights. Add offset to echo top heights
+    base, top = continuity.boundary_conditions(ze, z, mds=mds,
+                                min_layer=min_layer, proc=proc,
+                                fill_value=fill_value)
     
     top = np.where(top != fill_value, top + top_offset, top)
     
@@ -237,7 +237,7 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
     return base, top
 
             
-def _observation_weight(grids, wgt_o=3.0, refl_field=None, vel_field=None):
+def _observation_weight(grids, wgt_o=1.0, refl_field=None, vel_field=None):
     """
     Add an observation weight field to Grid objects. Grid points
     with valid observations should be given a scalar weight greater
@@ -277,8 +277,8 @@ def _observation_weight(grids, wgt_o=3.0, refl_field=None, vel_field=None):
     # Loop over all grids
     for i, grid in enumerate(grids):
         
-        # Get reflectivity and Doppler velocity data
-        # Use their masks to compute the observation weight for each grid
+        # Get reflectivity and Doppler velocity data. Use their masks to
+        # compute the observation weight for each grid
         ze = grid.fields[refl_field]['data']
         vr = grid.fields[vel_field]['data']
         
@@ -294,7 +294,6 @@ def _observation_weight(grids, wgt_o=3.0, refl_field=None, vel_field=None):
                  
         # Add new field to grid object and update list
         grid.add_field('observation_weight', lam_o)
-    
         grids[i] = grid
 
     return grids
@@ -564,42 +563,36 @@ def _fall_speed_caya(network, T, fill_value=None, proc=1, refl_field=None):
             'comment': 'Fall speed relations from Caya (2001)'}
 
 
-def _hor_divergence(network, u, v, dx=500.0, dy=500.0, finite_scheme='basic',
-                    sub_beam=False, fill_value=None):
+def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic',
+                    fill_value=None, u_field=None, v_field=None):
     """
     """
     
     # Get fill value
-    
-    if fill_value is None: fill_value = get_fillvalue()
+    if fill_value is None:
+        fill_value = get_fillvalue()
+        
+    # Parse field parameters
+    if u_field is None:
+        u_field = get_field_name('u_wind')
+    if v_field is None:
+        v_field = get_field_name('v_wind')
         
     # Get axes
-    
     z = network.axes['z_disp']['data']
         
     # Get wind data
+    u = grid.fields[u_field]['data']
+    v = grid.fields[v_field]['data']
+    u = np.ma.filled(u, fill_value).astype(np.float64)
+    v = np.ma.filled(v, fill_value).astype(np.float64)
     
-    u = np.ma.filled(u['data'], fill_value)
-    u = np.asfortranarray(u, dtype='float64')
-    
-    v = np.ma.filled(v['data'], fill_value)
-    v = np.asfortranarray(v, dtype='float64')
-    
-    # Compute horizontal divergence
-    
-    div, du, dv = divergence.horiz_wind(u, v, dx=dx, dy=dy,
-                                        fill_value=fill_value, proc=1,
-                                        finite_scheme=finite_scheme)
-    
-    # Check if sub beam criteria is specified by the user
-    
-    if sub_beam:
-        
-        divergence.sub_beam(div, base, column, z, fill_value=fill_value)
+    # Compute horizontal wind divergence
+    div, du, dv = divergence.horiz_wind(u, v, dx=dx, dy=dy, proc=proc,
+                                        finite_scheme=finite_scheme,
+                                        fill_value=fill_value)
     
     div = np.ma.masked_equal(div, fill_value)
-    
-    # Return dictionary of results
     
     return {'data': div,
            'standard_name': 'horizontal_wind_divergence',
@@ -607,8 +600,7 @@ def _hor_divergence(network, u, v, dx=500.0, dy=500.0, finite_scheme='basic',
            'valid_min': div.min(),
            'valid_max': div.max(),
            '_FillValue': div.fill_value,
-           'units': 'per_second',
-           'comment': ''}
+           'units': 'per_second'}
    
     
 def _cost_magnitudes(grids, dx=500.0, dy=500.0, dz=500.0, fill_value=None,
@@ -915,9 +907,8 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     
     Returns
     -------
-    u, v, w : dict
-        Retrieved eastward, northward, and vertical wind component data
-        dictionaries
+    conv : Grid
+        A grid containing the 3-D Cartesian wind components.
     """
     
     # Get fill value
@@ -964,6 +955,7 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
         
         if continuity_cost == 'potvin':
             wgt_c = wgt_c * length_scale**2
+            
         if smooth_cost == 'potvin':
             wgt_s = [wgt * length_scale**4 for wgt in wgt_s]
     
@@ -984,10 +976,12 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
         u0 = np.zeros(N, dtype=np.float64)
         v0 = np.zeros(N, dtype=np.float64)
         w0 = np.zeros(N, dtype=np.float64)
+        
     elif first_guess == 'sounding':
         u0 = np.ravel(np.repeat(us, ny * nx, axis=0).reshape(nz, ny, nx))
         v0 = np.ravel(np.repeat(vs, ny * nx, axis=0).reshape(nz, ny, nx))
         w0 = np.zeros(N, dtype=np.float64)
+        
     else:
         raise ValueError('Unsupported initial (first) guess field')
         
@@ -1001,10 +995,12 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
         ub = np.zeros((nz,ny,nx), dtype=np.float64)
         vb = np.zeros((nz,ny,nx), dtype=np.float64)
         wb = np.zeros((nz,ny,nx), dtype=np.float64)
+        
     elif background == 'sounding':
         ub = np.repeat(us, ny * nx, axis=0).reshape(nz, ny, nx)
         vb = np.repeat(vs, ny * nx, axis=0).reshape(nz, ny, nx)
         wb = np.zeros((nz,ny,nx), dtype=np.float64)
+        
     else:
         raise ValueError('Unsupported background field')
     
@@ -1027,7 +1023,9 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     if fall_speed == 'caya':
         vt = _fall_speed_caya(network, T, fill_value=fill_value,
                               proc=proc, refl_field=refl_field)
+        
         vt['data'] = np.ma.filled(vt['data'], fill_value)
+        
     else:
         raise ValueError('Unsupported fall speed relation')
         
@@ -1039,6 +1037,7 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     base, top = _echo_bounds(network, mds=mds, min_layer=min_layer,
                         top_offset=top_offset, fill_value=fill_value,
                         refl_field=refl_field)
+    
     base['data'] = np.ma.filled(base['data'], fill_value)
     top['data'] = np.ma.filled(top['data'], fill_value)
     
@@ -1058,7 +1057,6 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     # xo = (u1,...,uN,v1,...,vN,w1,...,wN)
     #
     # which is the space in which we solve the wind retrieval problem
-    
     x0 = np.concatenate((u0,v0,w0), axis=0)
     
     # The first block is for when a 3-D variational algorithm with conjugate
@@ -1128,9 +1126,9 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
             # first pass
             args0 = (nx, ny, nz, N, grids, ub, vb, wb, vt['data'], rho, drho,
                     base['data'], top['data'], column['data'], wgt_o, wgt_c,
-                    wgt_s0, wgt_b, wgt_w0, continuity_cost0, smooth_cost, dx, dy,
-                    dz, sub_beam, finite_scheme, fill_value, proc, vel_field,
-                    debug, verbose)
+                    wgt_s0, wgt_b, wgt_w0, continuity_cost0, smooth_cost, dx,
+                    dy, dz, sub_beam, finite_scheme, fill_value, proc,
+                    vel_field, debug, verbose)
             
             # Call the SciPy solver
             res = minimize(f, x0, args=args0, method=method, jac=jac,
@@ -1186,4 +1184,9 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     v['data'] = np.reshape(xopt[N:2*N], (nz,ny,nx))
     w['data'] = np.reshape(xopt[2*N:3*N], (nz,ny,nx))
     
-    return u, v, w
+    # Create winds (grid) object
+    fields = {'u_wind': u, 'v_wind': v, 'w_wind': w}
+    axes = {}
+    metadata = {}
+    
+    return Grid(fields, axes, metadata)
