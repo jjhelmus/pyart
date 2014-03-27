@@ -31,7 +31,7 @@ subroutine density1d(rho, z, finite_scheme, fill_value, nz, drho)
    !f2py integer(kind=4), optional, intent(in) :: nz
    !f2py character(len=16), intent(in)         :: finite_scheme
    !f2py real(kind=8), intent(in)              :: rho, z, fill_value
-   !f2py real(kind=8), intent(out)             :: drhodz
+   !f2py real(kind=8), intent(out)             :: drho
 
 !  ===========================================================================
 
