@@ -64,9 +64,9 @@ def _cost_wind(x, *args):
 	# This is an important step. Permute the control variables back to the
 	# grid space (3-D). This brings the problem back into its more natural
 	# state where finite differences are more easily computed
-	u = np.reshape(u, (nz,ny,nx))
-	v = np.reshape(v, (nz,ny,nx))
-	w = np.reshape(w, (nz,ny,nx))
+	u = np.reshape(u, (nz,ny,nx)).astype(np.float64)
+	v = np.reshape(v, (nz,ny,nx)).astype(np.float64)
+	w = np.reshape(w, (nz,ny,nx)).astype(np.float64)
 	
 	# First calculate the observation cost Jo. We need to loop over all the
 	# grids in order to get the contribution from each radar. We define the
@@ -96,13 +96,7 @@ def _cost_wind(x, *args):
 		vr = u * ic + v * jc + (w + vt) * kc
 		
 		# Now compute Jo for the current grid
-		Jo = Jo + np.sum(0.5 * wgt_o * (vr - vr_obs)**2, dtype=np.float64)
-		
-	# This step may not be needed. Order the wind field arrays in Fortran
-	# memory order
-	u = np.asfortranarray(u, dtype=np.float64)
-	v = np.asfortranarray(v, dtype=np.float64)
-	w = np.asfortranarray(w, dtype=np.float64) 
+		Jo = Jo + np.sum(0.5 * wgt_o * (vr - vr_obs)**2, dtype=np.float64) 
 		
 	# Now calculate the anelastic air mass continuity cost Jc. Regardless of
 	# the method selected, we need to calculate the wind field divergence,
@@ -118,7 +112,6 @@ def _cost_wind(x, *args):
 		#
 		# The Fortran routine returns the 3-D wind divergence field as well
 		# as du/dx, dv/dy, and dw/dz, in that order
-		
 		div, du, dv, dw = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
 											finite_scheme=finite_scheme,
 											fill_value=fill_value, proc=proc)
@@ -136,7 +129,6 @@ def _cost_wind(x, *args):
 		#
 		# The Fortran routine returns the horizontal wind divergence field
 		# as well as du/dx and dv/dy, in that order
-		
 		div, du, dv = divergence.horiz_wind(u, v, dx=dx, dy=dy,
 										finite_scheme=finite_scheme,
 										fill_value=fill_value,
@@ -152,7 +144,6 @@ def _cost_wind(x, *args):
 		# equation both upwards and downwards. Once we have the
 		# estimation of w from both integrations, we weight the 2
 		# solutions together to estimate the true w in the column
-		
 		wu = continuity.integrate_up(div, rho, drho, dz=dz,
 									fill_value=fill_value)
 		wd = continuity.integrate_down(div, top, rho, drho, z, dz=dz,
@@ -181,7 +172,6 @@ def _cost_wind(x, *args):
 		#
 		# so we will need to unpack these in the proper order after we call
 		# the Fortran routine
-		
 		res = laplace.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
 					finite_scheme=finite_scheme, fill_value=fill_value)
 		
@@ -297,9 +287,9 @@ def _grad_wind(x, *args):
 	# This is an important step. Permute the control variables back to the
 	# grid space (3-D). This brings the problem back into its more natural
 	# state where finite differences are more easily computed
-	u = np.reshape(u, (nz,ny,nx))
-	v = np.reshape(v, (nz,ny,nx))
-	w = np.reshape(w, (nz,ny,nx))
+	u = np.reshape(u, (nz,ny,nx)).astype(np.float64)
+	v = np.reshape(v, (nz,ny,nx)).astype(np.float64)
+	w = np.reshape(w, (nz,ny,nx)).astype(np.float64)
 	
 	
 	# First calculate the gradient of the observation cost Jo with respect to
@@ -349,20 +339,14 @@ def _grad_wind(x, *args):
 		dJou = dJou + wgt_o * (vr - vr_obs) * ic
 		dJov = dJov + wgt_o * (vr - vr_obs) * jc
 		dJow = dJow + wgt_o * (vr - vr_obs) * kc
-		
-	# This step may not be needed. Order the wind field arrays in Fortran
-	# memory order
-	u = np.asfortranarray(u, dtype=np.float64)
-	v = np.asfortranarray(v, dtype=np.float64)
-	w = np.asfortranarray(w, dtype=np.float64) 
 	
 	# Now calculate the gradient of the anelastic air mass continuity cost
 	# Jc with respect to the control variables (u, v, w), which means we need
 	# to compute dJc/du, dJc/dv, and dJc/dw
 	if continuity_cost is None:
-		dJcu = np.zeros((nz,ny,nx), dtype='float64')
-		dJcv = np.zeros((nz,ny,nx), dtype='float64')
-		dJcw = np.zeros((nz,ny,nx), dtype='float64')
+		dJcu = np.zeros((nz,ny,nx), dtype=np.float64)
+		dJcv = np.zeros((nz,ny,nx), dtype=np.float64)
+		dJcw = np.zeros((nz,ny,nx), dtype=np.float64)
 	
 	elif continuity_cost == 'potvin':
 		
@@ -383,6 +367,7 @@ def _grad_wind(x, *args):
 									wgt_c=wgt_c, dx=dx, dy=dy, dz=dz,
 									finite_scheme=finite_scheme,
 									fill_value=fill_value)
+		
 		dJcu, dJcv, dJcw = res
 		
 	elif continuity_cost == 'integrate':
@@ -443,6 +428,7 @@ def _grad_wind(x, *args):
 							finite_scheme=finite_scheme,
 							fill_value=fill_value,
 							proc=proc)
+		
 		dux, duy, duz = res[0:3]
 		dvx, dvy, dvz = res[3:6]
 		dwx, dwy, dwz = res[6:9]
@@ -459,6 +445,7 @@ def _grad_wind(x, *args):
 									wgt_s3=wgt_s3, wgt_s4=wgt_s4, dx=dx, dy=dy,
 									dz=dz, finite_scheme=finite_scheme,
 									fill_value=fill_value)
+		
 		dJsu, dJsv, dJsw = res
 		
 	else:
@@ -476,6 +463,7 @@ def _grad_wind(x, *args):
 	res = background.wind_grad(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
 							wgt_vb=wgt_vb, wgt_wb=wgt_wb, wgt_w0=wgt_w0,
 							fill_value=fill_value, proc=proc)
+	
 	dJbu, dJbv, dJbw = res
 	
 	# Now sum all the u-derivative, v-derivative, and w-derivative terms

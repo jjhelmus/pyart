@@ -15,8 +15,7 @@ from mpl_toolkits.basemap import pyproj
 from ..io import Grid
 from ..util import datetime_utils
 from ..config import get_fillvalue, get_field_name, get_metadata
-from ..retrieve import cga
-from ..retrieve import divergence, fall_speed
+from ..retrieve import cga, divergence, gradient
                    
 
 def _radar_coverage(grids, refl_field=None, vel_field=None):
@@ -69,8 +68,7 @@ def _radar_coverage(grids, refl_field=None, vel_field=None):
             'valid_max': len(grids)}
     
 
-def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80',
-                      proc=1):
+def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80'):
     """
     Add a Cartesian components field to Grid objects.
     
@@ -132,13 +130,11 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80',
               'long_name': 'Eastward component',
               'valid_min': -1.0,
               'valid_max': 1.0}
-        
         jc = {'data': jc.astype(np.float64),
               'standard_name': 'y_component',
               'long_name': 'Northward component',
               'valid_min': -1.0,
               'valid_max': 1.0}
-        
         kc = {'data': kc.astype(np.float64),
               'standard_name': 'z_component',
               'long_name': 'Vertical component',
@@ -150,9 +146,7 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80',
         grid.add_field('y_component', jc)
         grid.add_field('z_component', kc)
         
-        grids[i] = grid
-        
-    return grids
+    return
 
 
 def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
@@ -181,7 +175,7 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
         will use the default fill value as defined in the Py-ART
         configuration file.
     proc : int
-        Number of processors available.
+        Number of processors requested.
     refl_field : str
         Name of reflectivity field which will be used to estimate the fall
         speed. A value of None will use the default field name as defined in
@@ -275,15 +269,15 @@ def _observation_weight(grids, wgt_o=1.0, refl_field=None, vel_field=None):
     lam_o = np.zeros_like(grids[0].fields[vel_field]['data'])
         
     # Loop over all grids
-    for i, grid in enumerate(grids):
+    for grid in grids:
         
         # Get reflectivity and Doppler velocity data. Use their masks to
         # compute the observation weight for each grid
         ze = grid.fields[refl_field]['data']
         vr = grid.fields[vel_field]['data']
         
-        is_bad = np.logical_or(ze.mask, vr.mask)
-        lam_o[~is_bad] = wgt_o
+        is_good = np.logical_or(~ze.mask, ~vr.mask)
+        lam_o[is_good] = wgt_o
         
         # Create dictionary of results
         lam_o = {'data': lam_o.astype(np.float64),
@@ -292,23 +286,35 @@ def _observation_weight(grids, wgt_o=1.0, refl_field=None, vel_field=None):
                  'valid_min': 0.0,
                  'valid_max': wgt_o}
                  
-        # Add new field to grid object and update list
+        # Add new field to grid object
         grid.add_field('observation_weight', lam_o)
-        grids[i] = grid
 
-    return grids
+    return
     
             
 def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7, 
-              window_size=5, window_max=0.85, fill_value=None, 
-              refl_field=None, vel_field=None, 
-              ncp_field=None, rhv_field=None):
+              window_size=5, noise_ratio=85.0, fill_value=None, 
+              refl_field=None, vel_field=None, ncp_field=None,
+              rhv_field=None):
     """
     Parameters
     ----------
+    grids : list
+        
     
     Optional parameters
     -------------------
+    mds : float
+        Minimum detectable signal in dBZ.
+    vel_max : float
+    
+    ncp_min, rhv_min : float
+    
+    window_size : int
+    
+    noise_ratio : float
+    
+    fill_value : float
     
     Returns
     -------
@@ -331,42 +337,32 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
         rhv_field = get_field_name('cross_correlation_ratio')
     
     # Loop over all grids
-    for i, grid in enumerate(grids):
+    for grid in grids:
         
-        # First remove possible noisy grid points from reflectivity data
-        # using a minimum detectable signal and a 3-D window filter
-        ze = np.copy(grid.fields[refl_field]['data'])
-        ze = np.ma.masked_less(ze, mds)
-        ze = np.ma.filled(ze, fill_value)
-        ze = np.asfortranarray(ze, dtype=np.float64)
-        
-        ze = qc.remove_noise(ze, window_size=window_size,
-                             window_max=window_max,
-                             fill_value=fill_value)
-        
-        ze = np.ma.masked_equal(ze, fill_value)
-        
-        # Now quality control the other fields. These quality control
-        # procedures are simple thresholds which attempt to remove
-        # non-meteorological echoes and other artifacts
+        # Get data
+        ze = grid.fields[refl_field]['data']
         vr = grid.fields[vel_field]['data']
         ncp = grid.fields[ncp_field]['data']
         rhv = grid.fields[rhv_field]['data']
         
-        is_non_meteo = np.logical_or(ncp < ncp_min, rhv < rhv_min)
+        # Create appropriate masks
+        is_noise = ze < mds
         is_bad_vel = np.abs(vr) > vel_max
-        is_bad = np.logical_or(is_non_meteo, is_bad_vel)
+        is_non_meteo = np.logical_or(ncp < ncp_min, rhv < rhv_min)
         
-        ze = np.ma.masked_where(is_bad, ze)
-        vr = np.ma.masked_where(is_bad, vr)
+        # Update masks
+        ze.mask = np.logical_or(is_noise, is_non_meteo)
+        vr.mask = np.logical_or(is_bad_vel, is_non_meteo)
         
-        # Update original fields in grid object and update grids list
-        grid.fields[refl_field]['data'] = ze
-        grid.fields[vel_field]['data'] = vr
+        # Despeckle reflectivity and Doppler velocity fields
+        grid.despeckle_field(refl_field, window_size=window_size,
+                             noise_ratio=noise_ratio,
+                             fill_value=fill_value)
+        grid.despeckle_field(vel_field, window_size=window_size,
+                             noise_ratio=noise_ratio,
+                             fill_value=fill_value)
         
-        grids[i] = grid
-        
-    return grids
+    return
 
     
 def _column_types(cover, base, fill_value=None):
@@ -387,10 +383,11 @@ def _column_types(cover, base, fill_value=None):
     if fill_value is None:
         fill_value = get_fillvalue()
         
+    # Get data
     cover = cover['data'].astype(np.int32)
     base = base['data'].astype(np.float64)
     
-    # Get the column types using the radar coverage and echo base heights
+    # Get the column types using the radar coverage and echo base height
     column = continuity.column_type(cover, base, fill_value=fill_value)
      
     return {'data': column.astype(np.int32),
@@ -477,9 +474,8 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
     else:
         R = 287.058 # (J K^-1 mol^1)
         rho = (P * 1000.0) / (R * (T + 273.15)) # (kg m^-3)
-        drho = continuity.density_gradient(rho, z_sonde,
-                                    fill_value=fill_value,
-                                    finite_scheme=finite_scheme)
+        drho = gradient.density1d(rho, z_sonde, fill_value=fill_value,
+                                  finite_scheme=finite_scheme)
     
     # Interpolate sounding data to vertical dimension of grid
     T = np.interp(z_grid, z_sonde, T, left=None, right=None)
@@ -504,15 +500,15 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
     return T, P, rho, drho, u, v
 
         
-def _fall_speed_caya(network, T, fill_value=None, proc=1, refl_field=None):
+def _fall_speed_caya(grid, temp, fill_value=None, refl_field=None):
     """
     Parameters
     ----------
-    network : Grid
+    grid : Grid
         This grid should represent the large-scale coverage within
         the analysis domain. Note that this is only applicable to
         fields like reflectivity.
-    T : np.ndarray
+    temp : np.ndarray
         Temperature profile in degrees Celsius.
     
     Optional parameters
@@ -540,18 +536,26 @@ def _fall_speed_caya(network, T, fill_value=None, proc=1, refl_field=None):
     if refl_field is None:
         refl_field = get_field_name('corrected_reflectivity')
     
-    # Get axes
-    z = network.axes['z_disp']['data']
+    # Get dimensions
+    nz, ny, nx = grid.fields[refl_field]['data'].shape
     
-        
-    # Get reflectivity data
-    ze = deepcopy(network.fields[refl_field]['data'])
-    ze = np.ma.filled(ze, fill_value)
-    ze = np.asfortranarray(ze, dtype=np.float64)
-        
-    # Call fall speed routine
-    vt = fall_speed.caya(ze, T, z, fill_value=fill_value, proc=proc)
-    vt = np.ma.masked_equal(vt, fill_value)
+    # Get height axis and determine its mesh
+    z = grid.axes['z_disp']['data']
+    Z = np.repeat(z, ny*nx, axis=0).reshape(nz, ny, nx)
+    
+    # Determine the temperature mesh
+    T = np.repeat(temp, ny*nx, axis=0).reshape(nz, ny, nx)
+    
+    # Get reflectivity data and compute precipitation concentration
+    ze = grid.fields[refl_field]['data']
+    M = np.exp((ze - 43.1) / 7.6)
+    
+    # Define liquid and ice relations
+    liquid = lambda M: -5.94 * M**(1.0 / 8.0) * np.exp(Z / 20000.0) 
+    ice = lambda M: -1.15 * M**(1.0 / 12.0) * np.exp(Z / 20000.0)
+    
+    # Compute the fall speed of hydrometeors
+    vt = np.ma.where(T >= 0.0, liquid(M), ice(M))
         
     # Return dictionary of results
     return {'data': vt,
@@ -580,7 +584,7 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic',
         v_field = get_field_name('v_wind')
         
     # Get axes
-    z = network.axes['z_disp']['data']
+    z = grid.axes['z_disp']['data']
         
     # Get wind data
     u = grid.fields[u_field]['data']
@@ -979,8 +983,8 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
         w0 = np.zeros(N, dtype=np.float64)
         
     elif first_guess == 'sounding':
-        u0 = np.ravel(np.repeat(us, ny * nx, axis=0).reshape(nz, ny, nx))
-        v0 = np.ravel(np.repeat(vs, ny * nx, axis=0).reshape(nz, ny, nx))
+        u0 = np.ravel(np.repeat(us, ny*nx, axis=0).reshape(nz, ny, nx))
+        v0 = np.ravel(np.repeat(vs, ny*nx, axis=0).reshape(nz, ny, nx))
         w0 = np.zeros(N, dtype=np.float64)
         
     else:
@@ -998,8 +1002,8 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
         wb = np.zeros((nz,ny,nx), dtype=np.float64)
         
     elif background == 'sounding':
-        ub = np.repeat(us, ny * nx, axis=0).reshape(nz, ny, nx)
-        vb = np.repeat(vs, ny * nx, axis=0).reshape(nz, ny, nx)
+        ub = np.repeat(us, ny*nx, axis=0).reshape(nz, ny, nx)
+        vb = np.repeat(vs, ny*nx, axis=0).reshape(nz, ny, nx)
         wb = np.zeros((nz,ny,nx), dtype=np.float64)
         
     else:
@@ -1008,17 +1012,16 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     # Quality control procedures. This attempts to remove noise from gridded
     # reflectivity and non-meteorological returns using polarization data
     if use_qc:
-        grids = _radar_qc(grids, mds=mds, vel_max=vel_max, ncp_min=ncp_min,
-                          rhv_min=rhv_min, refl_field=refl_field,
-                          vel_field=vel_field, ncp_field=ncp_field,
-                          rhv_field=rhv_field)
+        _radar_qc(grids, mds=mds, vel_max=vel_max, ncp_min=ncp_min,
+                  rhv_min=rhv_min, refl_field=refl_field, vel_field=vel_field,
+                  ncp_field=ncp_field, rhv_field=rhv_field)
  
     # Add observation weight field to all grids
-    grids = _observation_weight(grids, wgt_o=wgt_o, refl_field=refl_field,
-                                vel_field=vel_field)
+    _observation_weight(grids, wgt_o=wgt_o, refl_field=refl_field,
+                        vel_field=vel_field)
         
     # Add the Cartesian components field to all the grids
-    grids = _radar_components(grids, proc=proc)
+    _radar_components(grids)
     
     # Get fall speed of hydrometeors
     if fall_speed == 'caya':
