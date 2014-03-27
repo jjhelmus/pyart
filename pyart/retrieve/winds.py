@@ -825,21 +825,14 @@ def _check_analysis(grids, network, u, v, w, T, u0, v0, w0, dx=500.0,
     return norm_div
     
 
-def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
-                     dz=500.0, mds=0.0, vel_max=50.0, ncp_min=0.3,
-                     rhv_min=0.7, technique='3d-var', solver='scipy.fmin_cg',
-                     gtol=1.0e-5, ftol=1.0e7, maxcor=10, maxiter=200,
-                     disp=True, retall=False, finite_scheme='basic',
-                     first_guess='zero', background='sounding', wgt_o=3.0,
-                     wgt_c=3.0, wgt_s=[0.05,1.0,1.0,1.0,0.1],
-                     wgt_b=[0.01,0.01,0.0], wgt_w0=0.0, length_scale=None,
-                     smooth_cost='original', continuity_cost='integrate',
-                     fall_speed='caya', min_layer=1500.0, top_offset=500.0,
-                     first_pass=True, use_qc=True, sub_beam=True,
-                     standard_density=False, window_size=5, window_max=0.85,
-                     fill_value=None, proc=1, verbose=False, debug=False,
-                     refl_field=None, vel_field=None, ncp_field=None,
-                     rhv_field=None):
+def solve_wind_field(grids, network, sonde, target, technique='3d-var',
+                     solver='scipy.fmin_cg', first_guess='zero',
+                     background='sounding', fall_speed='Caya', dx=500.0,
+                     dy=500.0, dz=500.0, finite_scheme='basic', proc=1,
+                     use_qc=True, standard_density=False, debug=False,
+                     verbose=False, fill_value=None, refl_field=None,
+                     vel_field=None, ncp_field=None, rhv_field=None,
+                     **kwargs):
     """
     Parameters
     ----------
@@ -853,9 +846,18 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     sonde : netCDF4.Dataset
         Sounding dataset.
     target : datetime
+        Target date and time.
         
     Optional parameters
     -------------------
+    technique : '3d-var'
+        Technique used to derive the 3-D wind field.
+    solver : 'scipy.fmin_cg', 'scipy.fmin_bfgs'
+        Algorithm used to solve the posed problem.
+    first_guess : 'zero', 'sounding'
+        Define what to use as a first guess field.
+    background : 'zero', 'sounding'
+        Define what to use as a background field.
     dx, dy, dz : float
         Grid resolution in x-, y-, and z-dimension, respectively.
     wgt_o : float
@@ -865,30 +867,26 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
         Weight given to the anelastic air mass continuity constraint. Only
         applicable when 'technique' is '3d-var'.
     wgt_s : list of 5 floats
-        Weight given to the smoothness constraint.
+        Weight given to the smoothness constraint. Only applicable when
+        'technique' is '3d-var'.
     wgt_b : list of 3 floats
-        Weight given to the background field.
+        Weight given to the background field. Only applicable when
+        'technique' is '3d-var'.
     wgt_w0 : float
-        Weight given to satisfying the impermeability condition at the surface.
+        Weight given to satisfying the impermeability condition at the
+        surface. Only applicable when 'technique' is '3d-var'.
+    length_scale : float
+        Only applicable when 'technique' is '3d-var'.
+    first_pass : bool
+        True to perform a heavily-smoothed first pass which is designed
+        to retrieve the large-scale horizontal flow. Only applicable when
+        'technique' is '3d-var'.
     mds : float
         Minimum detectable signal in dBZ used to define the minimum
         reflectivity value.
     ncp_min, rhv_min : float
         Minimum values allowed in the normalized coherent power
-        and correlation coefficient fields, respectively
-    technique : '3d-var'
-        Technique used to derive wind field
-    solver : 'scipy.fmin_cg', 'scipy.fmin_bfgs'
-        Algorithm used to solve the posed problem
-    first_guess : 'zero', 'sounding'
-        Define what to use as a first guess field
-    background : sounding'
-        Define what to use as a background field
-    length_scale : float
-    
-    first_pass : bool
-        True to perform a heavily-smoothed first pass which is designed
-        to retrieve the large-scale horizontal flow
+        and correlation coefficient fields, respectively.
     min_layer : float
         Minimum cloud thickness in meters allowed
     gtol : float
@@ -898,18 +896,17 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     maxiter : int
     
     maxcor : int
-    
+        Only applicable when solver is 'scipy'.
     disp : bool
-        Only applicable when 'solver' is 'scipy'
-    
+        Only applicable when 'solver' is 'scipy'.
     retall : bool
-        Only applicable when 'solver' is 'scipy'
+        Only applicable when 'solver' is 'scipy'.
     fill_value : float
         Missing value used to signify bad data points. A value of None
         will use the default fill value as defined in the Py-ART
         configuration file.
     proc : int
-        Number of processors available.
+        Number of processors requested.
     
     Returns
     -------
@@ -952,22 +949,23 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     
     if verbose:
         print 'We have to minimize a function of %i variables' %(3 * N)
-        
-    # Multiply each weighting coefficient (tuning parameter) by the length
-    # scale, if necessary. The length scale is designed to make the
-    # dimensionality of each cost uniform, as well as bring each cost within
-    # 1-3 orders of magnitude of each other
-    if length_scale is not None:
-        
-        if continuity_cost == 'potvin':
-            wgt_c = wgt_c * length_scale**2
-            
-        if smooth_cost == 'potvin':
-            wgt_s = [wgt * length_scale**4 for wgt in wgt_s]
+    
+    # Define some variables that are not necessarily required to retrieve
+    # the wind field but will still be used in some functions. If these
+    # arguments are not specified by the user, their default values will be
+    # used instead        
+    mds = kwargs.get('mds', 0.0)
+    vel_max = kwargs.get('vel_max', 50.0)
+    ncp_min = kwargs.get('ncp_min', 0.5)
+    rhv_min = kwargs.get('rhv_min', 0.8)
+    min_layer = kwargs.get('min_layer', 1500.0)
+    top_offset = kwarg.get('top_offset', 500.0)
+    window_size = kwargs.get('window_size', 6)
+    noise_ratio = kwargs.get('noise_ratio', 85.0)
     
     # Use the ARM interpolated or merged sounding product to get the
     # atmospheric thermodynamic and horizontal wind profiles
-    T, P, rho, drho, us, vs = _arm_interp_sonde(grids[0], sonde, target,
+    temp, pres, rho, drho, us, vs = _arm_interp_sonde(grids[0], sonde, target,
                                     standard_density=standard_density,
                                     fill_value=fill_value, debug=debug,
                                     verbose=verbose)
@@ -1014,19 +1012,26 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     # reflectivity and non-meteorological returns using polarization data
     if use_qc:
         _radar_qc(grids, mds=mds, vel_max=vel_max, ncp_min=ncp_min,
-                  rhv_min=rhv_min, refl_field=refl_field, vel_field=vel_field,
-                  ncp_field=ncp_field, rhv_field=rhv_field)
+                  rhv_min=rhv_min, window_size=window_size,
+                  noise_ratio=noise_ratio, refl_field=refl_field,
+                  vel_field=vel_field, ncp_field=ncp_field,
+                  rhv_field=rhv_field)
  
     # Add observation weight field to all grids
     _observation_weight(grids, wgt_o=wgt_o, refl_field=refl_field,
                         vel_field=vel_field)
         
-    # Add the Cartesian components field to all the grids
-    _radar_components(grids)
+    # Add the Cartesian components field to all the grids. We also define
+    # some arguments that may have not been passed by the user
+    proj = kwargs.get('proj', 'lcc')
+    datum = kwargs.get('datum', 'NAD83')
+    ellps = kwargs.get('ellps', 'GRS80')
+    
+    _radar_components(grids, proj=proj, datum=datum, ellps=ellps)
     
     # Get fall speed of hydrometeors
-    if fall_speed == 'caya':
-        vt = _fall_speed_caya(network, T, fill_value=fill_value,
+    if fall_speed == 'Caya':
+        vt = _fall_speed_caya(network, temp, fill_value=fill_value,
                               proc=proc, refl_field=refl_field)
         
         vt['data'] = np.ma.filled(vt['data'], fill_value)
@@ -1062,11 +1067,44 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     # xo = (u1,...,uN,v1,...,vN,w1,...,wN)
     #
     # which is the space in which we solve the wind retrieval problem
-    x0 = np.concatenate((u0,v0,w0), axis=0)
+    x0 = np.concatenate((u0, v0, w0), axis=0)
     
     # The first block is for when a 3-D variational algorithm with conjugate
     # gradient minimization from the SciPy optimization toolkit is used
     if technique == '3d-var' and 'scipy' in solver:
+        
+        # Define the necessary arguments. If the user did not specifiy these
+        # as named arguments, then their default values will be used instead
+        continuity_cost = kwargs.get('continuity_cost', 'integrate')
+        smooth_cost = kwargs.get('smooth_cost', 'potvin')
+        
+        wgt_o = kwargs.get('wgt_o', 1.0)
+        wgt_c = kwargs.get('wgt_c', 1.0)
+        wgt_s = kwargs.get('wgt_s', [0.05, 1.0, 1.0, 1.0, 0.1])
+        wgt_b = kwargs.get('wgt_b', [0.01, 0.01, 0.0])
+        wgt_w0 = kwargs.get('wgt_w0', 0.0)
+        length_scale = kwargs.get('length_scale', None)
+        
+        first_pass = kwargs.get('first_pass', True)
+        sub_beam = kwargs.get('sub_beam', False)
+        
+        gtol = kwargs.get('gtol', 1.0e-5)
+        ftol = kwargs.get('ftol', 1.0e7)
+        maxiter = kwargs.get('maxiter', 200)
+        maxcor = kwargs.get('maxcor', 10)
+        disp = kwargs.get('disp', True)
+        retall = kwargs.get('retall', False)
+        
+        # Multiply each weighting coefficient (tuning parameter) by the length
+        # scale if necessary. The length scale is designed to make the
+        # dimensionality of each cost uniform, as well as bring each cost
+        # within 1-3 orders of magnitude of each other
+        if length_scale is not None:
+        
+            if continuity_cost == 'potvin':
+                wgt_c = wgt_c * length_scale**2
+            if smooth_cost == 'potvin':
+                wgt_s = [wgt * length_scale**4 for wgt in wgt_s]
         
         # SciPy nonlinear conjugate gradient method
         if solver == 'scipy.fmin_cg':
@@ -1144,8 +1182,8 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
             x0 = res.x
             x0 = x0.astype(np.float64)
             
-            # Make sure to set the vertical velocity field to 0 m/s
-            # everywhere after the first pass
+            # Set the vertical velocity field to 0 m/s everywhere after the
+            # first pass
             x0[2*N:3*N] = 0.0
         
         # The debugging flag set to True will time the minimization
@@ -1170,11 +1208,10 @@ def solve_wind_field(grids, network, sonde, target, dx=500.0, dy=500.0,
     else:
         raise ValueError('Unsupported technique and solver combination')
     
-    
     # Create dictionaries for wind field
-    u = get_metadata('u_wind')
-    v = get_metadata('v_wind')
-    w = get_metadata('w_wind')
+    u = get_metadata('eastward_wind_component')
+    v = get_metadata('northward_wind_component')
+    w = get_metadata('vertical_wind_component')
     
     # This is an important step. Get the control variables from the analysis
     # vector. This requires us to keep track of how the analysis vector is
