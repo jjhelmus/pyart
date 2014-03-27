@@ -15,7 +15,7 @@ from mpl_toolkits.basemap import pyproj
 from ..io import Grid
 from ..util import datetime_utils
 from ..config import get_fillvalue, get_field_name, get_metadata
-from ..retrieve import cga, divergence, gradient
+#from ..retrieve import cga, divergence, gradient
                    
 
 def _radar_coverage(grids, refl_field=None, vel_field=None):
@@ -556,6 +556,7 @@ def _fall_speed_caya(grid, temp, fill_value=None, refl_field=None):
     
     # Compute the fall speed of hydrometeors
     vt = np.ma.where(T >= 0.0, liquid(M), ice(M))
+    vt.set_fill_value(fill_value)
         
     # Return dictionary of results
     return {'data': vt,
