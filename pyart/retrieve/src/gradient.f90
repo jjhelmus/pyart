@@ -59,13 +59,13 @@ subroutine density1d(rho, z, finite_scheme, fill_value, nz, drho)
 !        use either a forward or backward difference scheme, both with p = 1
 
          if (k > 1 .and. k < nz) then
-            drho(k) = (rho(k+1) - rho(k-1)) / (2.d0 * dz)
+            drho(k) = (rho(k+1) - rho(k-1)) / (z(k+1) - z(k-1))
 
          elseif (k == 1) then
-            drho(k) = (rho(k+1) - rho(k)) / dz
+            drho(k) = (rho(k+1) - rho(k)) / (z(k+1) - z(k))
 
          else
-            drho(k) = (rho(k) - rho(k-1)) / dz
+            drho(k) = (rho(k) - rho(k-1)) / (z(k) - z(k-1))
          endif
 
       enddo
@@ -97,26 +97,26 @@ subroutine density1d(rho, z, finite_scheme, fill_value, nz, drho)
          if (k > 3 .and. k < nz - 2) then
             drho(k) = (b3 * rho(k-3) + b2 * rho(k-2) - &
                        b1 * rho(k-1) + b1 * rho(k+1) - &
-                       b2 * rho(k+2) - b3 * rho(k+3)) / dz
+                       b2 * rho(k+2) - b3 * rho(k+3))
 
          elseif (k > 2 .and. k < nz - 1) then
             drho(k) = (a2 * rho(k-2) - a1 * rho(k-1) + &
-                       a1 * rho(k+1) - a2 * rho(k+2)) / dz
+                       a1 * rho(k+1) - a2 * rho(k+2))
 
          elseif (k > 1 .and. k < nz) then
-            drho(k) = (rho(k+1) - rho(k-1)) / (2.d0 * dz)
+            drho(k) = (rho(k+1) - rho(k-1))
 
          elseif (k == 1) then
             drho(k) = (c0 * rho(k) + c1 * rho(k+1) + &
                        c2 * rho(k+2) + c3 * rho(k+3) + &
                        c4 * rho(k+4) + c5 * rho(k+5) + &
-                       c6 * rho(k+6)) / dz
+                       c6 * rho(k+6))
 
          else
             drho(k) = (-c0 * rho(k) - c1 * rho(k-1) - &
                         c2 * rho(k-2) - c3 * rho(k-3) - &
                         c4 * rho(k-4) - c5 * rho(k-5) - &
-                        c6 * rho(k-6)) / dz
+                        c6 * rho(k-6))
          endif
 
       enddo
