@@ -346,9 +346,11 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
         rhv = grid.fields[rhv_field]['data']
         
         # Create appropriate masks
-        is_noise = ze < mds
-        is_bad_vel = np.abs(vr) > vel_max
-        is_non_meteo = np.logical_or(ncp < ncp_min, rhv < rhv_min)
+        is_noise = np.logical_or(ze.mask, ze.data < mds)
+        is_bad_vel = np.logical_or(vr.mask, np.abs(vr.data) > vel_max)
+        is_bad_ncp = np.logical_or(ncp.mask, ncp.data < ncp_min)
+        is_bad_rhv = np.logical_or(rhv.mask, rhv.data < rhv_min)
+        is_non_meteo = np.logical_or(is_bad_ncp, is_bad_rhv)
         
         # Update masks
         ze.mask = np.logical_or(is_noise, is_non_meteo)
@@ -365,10 +367,12 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
     return
 
     
-def _column_types(cover, base, fill_value=None):
+def _column_types(cover, base, top, fill_value=None):
     """
     Parameters
     ----------
+    cover : dict
+    base, top : dict
     
     Optional parameters
     -------------------
@@ -386,6 +390,7 @@ def _column_types(cover, base, fill_value=None):
     # Get data
     cover = cover['data'].astype(np.int32)
     base = base['data'].astype(np.float64)
+    top = top['data'].astype(np.float64)
     
     # Get the column types using the radar coverage and echo base height
     column = continuity.column_type(cover, base, fill_value=fill_value)
@@ -580,9 +585,9 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic',
         
     # Parse field parameters
     if u_field is None:
-        u_field = get_field_name('u_wind')
+        u_field = get_field_name('eastward_wind_component')
     if v_field is None:
-        v_field = get_field_name('v_wind')
+        v_field = get_field_name('northward_wind_component')
         
     # Get axes
     z = grid.axes['z_disp']['data']
@@ -1053,7 +1058,7 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     
         
     # Get column types
-    column = _column_types(cover, base, fill_value=fill_value)
+    column = _column_types(cover, base, top, fill_value=fill_value)
     
     # This is an important step. We turn the velocity fields for every grid
     # from NumPy masked arrays into NumPy arrays
