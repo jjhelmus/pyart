@@ -345,16 +345,19 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
         ncp = grid.fields[ncp_field]['data']
         rhv = grid.fields[rhv_field]['data']
         
-        # Create appropriate masks
-        is_noise = np.logical_or(ze.mask, ze.data < mds)
-        is_bad_vel = np.logical_or(vr.mask, np.abs(vr.data) > vel_max)
-        is_bad_ncp = np.logical_or(ncp.mask, ncp.data < ncp_min)
-        is_bad_rhv = np.logical_or(rhv.mask, rhv.data < rhv_min)
+        # Create appropriate boolean arrays
+        is_noise = np.ma.masked_less(ze, mds).mask
+        is_high_vel = np.ma.masked_greater(np.abs(vr), vel_max).mask
+        is_bad_ncp = np.ma.masked_less(ncp, ncp_min).mask
+        is_bad_rhv = np.ma.masked_less(rhv, rhv_min).mask
         is_non_meteo = np.logical_or(is_bad_ncp, is_bad_rhv)
         
+        is_bad_refl = np.logical_or(is_noise, is_non_meteo)
+        is_bad_vel = np.logical_or(is_high_vel, is_non_meteo)
+        
         # Update masks
-        ze.mask = np.logical_or(is_noise, is_non_meteo)
-        vr.mask = np.logical_or(is_bad_vel, is_non_meteo)
+        grid.fields[refl_field]['data'] = np.ma.masked_where(is_bad_refl, ze)
+        grid.fields[vel_field]['data'] = np.ma.masked_where(is_bad_vel, vr)
         
         # Despeckle reflectivity and Doppler velocity fields
         grid.despeckle_field(refl_field, window_size=window_size,
