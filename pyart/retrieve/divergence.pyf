@@ -1,0 +1,54 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module divergence ! in 
+    interface  ! in :divergence
+        subroutine horiz_wind(u,v,dx,dy,finite_scheme,fill_value,proc,nx,ny,nz,div,du,dv) ! in :divergence:divergence.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: u
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v
+            real(kind=8) intent(in) :: dx
+            real(kind=8) intent(in) :: dy
+            character*16 intent(in) :: finite_scheme
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4) intent(in) :: proc
+            integer(kind=4), optional,intent(in),check(shape(u,2)==nx),depend(u) :: nx=shape(u,2)
+            integer(kind=4), optional,intent(in),check(shape(u,1)==ny),depend(u) :: ny=shape(u,1)
+            integer(kind=4), optional,intent(in),check(shape(u,0)==nz),depend(u) :: nz=shape(u,0)
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: div
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: du
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dv
+        end subroutine horiz_wind
+        subroutine full_wind(u,v,w,dx,dy,dz,finite_scheme,fill_value,proc,nx,ny,nz,div,du,dv,dw) ! in :divergence:divergence.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: u
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: w
+            real(kind=8) intent(in) :: dx
+            real(kind=8) intent(in) :: dy
+            real(kind=8) intent(in) :: dz
+            character*16 intent(in) :: finite_scheme
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4) intent(in) :: proc
+            integer(kind=4), optional,intent(in),check(shape(u,2)==nx),depend(u) :: nx=shape(u,2)
+            integer(kind=4), optional,intent(in),check(shape(u,1)==ny),depend(u) :: ny=shape(u,1)
+            integer(kind=4), optional,intent(in),check(shape(u,0)==nz),depend(u) :: nz=shape(u,0)
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: div
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: du
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dv
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dw
+        end subroutine full_wind
+        subroutine sub_beam(div,base,column,z,fill_value,proc,nx,ny,nz) ! in :divergence:divergence.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in,out) :: div
+            real(kind=8) dimension(ny,nx),intent(in),depend(ny,nx) :: base
+            integer(kind=4) dimension(ny,nx),intent(in),depend(ny,nx) :: column
+            real(kind=8) dimension(nz),intent(in),depend(nz) :: z
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4) intent(in) :: proc
+            integer(kind=4), optional,intent(in),check(shape(div,2)==nx),depend(div) :: nx=shape(div,2)
+            integer(kind=4), optional,intent(in),check(shape(div,1)==ny),depend(div) :: ny=shape(div,1)
+            integer(kind=4), optional,intent(in),check(shape(div,0)==nz),depend(div) :: nz=shape(div,0)
+        end subroutine sub_beam
+    end interface 
+end python module divergence
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/

@@ -1,0 +1,58 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module laplace ! in 
+    interface  ! in :laplace
+        subroutine orig_wind(u,v,dx,dy,dz,finite_scheme,fill_value,proc,ny,nx,nz,dux,duy,duz,duxy,duxz,duyz,dvx,dvy,dvz,dvxy,dvxz,dvyz) ! in :laplace:laplace.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: u
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v
+            real(kind=8) intent(in) :: dx
+            real(kind=8) intent(in) :: dy
+            real(kind=8) intent(in) :: dz
+            character*16 intent(in) :: finite_scheme
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4) intent(in) :: proc
+            integer(kind=4), optional,intent(in),check(shape(u,1)==ny),depend(u) :: ny=shape(u,1)
+            integer(kind=4), optional,intent(in),check(shape(u,2)==nx),depend(u) :: nx=shape(u,2)
+            integer(kind=4), optional,intent(in),check(shape(u,0)==nz),depend(u) :: nz=shape(u,0)
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dux
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: duy
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: duz
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: duxy
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: duxz
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: duyz
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvx
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvy
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvz
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvxy
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvxz
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvyz
+        end subroutine orig_wind
+        subroutine full_wind(u,v,w,dx,dy,dz,finite_scheme,fill_value,proc,nx,ny,nz,dux,duy,duz,dvx,dvy,dvz,dwx,dwy,dwz) ! in :laplace:laplace.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: u
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: w
+            real(kind=8) intent(in) :: dx
+            real(kind=8) intent(in) :: dy
+            real(kind=8) intent(in) :: dz
+            character*16 intent(in) :: finite_scheme
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4) intent(in) :: proc
+            integer(kind=4), optional,intent(in),check(shape(u,2)==nx),depend(u) :: nx=shape(u,2)
+            integer(kind=4), optional,intent(in),check(shape(u,1)==ny),depend(u) :: ny=shape(u,1)
+            integer(kind=4), optional,intent(in),check(shape(u,0)==nz),depend(u) :: nz=shape(u,0)
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dux
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: duy
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: duz
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvx
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvy
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dvz
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dwx
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dwy
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dwz
+        end subroutine full_wind
+    end interface 
+end python module laplace
+
+! This file was auto-generated with f2py (version:2).
+! See http://cens.ioc.ee/projects/f2py2e/
