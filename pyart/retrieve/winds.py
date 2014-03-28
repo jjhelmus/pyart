@@ -231,7 +231,8 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
     return base, top
 
             
-def _observation_weight(grids, wgt_o=1.0, refl_field=None, vel_field=None):
+def _observation_weight(grids, wgt_o=1.0, fill_value, refl_field=None,
+                        vel_field=None):
     """
     Add an observation weight field to Grid objects. Grid points
     with valid observations should be given a scalar weight greater
@@ -259,6 +260,10 @@ def _observation_weight(grids, wgt_o=1.0, refl_field=None, vel_field=None):
         List of grids with updated observation weight fields.
     """
     
+    # Get fill value
+    if fill_value is None:
+        fill_value = get_fillvalue()
+    
     # Parse the field parameters
     if refl_field is None:
         refl_field = get_field_name('corrected_reflectivity')
@@ -276,8 +281,12 @@ def _observation_weight(grids, wgt_o=1.0, refl_field=None, vel_field=None):
         ze = grid.fields[refl_field]['data']
         vr = grid.fields[vel_field]['data']
         
-        is_good = np.logical_or(~ze.mask, ~vr.mask)
-        lam_o[is_good] = wgt_o
+        # Create appropriate boolean arrays
+        is_bad_refl = np.ma.masked_equal(ze, fill_value).mask
+        is_bad_vel = np.ma.masked_equal(vr, fill_value).mask
+        is_bad = np.logical_or(is_bad_refl, is_bad_vel)
+        
+        lam_o[~is_bad] = wgt_o
         
         # Create dictionary of results
         lam_o = {'data': lam_o.astype(np.float64),
