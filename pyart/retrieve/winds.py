@@ -15,10 +15,10 @@ from mpl_toolkits.basemap import pyproj
 from ..io import Grid
 from ..util import datetime_utils
 from ..config import get_fillvalue, get_field_name, get_metadata
-#from ..retrieve import cga, divergence, gradient
+from ..retrieve import cga, divergence, gradient
                    
 
-def _radar_coverage(grids, refl_field=None, vel_field=None):
+def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
     """
     Parameters
     ----------
@@ -39,6 +39,10 @@ def _radar_coverage(grids, refl_field=None, vel_field=None):
         Radar coverage data dictionary.
     """
     
+    # Get fill value
+    if fill_value is None:
+        fill_value = get_fillvalue()
+    
     # Parse the field parameters
     if refl_field is None:
         refl_field = get_field_name('corrected_reflectivity')
@@ -52,12 +56,15 @@ def _radar_coverage(grids, refl_field=None, vel_field=None):
     # each grid point in the analysis domain
     for grid in grids:
         
-        # Use reflectivity and Doppler velocity masks to find where
-        # each radar has coverage, i.e. where each radar has valid
-        # observations
+        # Get data
         ze = grid.fields[refl_field]['data']
         vr = grid.fields[vel_field]['data']
-        has_obs = np.logical_or(~ze.mask, ~vr.mask)
+        
+        # Create appropriate boolean arrays
+        is_bad_refl = np.ma.masked_equal(ze, fill_value).mask
+        is_bad_vel = np.ma.masked_equal(vr, fill_value).mask
+        has_obs = ~np.logical_or(is_bad_refl, is_bad_vel)
+        
         cover = np.where(has_obs, cover + 1, cover)
         
     # Return dictionary of results
@@ -231,7 +238,7 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
     return base, top
 
             
-def _observation_weight(grids, wgt_o=1.0, fill_value, refl_field=None,
+def _observation_weight(grids, wgt_o=1.0, fill_value=None, refl_field=None,
                         vel_field=None):
     """
     Add an observation weight field to Grid objects. Grid points
@@ -249,15 +256,15 @@ def _observation_weight(grids, wgt_o=1.0, fill_value, refl_field=None,
     -------------------
     wgt_o : float
         Observation weight used at each grid point with valid observations.
+    fill_value : float
+        Missing value used to signify bad data points. A value of None
+        will use the default fill value as defined in the Py-ART
+        configuration file.
     refl_field, vel_field : str
         Name of fields which will be used to determine grid points with
         valid observations. A value of None will use the default field name
         as defined in the Py-ART configuration file.
-    
-    Returns
-    -------
-    grids : list
-        List of grids with updated observation weight fields.
+        
     """
     
     # Get fill value
@@ -284,9 +291,9 @@ def _observation_weight(grids, wgt_o=1.0, fill_value, refl_field=None,
         # Create appropriate boolean arrays
         is_bad_refl = np.ma.masked_equal(ze, fill_value).mask
         is_bad_vel = np.ma.masked_equal(vr, fill_value).mask
-        is_bad = np.logical_or(is_bad_refl, is_bad_vel)
+        is_good = ~np.logical_or(is_bad_refl, is_bad_vel)
         
-        lam_o[~is_bad] = wgt_o
+        lam_o[is_good] = wgt_o
         
         # Create dictionary of results
         lam_o = {'data': lam_o.astype(np.float64),
@@ -316,18 +323,13 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
     mds : float
         Minimum detectable signal in dBZ.
     vel_max : float
-    
+        Maximum absolute radial velocity allowed in m/s.
     ncp_min, rhv_min : float
-    
+        Minimum values allowed for normalized coherent power and correlation
+        coefficient.
     window_size : int
-    
     noise_ratio : float
-    
     fill_value : float
-    
-    Returns
-    -------
-    
     
     """
     
