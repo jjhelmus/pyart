@@ -15,7 +15,7 @@ from mpl_toolkits.basemap import pyproj
 from ..io import Grid
 from ..util import datetime_utils
 from ..config import get_fillvalue, get_field_name, get_metadata
-from ..retrieve import cga, divergence, gradient
+from ..retrieve import cga, divergence, continuity, gradient
                    
 
 def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
@@ -115,12 +115,12 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80'):
         lon_r = grid.metadata['radar_0_lon']
         
         # Create map projection centered at the analysis domain origin
-        proj = pyproj.Proj(proj=proj, datum=datum, ellps=ellps, lat_0=lat_0,
+        pj = pyproj.Proj(proj=proj, datum=datum, ellps=ellps, lat_0=lat_0,
                            lon_0=lon_0, x_0=0.0, y_0=0.0)
         
         # Get the (x, y) location of the radar in the analysis domain from
         # the projection
-        x_r, y_r = proj(lon_r, lat_r)
+        x_r, y_r = pj(lon_r, lat_r)
         
         # Create the grid mesh which has an origin at the radar location
         Z, Y, X = np.meshgrid(z, y-y_r, x-x_r, indexing='ij')
@@ -277,9 +277,6 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, refl_field=None,
     if vel_field is None:
         vel_field = get_field_name('corrected_velocity')
         
-    # Initialize observation weight array
-    lam_o = np.zeros_like(grids[0].fields[vel_field]['data'])
-        
     # Loop over all grids
     for grid in grids:
         
@@ -287,6 +284,9 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, refl_field=None,
         # compute the observation weight for each grid
         ze = grid.fields[refl_field]['data']
         vr = grid.fields[vel_field]['data']
+        
+        # Initialize observation weight array for each grid (radar)
+        lam_o = np.zeros(ze.shape, dtype=np.float64)
         
         # Create appropriate boolean arrays
         is_bad_refl = np.ma.masked_equal(ze, fill_value).mask
@@ -978,7 +978,7 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     ncp_min = kwargs.get('ncp_min', 0.5)
     rhv_min = kwargs.get('rhv_min', 0.8)
     min_layer = kwargs.get('min_layer', 1500.0)
-    top_offset = kwarg.get('top_offset', 500.0)
+    top_offset = kwargs.get('top_offset', 500.0)
     window_size = kwargs.get('window_size', 6)
     noise_ratio = kwargs.get('noise_ratio', 85.0)
     
@@ -1035,10 +1035,6 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
                   noise_ratio=noise_ratio, refl_field=refl_field,
                   vel_field=vel_field, ncp_field=ncp_field,
                   rhv_field=rhv_field)
- 
-    # Add observation weight field to all grids
-    _observation_weight(grids, wgt_o=wgt_o, refl_field=refl_field,
-                        vel_field=vel_field)
         
     # Add the Cartesian components field to all the grids. We also define
     # some arguments that may have not been passed by the user
@@ -1051,7 +1047,7 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     # Get fall speed of hydrometeors
     if fall_speed == 'Caya':
         vt = _fall_speed_caya(network, temp, fill_value=fill_value,
-                              proc=proc, refl_field=refl_field)
+                              refl_field=refl_field)
         
         vt['data'] = np.ma.filled(vt['data'], fill_value)
         
@@ -1124,6 +1120,10 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
                 wgt_c = wgt_c * length_scale**2
             if smooth_cost == 'potvin':
                 wgt_s = [wgt * length_scale**4 for wgt in wgt_s]
+                
+        # Add observation weight field to all grids
+        _observation_weight(grids, wgt_o=wgt_o, refl_field=refl_field,
+                            vel_field=vel_field)
         
         # SciPy nonlinear conjugate gradient method
         if solver == 'scipy.fmin_cg':
