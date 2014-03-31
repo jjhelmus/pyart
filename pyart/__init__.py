@@ -14,6 +14,7 @@ from . import io
 from . import correct
 from . import graph
 from . import map
+from . import retreive
 from . import testing
 from . import config
 from . import aux_io
