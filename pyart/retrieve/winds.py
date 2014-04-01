@@ -57,12 +57,13 @@ def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
     for grid in grids:
         
         # Get data
-        ze = grid.fields[refl_field]['data']
-        vr = grid.fields[vel_field]['data']
+        ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
+        vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
         
         # Create appropriate boolean arrays
-        is_bad_refl = np.ma.masked_equal(ze, fill_value).mask
-        is_bad_vel = np.ma.masked_equal(vr, fill_value).mask
+        is_bad_refl = ze == fill_value
+        is_bad_vel = vr == fill_value
+        
         has_obs = ~np.logical_or(is_bad_refl, is_bad_vel)
         
         cover = np.where(has_obs, cover + 1, cover)
@@ -282,21 +283,22 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, refl_field=None,
         
         # Get reflectivity and Doppler velocity data. Use their masks to
         # compute the observation weight for each grid
-        ze = grid.fields[refl_field]['data']
-        vr = grid.fields[vel_field]['data']
+        ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
+        vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
         
         # Initialize observation weight array for each grid (radar)
         lam_o = np.zeros(ze.shape, dtype=np.float64)
         
         # Create appropriate boolean arrays
-        is_bad_refl = np.ma.masked_equal(ze, fill_value).mask
-        is_bad_vel = np.ma.masked_equal(vr, fill_value).mask
+        is_bad_refl = ze == fill_value
+        is_bad_vel = vr == fill_value
+        
         is_good = ~np.logical_or(is_bad_refl, is_bad_vel)
         
         lam_o[is_good] = wgt_o
         
         # Create dictionary of results
-        lam_o = {'data': lam_o.astype(np.float64),
+        lam_o = {'data': lam_o,
                  'standard_name': 'observation_weight',
                  'long_name': 'Radar observation weight',
                  'valid_min': 0.0,
@@ -351,16 +353,16 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
     for grid in grids:
         
         # Get data
-        ze = grid.fields[refl_field]['data']
-        vr = grid.fields[vel_field]['data']
-        ncp = grid.fields[ncp_field]['data']
-        rhv = grid.fields[rhv_field]['data']
+        ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
+        vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
+        ncp = np.ma.filled(grid.fields[ncp_field]['data'], fill_value)
+        rhv = np.ma.filled(grid.fields[rhv_field]['data'], fill_value)
         
         # Create appropriate boolean arrays
-        is_noise = np.ma.masked_less(ze, mds).mask
-        is_high_vel = np.ma.masked_greater(np.abs(vr), vel_max).mask
-        is_bad_ncp = np.ma.masked_less(ncp, ncp_min).mask
-        is_bad_rhv = np.ma.masked_less(rhv, rhv_min).mask
+        is_noise = np.logical_or(ze < mds, ze == fill_value)
+        is_high_vel = np.logical_or(np.abs(vr) > vel_max, vr == fill_value)
+        is_bad_ncp = np.logical_or(ncp < ncp_min, ncp == fill_value)
+        is_bad_rhv = np.logical_or(rhv < rhv_min, rhv == fill_value)
         is_non_meteo = np.logical_or(is_bad_ncp, is_bad_rhv)
         
         is_bad_refl = np.logical_or(is_noise, is_non_meteo)
@@ -479,8 +481,8 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
         print 'Closest merged sounding time to target is %s' %dt_sonde[t]
     
     # Get data from sounding
-    T = sonde.variables['temp'][t,:] # (C)
-    P = sonde.variables['bar_pres'][t,:] # (kPa)
+    temp = sonde.variables['temp'][t,:] # (C)
+    pres = sonde.variables['bar_pres'][t,:] # (kPa)
     u = sonde.variables['u_wind'][t,:] # (m/s)
     v = sonde.variables['v_wind'][t,:] # (m/s)
     
@@ -492,23 +494,23 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
         
     else:
         R = 287.058 # (J K^-1 mol^1)
-        rho = (P * 1000.0) / (R * (T + 273.15)) # (kg m^-3)
+        rho = (pres * 1000.0) / (R * (temp + 273.15)) # (kg m^-3)
         drho = gradient.density1d(rho, z_sonde, fill_value=fill_value,
                                   finite_scheme=finite_scheme)
     
     # Interpolate sounding data to vertical dimension of grid
-    T = np.interp(z_grid, z_sonde, T, left=None, right=None)
-    P = np.interp(z_grid, z_sonde, P, left=None, right=None)
+    temp = np.interp(z_grid, z_sonde, temp, left=None, right=None)
+    pres = np.interp(z_grid, z_sonde, pres, left=None, right=None)
     rho = np.interp(z_grid, z_sonde, rho, left=None, right=None)
     drho = np.interp(z_grid, z_sonde, drho, left=None, right=None)
     u = np.interp(z_grid, z_sonde, u, left=None, right=None)
     v = np.interp(z_grid, z_sonde, v, left=None, right=None)
     
     if debug:
-        print 'Minimum air temperature is %.2f C' %T.min()
-        print 'Maximum air temperature is %.2f C' %T.max()
-        print 'Minimum air pressure is %.2f kPa' %P.min()
-        print 'Maximum air pressure is %.2f kPa' %P.max()
+        print 'Minimum air temperature is %.2f C' %temp.min()
+        print 'Maximum air temperature is %.2f C' %temp.max()
+        print 'Minimum air pressure is %.2f kPa' %pres.min()
+        print 'Maximum air pressure is %.2f kPa' %pres.max()
         print 'Minimum air density is %.3f kg/m^3' %rho.min()
         print 'Maximum air density is %.3f kg/m^3' %rho.max()
         print 'Minimum eastward wind component is %.2f m/s' %u.min()
@@ -516,7 +518,7 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
         print 'Minimum northward wind component is %.2f m/s' %v.min()
         print 'Maximum northward wind component is %.2f m/s' %v.max()
     
-    return T, P, rho, drho, u, v
+    return temp, pres, rho, drho, u, v
 
         
 def _fall_speed_caya(grid, temp, fill_value=None, refl_field=None):
@@ -588,7 +590,7 @@ def _fall_speed_caya(grid, temp, fill_value=None, refl_field=None):
             'comment': 'Fall speed relations from Caya (2001)'}
 
 
-def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic',
+def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
                     fill_value=None, u_field=None, v_field=None):
     """
     """
@@ -603,9 +605,6 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic',
     if v_field is None:
         v_field = get_field_name('northward_wind_component')
         
-    # Get axes
-    z = grid.axes['z_disp']['data']
-        
     # Get wind data
     u = grid.fields[u_field]['data']
     v = grid.fields[v_field]['data']
@@ -619,13 +618,17 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic',
     
     div = np.ma.masked_equal(div, fill_value)
     
-    return {'data': div,
+    div = {'data': div,
            'standard_name': 'horizontal_wind_divergence',
            'long_name': 'Divergence of horizontal wind field',
            'valid_min': div.min(),
            'valid_max': div.max(),
            '_FillValue': div.fill_value,
            'units': 'per_second'}
+    
+    grid.add_field('horizontal_divergence', div)
+    
+    return
    
     
 def _cost_magnitudes(grids, dx=500.0, dy=500.0, dz=500.0, fill_value=None,
@@ -851,6 +854,7 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
                      use_qc=True, standard_density=False, debug=False,
                      verbose=False, fill_value=None, refl_field=None,
                      vel_field=None, ncp_field=None, rhv_field=None,
+                     u_field=None, v_field=None, w_field=None,
                      **kwargs):
     """
     Parameters
@@ -946,6 +950,12 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
         ncp_field = get_field_name('normalized_coherent_power')
     if rhv_field is None:
         rhv_field = get_field_name('cross_correlation_ratio')
+    if u_field is None:
+        u_field = get_field_name('eastward_wind_component')
+    if v_field is None:
+        v_field = get_field_name('northward_wind_component')
+    if w_field is None:
+        w_field = get_field_name('vertical_wind_component')
         
     if verbose:
         print 'Observations from %i radar(s) will be used' %len(grids)
@@ -984,10 +994,11 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     
     # Use the ARM interpolated or merged sounding product to get the
     # atmospheric thermodynamic and horizontal wind profiles
-    temp, pres, rho, drho, us, vs = _arm_interp_sonde(grids[0], sonde, target,
-                                    standard_density=standard_density,
-                                    fill_value=fill_value, debug=debug,
-                                    verbose=verbose)
+    res = _arm_interp_sonde(grids[0], sonde, target, fill_value,
+                            standard_density=standard_density,
+                            debug=debug, verbose=verbose)
+    
+    temp, pres, rho, drho, us, vs = res
               
     # Get the first guess field. Here we will put the variables into their
     # vector space,
@@ -1228,9 +1239,9 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
         raise ValueError('Unsupported technique and solver combination')
     
     # Create dictionaries for wind field
-    u = get_metadata('eastward_wind_component')
-    v = get_metadata('northward_wind_component')
-    w = get_metadata('vertical_wind_component')
+    u = get_metadata(u_field)
+    v = get_metadata(v_field)
+    w = get_metadata(w_field)
     
     # This is an important step. Get the control variables from the analysis
     # vector. This requires us to keep track of how the analysis vector is
@@ -1246,7 +1257,10 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     w['data'] = np.reshape(xopt[2*N:3*N], (nz,ny,nx))
     
     # Create winds (grid) object
-    fields = {'u_wind': u, 'v_wind': v, 'w_wind': w}
+    fields = {u_field: u,
+              v_field: v,
+              w_field: w}
+    
     axes = {}
     metadata = {}
     
