@@ -14,6 +14,8 @@ Functions for performing radar retrievals.
 
 """
 
+import qpe
+import winds
 try:
     from .echo_class import steiner_conv_strat
     _F90_EXTENSIONS_AVAILABLE = True
@@ -21,3 +23,4 @@ except:
     _F90_EXTENSIONS_AVAILABLE = False
 
 __all__ = [s for s in dir() if not s.startswith('_')]
+
