@@ -29,18 +29,17 @@ def _cost_wind(x, *args):
 	nx, ny, nz, N = args[0:4]
 	grids = args[4]
 	ub, vb, wb = args[5:8]
-	vt = args[8]
-	rho, drho = args[9:11]
-	base, top, column = args[11:14]
-	wgt_o, wgt_c, wgt_s, wgt_b, wgt_w0 = args[14:19]
-	continuity_cost, smooth_cost = args[19:21]
-	dx, dy, dz = args[21:24]
-	sub_beam = args[24]
-	finite_scheme = args[25]
-	fill_value = args[26]
-	proc = args[27]
-	vel_field = args[28]
-	debug, verbose = args[29:31]
+	rho, drho = args[8:10]
+	base, top, column = args[10:13]
+	wgt_o, wgt_c, wgt_s, wgt_b, wgt_w0 = args[13:18]
+	continuity_cost, smooth_cost = args[18:20]
+	dx, dy, dz = args[20:23]
+	sub_beam = args[23]
+	finite_scheme = args[24]
+	fill_value = args[25]
+	proc = args[26]
+	vel_field = args[27]
+	debug, verbose = args[28:30]
 	
 	if verbose:
 		print 'Calculating value of cost function at x'
@@ -83,9 +82,11 @@ def _cost_wind(x, *args):
 		# for each grid,
 		#
 		# 1. Observed Doppler (radial) velocity
-		# 2. Doppler velocity observation weights
-		# 3. Cartesian components 
+		# 2. Hydrometeor fall velocity
+		# 3. Doppler velocity observation weights
+		# 4. Cartesian components 
 		vr_obs = grid.fields[vel_field]['data']
+		vt = grid.fields['hydrometeor_fall_velocity']['data']
 		wgt_o = grid.fields['observation_weight']['data']
 		ic = grid.fields['x_component']['data']
 		jc = grid.fields['y_component']['data']
@@ -231,18 +232,17 @@ def _grad_wind(x, *args):
 	nx, ny, nz, N = args[0:4]
 	grids = args[4]
 	ub, vb, wb = args[5:8]
-	vt = args[8]
-	rho, drho = args[9:11]
-	base, top, column = args[11:14]
-	wgt_o, wgt_c, wgt_s, wgt_b, wgt_w0 = args[14:19]
-	continuity_cost, smooth_cost = args[19:21]
-	dx, dy, dz = args[21:24]
-	sub_beam = args[24]
-	finite_scheme = args[25]
-	fill_value = args[26]
-	proc = args[27]
-	vel_field = args[28]
-	debug, verbose = args[29:31]
+	rho, drho = args[8:10]
+	base, top, column = args[10:13]
+	wgt_o, wgt_c, wgt_s, wgt_b, wgt_w0 = args[13:18]
+	continuity_cost, smooth_cost = args[18:20]
+	dx, dy, dz = args[20:23]
+	sub_beam = args[23]
+	finite_scheme = args[24]
+	fill_value = args[25]
+	proc = args[26]
+	vel_field = args[27]
+	debug, verbose = args[28:30]
 	
 	if verbose:
 		print 'Calculating gradient of cost function at x'
@@ -323,9 +323,11 @@ def _grad_wind(x, *args):
 		# for each grid,
 		#
 		# 1. Observed Doppler (radial) velocity
-		# 2. Doppler velocity observation weights
-		# 3. Cartesian components 
+		# 2. Hydrometeor fall velocity
+		# 3. Doppler velocity observation weights
+		# 4. Cartesian components 
 		vr_obs = grid.fields[vel_field]['data']
+		vt = grid.fields['hydrometeor_fall_velocity']['data']
 		wgt_o = grid.fields['observation_weight']['data']
 		ic = grid.fields['x_component']['data']
 		jc = grid.fields['y_component']['data']

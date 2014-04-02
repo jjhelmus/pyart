@@ -71,7 +71,7 @@ def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
     # Return dictionary of results
     return {'data': cover.astype(np.int32),
             'standard_name': 'radar_coverage',
-            'long_name': 'Radar coverage flags',
+            'long_name': 'Number of radar observations',
             'valid_min': 0,
             'valid_max': len(grids)}
     
@@ -239,8 +239,8 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
     return base, top
 
             
-def _observation_weight(grids, wgt_o=1.0, fill_value=None, refl_field=None,
-                        vel_field=None):
+def _observation_weight(grids, wgt_o=1.0, fill_value=None,
+                        refl_field=None, vel_field=None):
     """
     Add an observation weight field to Grid objects. Grid points
     with valid observations should be given a scalar weight greater
@@ -281,8 +281,7 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, refl_field=None,
     # Loop over all grids
     for grid in grids:
         
-        # Get reflectivity and Doppler velocity data. Use their masks to
-        # compute the observation weight for each grid
+        # Get appropriate data
         ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
         vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
         
@@ -521,14 +520,13 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
     return temp, pres, rho, drho, u, v
 
         
-def _fall_speed_caya(grid, temp, fill_value=None, refl_field=None):
+def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
     """
     Parameters
     ----------
-    grid : Grid
-        This grid should represent the large-scale coverage within
-        the analysis domain. Note that this is only applicable to
-        fields like reflectivity.
+    grids : list
+        List of all available grids which will have a hydrometeor fall
+        speed field added to their existing fields.
     temp : np.ndarray
         Temperature profile in degrees Celsius.
     
@@ -542,11 +540,7 @@ def _fall_speed_caya(grid, temp, fill_value=None, refl_field=None):
         Name of reflectivity field which will be used to estimate the fall
         speed. A value of None will use the default field name as defined in
         the Py-ART configuration file.
-    
-    Returns
-    -------
-    vt : dict
-        Hydrometeor fall speed data dictionary.
+        
     """
     
     # Get fill value
@@ -558,36 +552,43 @@ def _fall_speed_caya(grid, temp, fill_value=None, refl_field=None):
         refl_field = get_field_name('corrected_reflectivity')
     
     # Get dimensions
-    nz, ny, nx = grid.fields[refl_field]['data'].shape
+    nz, ny, nx = grids[0].fields[refl_field]['data'].shape
     
     # Get height axis and determine its mesh
-    z = grid.axes['z_disp']['data']
+    z = grids[0].axes['z_disp']['data']
     Z = np.repeat(z, ny*nx, axis=0).reshape(nz, ny, nx)
     
     # Determine the temperature mesh
     T = np.repeat(temp, ny*nx, axis=0).reshape(nz, ny, nx)
     
-    # Get reflectivity data and compute precipitation concentration
-    ze = grid.fields[refl_field]['data']
-    M = np.exp((ze - 43.1) / 7.6)
-    
-    # Define liquid and ice relations
-    liquid = lambda M: -5.94 * M**(1.0 / 8.0) * np.exp(Z / 20000.0) 
-    ice = lambda M: -1.15 * M**(1.0 / 12.0) * np.exp(Z / 20000.0)
-    
-    # Compute the fall speed of hydrometeors
-    vt = np.ma.where(T >= 0.0, liquid(M), ice(M))
-    vt.set_fill_value(fill_value)
+    # Loop over grids
+    for grid in grids:
         
-    # Return dictionary of results
-    return {'data': vt,
-            'standard_name': 'hydrometeor_fall_velocity',
-            'long_name': 'Hydrometeor fall velocity',
-            'valid_min': vt.min(),
-            'valid_max': vt.max(),
-            '_FillValue': vt.fill_value,
-            'units': 'meters_per_second',
-            'comment': 'Fall speed relations from Caya (2001)'}
+        # Get reflectivity data and compute precipitation concentration
+        ze = grid.fields[refl_field]['data']
+        M = np.exp((ze - 43.1) / 7.6)
+    
+        # Define liquid and ice relations
+        liquid = lambda M: -5.94 * M**(1.0 / 8.0) * np.exp(Z / 20000.0)
+        ice = lambda M: -1.15 * M**(1.0 / 12.0) * np.exp(Z / 20000.0)
+    
+        # Compute the fall speed of hydrometeors
+        vt = np.ma.where(T >= 0.0, liquid(M), ice(M))
+        vt.set_fill_value(fill_value)
+        
+        # Return dictionary of results
+        vt = {'data': vt,
+              'standard_name': 'hydrometeor_fall_velocity',
+              'long_name': 'Hydrometeor fall velocity',
+              'valid_min': vt.min(),
+              'valid_max': vt.max(),
+              '_FillValue': vt.fill_value,
+              'units': 'meters_per_second',
+              'comment': 'Fall speed relations from Caya (2001)'}
+    
+        grid.add_field('hydrometeor_fall_velocity', vt)
+    
+    return
 
 
 def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
@@ -629,11 +630,12 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
     grid.add_field('horizontal_divergence', div)
     
     return
-   
+        
     
-def _cost_magnitudes(grids, dx=500.0, dy=500.0, dz=500.0, fill_value=None,
-                     continuity_cost='original', smooth_cost='original',
-                     finite_scheme='basic', verbose=False, vel_field=None):
+def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
+                    fall_speed='Caya', finite_scheme='basic', proc=1,
+                    fill_value=None, refl_field=None, vel_field=None,
+                    u_field=None, v_field=None, w_field=None):
     """
     Parameters
     ----------
@@ -641,155 +643,68 @@ def _cost_magnitudes(grids, dx=500.0, dy=500.0, dz=500.0, fill_value=None,
     Optional parameters
     -------------------
     
-    Returns
-    -------
-    
-    References
-    ----------
-    Shapiro, A., C. K. Potvin, and J. Gao, 2009: Use of a Vertical Vorticity
-    Equation in Variational Dual-Doppler Wind Analysis. J. Atmos. Oceanic
-    Technol., 26, 2089-2106
     """
     
     # Get fill value
-    
-    if fill_value is None: fill_value = get_fillvalue()
-    
-    # Parse the field parameters
-    
-    if vel_field is None:
-        vel_field = get_field_name('corrected_velocity')
-        
-    
-    # Get the size of the analysis domain
-    
-    nz, ny, nx = grids[0].fields[vel_field]['data'].shape
-    
-    
-    # Estimate the magnitude of the observation cost function
-    #
-    # We do this by using the actual radial velocity observations for each
-    # radar (grid). Recall that the observation cost is given by,
-    #
-    # Jo = 0.5 * sum( wgt_o * [ vr - vr_obs ]**2 )
-    #
-    # so we can get an idea of magnitude of the observation cost by
-    # neglecting the analysis radial velocity and summing the squares of the
-    # observations for each radar
-    
-    N = 0.0
-    Jo = 0.0
-    
-    for grid in grids:
-        
-        vr = deepcopy(grid.fields[vel_field]['data'])
-        
-        N = N + np.logical_not(vr.mask).sum()
-        
-        Jo = Jo + np.sum(vr**2, dtype='float64')
-        
-    
-    if verbose:
-        
-        print 'Total number of analysis grid points is %i' %(nz * ny * nx)
-        print 'Total number of radar observations is   %i' %N
-              
-        print 'Expect the observation cost to be on the order %.0e' %Jo
-        
-        
-def _check_analysis(grids, network, u, v, w, T, u0, v0, w0, dx=500.0,
-                    dy=500.0, dz=500.0, finite_scheme='basic',
-                    fall_speed='caya', fill_value=None, proc=1,
-                    verbose=False, refl_field=None, vel_field=None):
-    """
-    Parameters
-    ----------
-    
-    Optional parameters
-    -------------------
-    
-    Returns
-    -------
-    """
-    
-    # Get fill value
-    
-    if fill_value is None: fill_value = get_fillvalue()
+    if fill_value is None:
+        fill_value = get_fillvalue()
     
     # Parse the field parameters
-    
     if refl_field is None:
         refl_field = get_field_name('corrected_reflectivity')
-        
     if vel_field is None:
         vel_field = get_field_name('corrected_velocity')
+    if u_field is None:
+        u_field = get_field_name('eastward_wind_component')
+    if v_field is None:
+        v_field = get_field_name('northward_wind_component')
+    if w_field is None:
+        w_field = get_field_name('vertical_wind_component')
         
-    
-    # We copy the grids since they are in fact mutable objects and any
-    # changes we make to them will be reflected in the outer scope
-    # (assuming they are passed by reference)
-    
-    grids = deepcopy(grids)
-    network = deepcopy(network)
-        
-    # Get grid dimensions
-    
+    # Get dimensions
     nz, ny, nx = grids[0].fields[vel_field]['data'].shape
     
+    # Get wind data
+    u = conv.fields[u_field]['data']
+    v = conv.fields[v_field]['data']
+    w = conv.fields[w_field]['data']
     
-    # Calculate the fall speed of hydrometeors using the reflectivity
-    # field from the network
-    
-    if fall_speed == 'caya':
-        
-        vt = _fall_speed_caya(network, T, fill_value=fill_value,
-                              refl_field=refl_field)
-    
-    
-    # Get coverage
-    
-    cover = _radar_coverage(grids, refl_field=refl_field, vel_field=vel_field)
-    
-    # Add the Cartesian components field to all the grids
-    
-    grids = _radar_components(grids, proc=1)
+    # Get grid (radar) coverage
+    cover = _radar_coverage(grids, fill_value=fill_value,
+                refl_field=refl_field, vel_field=vel_field)
     
     # Compute the RMSE of the radial velocity field for each grid (radar)
-    
     for grid in grids:
         
+        # Get appropriate grid (radar) data
         vr_obs = grid.fields[vel_field]['data']
-        
+        vt = grid.fields['hydrometeor_fall_velocity']['data']
         ic = grid.fields['x_component']['data']
         jc = grid.fields['y_component']['data']
         kc = grid.fields['z_component']['data']
+        radar_name = grid.metadata['radar_0_instrument_name']
         
-        vr = u['data'] * ic + v['data'] * jc + (w['data'] + vt['data']) * kc
+        # Compute the projected radial velocity from the wind analysis
+        vr = u * ic + v * jc + (w + vt) * kc
         
-        rmse_vr = np.sqrt(np.ma.mean((vr - vr_obs)**2))
+        # Compute radial velocity RMSE
+        rmse_vr = np.sqrt(((vr - vr_obs)**2).mean())
         
-        if verbose:
-            
-            print 'The radial velocity RMSE for radar %s is %.3f m/s' \
-                    %(grid.metadata['radar_0_instrument_name'], rmse_vr)
-            
-        if rmse_vr > 2.0:
-            
-            warn('The radial velocity RMSE for radar %s is greater than 2 m/s'
-                 %grid.metadata['radar_0_instrument_name'])
+        
+        print ('The radial velocity RMSE for radar %s is %.3f m/s'
+               %(radar_name, rmse_vr))
             
     # Compute the normalized divergence profile
     #
     # This is defined on each analysis height level as the ratio of RMS
     # velocity divergence to the root of the mean of the sum of the squares
     # of the three terms comprising the velocity divergence
+    norm_div = np.zeros(nz, dtype=np.float)
     
-    norm_div = np.zeros(nz, dtype='float64')
-    
-    div, du, dv, dw = divergence.full_wind(u['data'], v['data'], w['data'],
-                                           dx=dx, dy=dy, dz=dz, proc=proc,
-                                           finite_scheme=finite_scheme,
-                                           fill_value=fill_value)
+    res = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
+                    finite_scheme=finite_scheme, fill_value=fill_value)
+               
+    div, du, dv, dw = res
     
     div = np.ma.masked_where(cover['data'] < 1, div)
     du = np.ma.masked_where(cover['data'] < 1, du)
@@ -798,56 +713,24 @@ def _check_analysis(grids, network, u, v, w, T, u0, v0, w0, dx=500.0,
     
     for k in xrange(nz):
         
-        num = np.sqrt(np.ma.mean(div[k,:,:]**2))
-        den = np.sqrt(np.ma.mean(du[k,:,:]**2 + dv[k,:,:]**2 + dw[k,:,:]**2))
+        num = np.sqrt((div[k,:,:]**2).mean())
+        den = np.sqrt((du[k,:,:]**2 + dv[k,:,:]**2 + dw[k,:,:]**2).mean())
         
         norm_div[k] = 100.0 * num / den
         
-    if verbose:
-        
-        print 'Minimum normalized divergence = %.3f%%' %norm_div.min()
-        print 'Maximum normalized divergence = %.3f%%' %norm_div.max()
-        
-    if norm_div.max() > 5.0:
-        
-        warn('The maximum normalized divergence is > 5%')
-        
-    
-    # Compute the RMSD between the initial guess field to the analysis field
-    
-    if u0.ndim == v0.ndim == w0.ndim == 1:
-        
-        u0 = np.repeat(u0, ny * nx, axis=0).reshape(nz, ny, nx)
-        v0 = np.repeat(v0, ny * nx, axis=0).reshape(nz, ny, nx)
-        w0 = np.repeat(w0, ny * nx, axis=0).reshape(nz, ny, nx)
-        
-    
-    rmsd_u = np.sqrt(np.ma.mean((u['data'] - u0)**2))
-    rmsd_v = np.sqrt(np.ma.mean((v['data'] - v0)**2))
-    rmsd_w = np.sqrt(np.ma.mean((w['data'] - w0)**2))
-    
-    if verbose:
-        
-        print 'The RMSD between initial guess for the eastward, northward, and ' + \
-              'vertical wind components are %.3f, %.3f, and %.3f m/s' \
-              %(rmsd_u, rmsd_v, rmsd_w)
+    print 'Minimum normalized divergence = %.3f%%' %norm_div.min()
+    print 'Maximum normalized divergence = %.3f%%' %norm_div.max()
               
     # Compute the RMSE of the impermeability condition at the surface to the
     # analysis vertical velocity at the surface
+    rmsd_w0 = np.sqrt((w[0,:,:]**2).mean())
     
-    rmsd_w0 = np.sqrt(np.ma.mean(w['data'][0,:,:]**2))
-    
-    if verbose:
-        
-        print 'The RMSD between the impermeability condition at the ' + \
-              'surface and the analyzed vertical velocity at the ' + \
-              'surface is %.3f m/s' %rmsd_w0
-              
+    print 'The impermeability condition RMSD is %.3f m/s' %rmsd_w0
     
     return norm_div
     
 
-def solve_wind_field(grids, network, sonde, target, technique='3d-var',
+def solve_wind_field(grids, network, sonde, target=None, technique='3d-var',
                      solver='scipy.fmin_cg', first_guess='zero',
                      background='sounding', fall_speed='Caya', dx=500.0,
                      dy=500.0, dz=500.0, finite_scheme='basic', proc=1,
@@ -868,11 +751,12 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
         base and top heights.
     sonde : netCDF4.Dataset
         Sounding dataset.
-    target : datetime
-        Target date and time.
         
     Optional parameters
     -------------------
+    target : datetime
+        Target date and time. If target is not provided, the earliest time
+        out of all the grids will be used.
     technique : '3d-var'
         Technique used to derive the 3-D wind field.
     solver : 'scipy.fmin_cg', 'scipy.fmin_bfgs'
@@ -960,12 +844,6 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     if verbose:
         print 'Observations from %i radar(s) will be used' %len(grids)
     
-    # We copy the grids since they are mutable objects when they are passed
-    # by reference and therefore any changes we make to them will be reflected
-    # in the outer scope
-    grids = deepcopy(grids)
-    network = deepcopy(network)
-    
     # Get dimensions of problem. We will eventually have to permute the
     # problem from the initial grid space which is in (nz, ny, nx) to a vector
     # space which is 1-D
@@ -978,6 +856,15 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     
     if verbose:
         print 'We have to minimize a function of %i variables' %(3 * N)
+        
+    # Get target time. If no target time is provided, use the earliest time
+    # out of the list of grids (radars)
+    if target is None:
+        target = min([datetime_utils.datetime_from_grid(grid) for
+                      grid in grids])
+        
+    if verbose:
+        print 'Target time is %s' %target
     
     # Define some variables that are not necessarily required to retrieve
     # the wind field but will still be used in some functions. If these
@@ -1057,10 +944,8 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     
     # Get fall speed of hydrometeors
     if fall_speed == 'Caya':
-        vt = _fall_speed_caya(network, temp, fill_value=fill_value,
-                              refl_field=refl_field)
-        
-        vt['data'] = np.ma.filled(vt['data'], fill_value)
+        _fall_speed_caya(grids, temp, fill_value=fill_value,
+                         refl_field=refl_field)
         
     else:
         raise ValueError('Unsupported fall speed relation')
@@ -1081,11 +966,15 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     # Get column types
     column = _column_types(cover, base, top, fill_value=fill_value)
     
-    # This is an important step. We turn the velocity fields for every grid
-    # from NumPy masked arrays into NumPy arrays
-    for grid in grids:
-        vr = grid.fields[vel_field]['data']
-        grid.fields[vel_field]['data'] = np.ma.filled(vr, fill_value) 
+    # This is an important step. We make sure that every field for every grid
+    # (radar) is a NumPy array and not a masked array. First make a copy of
+    # the original grids so as not to disturb their data array types
+    grids_nd = deepcopy(grids)
+    
+    for grid in grids_nd:
+        for field, field_dic in grid.fields.iteritems():
+            field_dic['data'] = np.ma.filled(field_dic['data'], fill_value)
+            grid.fields[field]['data'] = field_dic['data'] 
     
     # Now the very important step of concatenating the arrays of the
     # initial guess field so that we now have,
@@ -1133,8 +1022,8 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
                 wgt_s = [wgt * length_scale**4 for wgt in wgt_s]
                 
         # Add observation weight field to all grids
-        _observation_weight(grids, wgt_o=wgt_o, refl_field=refl_field,
-                            vel_field=vel_field)
+        _observation_weight(grids_nd, wgt_o=wgt_o, fill_value=fill_value,
+                            refl_field=refl_field, vel_field=vel_field)
         
         # SciPy nonlinear conjugate gradient method
         if solver == 'scipy.fmin_cg':
@@ -1167,11 +1056,10 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
         # cost function and gradient together. The order at which the
         # arguments are entered is very important, and must be adhered to by
         # the functions that use it as arguments
-        args = (nx, ny, nz, N, grids, ub, vb, wb, vt['data'], rho, drho,
-                base['data'], top['data'], column['data'], wgt_o, wgt_c,
-                wgt_s, wgt_b, wgt_w0, continuity_cost, smooth_cost, dx, dy,
-                dz, sub_beam, finite_scheme, fill_value, proc, vel_field,
-                debug, verbose)
+        args = (nx, ny, nz, N, grids_nd, ub, vb, wb, rho, drho, base['data'],
+                top['data'], column['data'], wgt_o, wgt_c, wgt_s, wgt_b,
+                wgt_w0, continuity_cost, smooth_cost, dx, dy, dz, sub_beam,
+                finite_scheme, fill_value, proc, vel_field, debug, verbose)
         
         # Get the appropriate cost function and the function that computes
         # the gradient of the cost function
@@ -1197,11 +1085,11 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
             # This is an important step. We have to change the arguments to
             # account for different costs and weighting coefficients for the
             # first pass
-            args0 = (nx, ny, nz, N, grids, ub, vb, wb, vt['data'], rho, drho,
-                    base['data'], top['data'], column['data'], wgt_o, wgt_c,
-                    wgt_s0, wgt_b, wgt_w0, continuity_cost0, smooth_cost, dx,
-                    dy, dz, sub_beam, finite_scheme, fill_value, proc,
-                    vel_field, debug, verbose)
+            args0 = (nx, ny, nz, N, grids_nd, ub, vb, wb, rho, drho,
+                     base['data'], top['data'], column['data'], wgt_o,
+                     wgt_c, wgt_s0, wgt_b, wgt_w0, continuity_cost0,
+                     smooth_cost, dx, dy, dz, sub_beam, finite_scheme,
+                     fill_value, proc, vel_field, debug, verbose)
             
             # Call the SciPy solver
             res = minimize(f, x0, args=args0, method=method, jac=jac,
@@ -1256,12 +1144,24 @@ def solve_wind_field(grids, network, sonde, target, technique='3d-var',
     v['data'] = np.reshape(xopt[N:2*N], (nz,ny,nx))
     w['data'] = np.reshape(xopt[2*N:3*N], (nz,ny,nx))
     
-    # Create winds (grid) object
+    # Define fields
     fields = {u_field: u,
               v_field: v,
-              w_field: w}
+              w_field: w,
+              refl_field: network.fields[refl_field],
+              'radar_coverage': cover}
     
+    # Define axes
     axes = {}
-    metadata = {}
+    
+    # Define metadata
+    metadata = {'title': 'Convective Vertical Velocities',
+                'dod_version': '',
+                'command_line': '',
+                'source': '',
+                'Conventions': 'CF/Radial',
+                'references': '',
+                'state': '',
+                'field_names': ''}
     
     return Grid(fields, axes, metadata)
