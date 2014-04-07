@@ -13,7 +13,7 @@ from scipy.optimize import minimize
 from mpl_toolkits.basemap import pyproj
 
 from ..io import Grid
-from ..util import datetime_utils
+from ..util.datetime_utils import datetime_from_grid, datetimes_from_dataset
 from ..config import get_fillvalue, get_field_name, get_metadata
 from ..retrieve import cga, divergence, continuity, gradient
                    
@@ -157,7 +157,7 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80'):
     return
 
 
-def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
+def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
                  fill_value=None, proc=1, refl_field=None):
     """
     Determine the echo base and top heights from the large-scale
@@ -165,10 +165,8 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
     
     Parameters
     ----------
-    network : Grid object
-        This grid should represent the large-scale coverage within
-        the analysis domain. Note that this is only applicable to
-        fields like reflectivity.
+    grids : list
+    
     
     Optional Parameters
     -------------------
@@ -204,10 +202,12 @@ def _echo_bounds(network, mds=0.0, min_layer=1500.0, top_offset=500.0,
         refl_field = get_field_name('corrected_reflectivity')
     
     # Get axes
-    z = network.axes['z_disp']['data']
+    z = grids[0].axes['z_disp']['data']
     
-    # Get reflectivity data
-    ze = deepcopy(network.fields[refl_field]['data'])
+    # Compute the maximum reflectivity observed at each grid point
+    # from all grids (radars)
+    ze = np.ma.max([grid.fields[refl_field]['data'] for
+                    grid in grids], axis=0)
     ze = np.ma.filled(ze, fill_value).astype(np.float64)
         
     # Estimate echo base and top heights. Add offset to echo top heights
@@ -473,7 +473,7 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
     z_sonde = 1000.0 * sonde.variables['height'][:] # (m)
     
     # Get closest time index in sounding to the target time
-    dt_sonde = datetime_utils.datetimes_from_dataset(sonde)
+    dt_sonde = datetimes_from_dataset(sonde)
     t = np.abs(dt_sonde - target).argmin()
     
     if verbose:
@@ -554,38 +554,40 @@ def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
     # Get dimensions
     nz, ny, nx = grids[0].fields[refl_field]['data'].shape
     
-    # Get height axis and determine its mesh
+    # Get height axis and create its mesh
     z = grids[0].axes['z_disp']['data']
     Z = np.repeat(z, ny*nx, axis=0).reshape(nz, ny, nx)
     
-    # Determine the temperature mesh
+    # Create the temperature mesh
     T = np.repeat(temp, ny*nx, axis=0).reshape(nz, ny, nx)
     
-    # Loop over grids
+    # Compute the maximum reflectivity observed at each grid point
+    # from all grids (radars)
+    ze = np.ma.max([grid.fields[refl_field]['data'] for
+                    grid in grids], axis=0)
+    
+    # Compute the precipitation concentration
+    M = np.exp((ze - 43.1) / 7.6)
+    
+    # Define liquid and ice relations
+    liquid = lambda M: -5.94 * M**(1.0 / 8.0) * np.exp(Z / 20000.0)
+    ice = lambda M: -1.15 * M**(1.0 / 12.0) * np.exp(Z / 20000.0)
+    
+    # Compute the fall speed of hydrometeors
+    vt = np.ma.where(T >= 0.0, liquid(M), ice(M))
+    vt.set_fill_value(fill_value)
+    
+    vt = {'data': vt,
+          'standard_name': 'hydrometeor_fall_velocity',
+          'long_name': 'Hydrometeor fall velocity',
+          'valid_min': vt.min(),
+          'valid_max': vt.max(),
+          '_FillValue': vt.fill_value,
+          'units': 'meters_per_second',
+          'comment': 'Fall speed relations from Caya (2001)'}
+    
+    # Loop over grids and add the hydrometeor fall velocity field
     for grid in grids:
-        
-        # Get reflectivity data and compute precipitation concentration
-        ze = grid.fields[refl_field]['data']
-        M = np.exp((ze - 43.1) / 7.6)
-    
-        # Define liquid and ice relations
-        liquid = lambda M: -5.94 * M**(1.0 / 8.0) * np.exp(Z / 20000.0)
-        ice = lambda M: -1.15 * M**(1.0 / 12.0) * np.exp(Z / 20000.0)
-    
-        # Compute the fall speed of hydrometeors
-        vt = np.ma.where(T >= 0.0, liquid(M), ice(M))
-        vt.set_fill_value(fill_value)
-        
-        # Return dictionary of results
-        vt = {'data': vt,
-              'standard_name': 'hydrometeor_fall_velocity',
-              'long_name': 'Hydrometeor fall velocity',
-              'valid_min': vt.min(),
-              'valid_max': vt.max(),
-              '_FillValue': vt.fill_value,
-              'units': 'meters_per_second',
-              'comment': 'Fall speed relations from Caya (2001)'}
-    
         grid.add_field('hydrometeor_fall_velocity', vt)
     
     return
@@ -730,25 +732,20 @@ def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
     return norm_div
     
 
-def solve_wind_field(grids, network, sonde, target=None, technique='3d-var',
+def solve_wind_field(grids, sonde, target=None, technique='3d-var',
                      solver='scipy.fmin_cg', first_guess='zero',
                      background='sounding', fall_speed='Caya', dx=500.0,
                      dy=500.0, dz=500.0, finite_scheme='basic', proc=1,
-                     use_qc=True, standard_density=False, debug=False,
-                     verbose=False, fill_value=None, refl_field=None,
-                     vel_field=None, ncp_field=None, rhv_field=None,
-                     u_field=None, v_field=None, w_field=None,
+                     use_qc=True, standard_density=False, save_refl=True,
+                     debug=False, verbose=False, fill_value=None,
+                     refl_field=None, vel_field=None, ncp_field=None,
+                     rhv_field=None, u_field=None, v_field=None, w_field=None,
                      **kwargs):
     """
     Parameters
     ----------
     grids : list
         All available radar grids to use in the wind retrieval.
-    network : Grid
-        This grid should represent the large-scale coverage within
-        the analysis domain. Note that this is only applicable to
-        fields like reflectivity. It will be used to estimate the echo
-        base and top heights.
     sonde : netCDF4.Dataset
         Sounding dataset.
         
@@ -796,6 +793,11 @@ def solve_wind_field(grids, network, sonde, target=None, technique='3d-var',
         and correlation coefficient fields, respectively.
     min_layer : float
         Minimum cloud thickness in meters allowed
+    save_refl : bool
+        If true, then the reflectivity of the radar network is returned as
+        a field in the grid object. The reflectivity of the radar network is
+        defined as the maximum reflectivity value observed from all input
+        grids (radars).
     gtol : float
     
     ftol: float
@@ -860,8 +862,7 @@ def solve_wind_field(grids, network, sonde, target=None, technique='3d-var',
     # Get target time. If no target time is provided, use the earliest time
     # out of the list of grids (radars)
     if target is None:
-        target = min([datetime_utils.datetime_from_grid(grid) for
-                      grid in grids])
+        target = min([datetime_from_grid(grid) for grid in grids])
         
     if verbose:
         print 'Target time is %s' %target
@@ -955,9 +956,10 @@ def solve_wind_field(grids, network, sonde, target=None, technique='3d-var',
     
         
     # Get echo base and top heights
-    base, top = _echo_bounds(network, mds=mds, min_layer=min_layer,
-                        top_offset=top_offset, fill_value=fill_value,
-                        refl_field=refl_field)
+    base, top = _echo_bounds(grids, mds=mds, min_layer=min_layer,
+                             top_offset=top_offset,
+                             fill_value=fill_value,
+                             refl_field=refl_field)
     
     base['data'] = np.ma.filled(base['data'], fill_value)
     top['data'] = np.ma.filled(top['data'], fill_value)
@@ -1126,10 +1128,15 @@ def solve_wind_field(grids, network, sonde, target=None, technique='3d-var',
     else:
         raise ValueError('Unsupported technique and solver combination')
     
-    # Create dictionaries for wind field
+    # Now the last step: prepare the necessary data for output. First get the
+    # wind retrieval metadata from configuration file
     u = get_metadata(u_field)
     v = get_metadata(v_field)
     w = get_metadata(w_field)
+    
+    u['_FillValue'] = fill_value
+    v['_FillValue'] = fill_value
+    w['_FillValue'] = fill_value
     
     # This is an important step. Get the control variables from the analysis
     # vector. This requires us to keep track of how the analysis vector is
@@ -1144,17 +1151,42 @@ def solve_wind_field(grids, network, sonde, target=None, technique='3d-var',
     v['data'] = np.reshape(xopt[N:2*N], (nz,ny,nx))
     w['data'] = np.reshape(xopt[2*N:3*N], (nz,ny,nx))
     
-    # Define fields
+    u['data'] = np.ma.masked_equal(u['data'], fill_value)
+    v['data'] = np.ma.masked_equal(v['data'], fill_value)
+    w['data'] = np.ma.masked_equal(w['data'], fill_value)
+    
+    # Calculate the maximum reflectivity from all grids, which we will save
+    # as a field in the output grid object
+    if save_refl:
+        
+        # Get metadata from configuration file
+        ze = get_metadata(refl_field)
+        
+        # Get data
+        ze['data'] = np.ma.max([grid.fields[refl_field]['data'] for
+                                grid in grids], axis=0)
+        ze['data'].set_fill_value(fill_value)
+        
+        # Define more metadata
+        ze['long_name'] = 'Reflectivity of radar network'
+        ze['_FillValue'] = fill_value
+        ze['comment'] = ('Reflectivity values are maximum values, '
+                         'not mean values')
+    
+    # Define the fields
     fields = {u_field: u,
               v_field: v,
               w_field: w,
-              refl_field: network.fields[refl_field],
+              refl_field: ze,
               'radar_coverage': cover}
     
-    # Define axes
-    axes = {}
+    # Define the axes. We will use the axes of the grid (radar) which has the
+    # latest start time
+    grid_dates = [datetime_from_grid(grid) for grid in grids]
+    last_radar = grids[np.argmax(grid_dates)]
+    axes = last_radar.axes
     
-    # Define metadata
+    # Define the metadata
     metadata = {'title': 'Convective Vertical Velocities',
                 'dod_version': '',
                 'command_line': '',
