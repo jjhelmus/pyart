@@ -347,6 +347,13 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
         ncp_field = get_field_name('normalized_coherent_power')
     if rhv_field is None:
         rhv_field = get_field_name('cross_correlation_ratio')
+        
+    # Get grid dimensions
+    nz, ny, nx = grids[0].fields[refl_field]['data'].shape
+    
+    # Get height axis and create its mesh
+    z = grids[0].axes['z_disp']['data']
+    Z = np.repeat(z, ny*nx, axis=0).reshape(nz, ny, nx)
     
     # Loop over all grids
     for grid in grids:
@@ -366,6 +373,10 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
         
         is_bad_refl = np.logical_or(is_noise, is_non_meteo)
         is_bad_vel = np.logical_or(is_high_vel, is_non_meteo)
+        
+        # Special attention to heights below 2000 m where velocity artifacts
+        # can be a problem
+        is_bad_vel[np.logical_and(np.abs(vr) > 25.0, Z < 2000.0)] = True
         
         # Update masks
         grid.fields[refl_field]['data'] = np.ma.masked_where(is_bad_refl, ze)
@@ -1155,6 +1166,12 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     v['data'] = np.ma.masked_equal(v['data'], fill_value)
     w['data'] = np.ma.masked_equal(w['data'], fill_value)
     
+    # Define the fields
+    fields = {u_field: u,
+              v_field: v,
+              w_field: w,
+              'radar_coverage': cover}
+    
     # Calculate the maximum reflectivity from all grids, which we will save
     # as a field in the output grid object
     if save_refl:
@@ -1172,13 +1189,9 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
         ze['_FillValue'] = fill_value
         ze['comment'] = ('Reflectivity values are maximum values, '
                          'not mean values')
-    
-    # Define the fields
-    fields = {u_field: u,
-              v_field: v,
-              w_field: w,
-              refl_field: ze,
-              'radar_coverage': cover}
+        
+        # Add reflectivity to fields
+        fields[refl_field] = ze
     
     # Define the axes. We will use the axes of the grid (radar) which has the
     # latest start time
@@ -1191,9 +1204,8 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
                 'dod_version': '',
                 'command_line': '',
                 'source': '',
-                'Conventions': 'CF/Radial',
+                'Conventions': '',
                 'references': '',
-                'state': '',
-                'field_names': ''}
+                'state': ''}
     
     return Grid(fields, axes, metadata)
