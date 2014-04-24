@@ -647,8 +647,9 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
     
 def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
                     fall_speed='Caya', finite_scheme='basic', proc=1,
-                    fill_value=None, refl_field=None, vel_field=None,
-                    u_field=None, v_field=None, w_field=None):
+                    fill_value=None, verbose=False, refl_field=None,
+                    vel_field=None, u_field=None, v_field=None,
+                    w_field=None):
     """
     Parameters
     ----------
@@ -686,7 +687,10 @@ def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
     cover = _radar_coverage(grids, fill_value=fill_value,
                 refl_field=refl_field, vel_field=vel_field)
     
-    # Compute the RMSE of the radial velocity field for each grid (radar)
+    # Initialize status dictionary
+    status = {}
+    
+    # Compute the RMSD of the radial velocity field for each grid (radar)
     for grid in grids:
         
         # Get appropriate grid (radar) data
@@ -700,12 +704,14 @@ def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
         # Compute the projected radial velocity from the wind analysis
         vr = u * ic + v * jc + (w + vt) * kc
         
-        # Compute radial velocity RMSE
+        # Compute radial velocity RMSD
         rmse_vr = np.sqrt(((vr - vr_obs)**2).mean())
         
+        status['RMSD_{%s}' %radar_name] = rmse_vr
         
-        print ('The radial velocity RMSE for radar %s is %.3f m/s'
-               %(radar_name, rmse_vr))
+        if verbose:
+            print ('The radial velocity RMSE for radar %s is %.3f m/s'
+                   %(radar_name, rmse_vr))
             
     # Compute the normalized divergence profile
     #
@@ -731,16 +737,22 @@ def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
         
         norm_div[k] = 100.0 * num / den
         
-    print 'Minimum normalized divergence = %.3f%%' %norm_div.min()
-    print 'Maximum normalized divergence = %.3f%%' %norm_div.max()
+    status['ND'] = norm_div
+    
+    if verbose:
+        print 'Minimum normalized divergence = %.3f%%' %norm_div.min()
+        print 'Maximum normalized divergence = %.3f%%' %norm_div.max()
               
     # Compute the RMSE of the impermeability condition at the surface to the
     # analysis vertical velocity at the surface
     rmsd_w0 = np.sqrt((w[0,:,:]**2).mean())
     
-    print 'The impermeability condition RMSD is %.3f m/s' %rmsd_w0
+    status['RMSD_{imperm}'] = rmsd_w0
     
-    return norm_div
+    if verbose:
+        print 'The impermeability condition RMSD is %.3f m/s' %rmsd_w0
+    
+    return status
     
 
 def solve_wind_field(grids, sonde, target=None, technique='3d-var',
@@ -888,7 +900,7 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     rhv_min = kwargs.get('rhv_min', 0.8)
     min_layer = kwargs.get('min_layer', 1500.0)
     top_offset = kwargs.get('top_offset', 500.0)
-    window_size = kwargs.get('window_size', 6)
+    window_size = kwargs.get('window_size', 10)
     noise_ratio = kwargs.get('noise_ratio', 85.0)
     
     # Use the ARM interpolated or merged sounding product to get the
