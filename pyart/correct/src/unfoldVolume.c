@@ -127,8 +127,8 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
          if (val==missingVal) GOOD[i][currIndex]=-1;
          else {
            if (filt==1) {
-               GOOD[i][currIndex] = bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
-                                    numBins, missingVal);
+               bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
+                                    numBins, missingVal, GOOD);
            } else {
          /* If no filter is being applied save bin for dealiasing: */
          GOOD[i][currIndex]=0;

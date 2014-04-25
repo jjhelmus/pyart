@@ -68,8 +68,9 @@ int findRay (Volume* rvVolume1, Volume* rvVolume2, int sweepIndex1, int
 float previousVal (Volume* rvVolume, Volume* lastVolume, int sweepIndex, int
 	currIndex, int rangeIndex, float missingVal);
 
-int bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
-                         int numRays, int numBins, float missingVal);
+void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
+                         int numRays, int numBins, float missingVal, 
+                         short GOOD[MAXBINS][MAXRAYS]);
 #endif /* DEALIAS_H */
 
 

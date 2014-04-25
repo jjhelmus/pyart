@@ -5,12 +5,13 @@
 #include <stdio.h>
 
 /* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 
- * Returns -1 if not enough neighbors found, 0 if good 
+ * GOOD is updated 
  * */
 
 
-int bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
-                         int numRays, int numBins, float missingVal)
+void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
+                         int numRays, int numBins, float missingVal, 
+                         short GOOD[MAXBINS][MAXRAYS])
 {
     int countindex=0;
     int left, right, next, prev;
@@ -70,10 +71,12 @@ int bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
     if (((i==numBins-1 || i==DELNUM) && countindex>=3)||
         (countindex>=5)) {
       /* Save the bin for dealiasing: */
-      return 0;
+      GOOD[i][currIndex] = 0;
+      return;
     } else {
       /* Assign missing value to the current bin. */
-      return -1;
+      GOOD[i][currIndex] = -1;
+      return;
     }   
       /* End 3 x 3 filter */
 }   
