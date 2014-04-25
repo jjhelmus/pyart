@@ -1,8 +1,11 @@
 
 
 #include "FourDD.h"
-#include <rsl.h>
+
 #include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
+#include <rsl.h>
 
 /* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 
  * GOOD is updated 
@@ -179,4 +182,216 @@ void continuity_dealias(
            GOOD[i][currIndex]=1;
          }
            }
+}
+
+
+void spatial_dealias(
+    Volume* VALS, Volume* rvVolume,
+    int sweepIndex, int currIndex, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, float pfraction, 
+    
+    unsigned short *pflag, int *pstep,
+    int binindex[8], int rayindex[8], float diffs[8]
+    )
+{
+
+    int loopcount, startindex, endindex, i, countindex, countbins,
+        next, prev, left, right, numneg, numpos, l, in, out, numtimes;
+    //unsigned short flag = *pflag;
+    //int step = *pstep;
+    float val, finalval, goodval;
+
+     /* Now, unfold GOOD=0 bins assuming spatial continuity: */
+     loopcount=0;
+     while (*pflag==1) {
+       loopcount=loopcount+1;
+       *pflag=0;
+       if (*pstep==1) {
+         *pstep=-1;
+         startindex=numRays-1;
+         endindex=-1;
+       } else {
+         *pstep=1;
+         startindex=0;
+         endindex=numRays;
+       }
+       for (i=DELNUM;i<numBins;i++) {
+         for (currIndex=startindex;currIndex!=endindex;currIndex=currIndex
+        +*pstep) {
+           if (GOOD[i][currIndex]==0) {
+         countindex=0;
+         countbins=0;
+         val=(float) VALS->sweep[sweepIndex]->ray[currIndex]->
+           h.f(VALS->sweep[sweepIndex]->ray[currIndex]->range[i]);
+         if (VERBOSE) printf("\n");
+             if (VERBOSE) printf("Startval: %f\n", val);
+             if (currIndex==0) left=numRays-1;
+         else left=currIndex-1;
+         if (currIndex==numRays-1) right=0;
+         else right=currIndex+1;
+         next=i+1;
+         prev=i-1;
+         /* Look at all bins adjacent to current bin in question: */
+         if (val != missingVal) {  // don't look for neighbors of missingVal
+         if (i>DELNUM) {
+           if (GOOD[prev][left]==1) {
+             if (*pflag==0) *pflag=1;
+             countindex=countindex+1;
+             binindex[countindex-1]=prev;
+             rayindex[countindex-1]=left;
+             if (VERBOSE) printf("pl ");
+           }
+           if (GOOD[prev][left]==0) {
+             countbins=countbins+1;
+           }
+           if (GOOD[prev][currIndex]==1) {
+             if (*pflag==0) *pflag=1;
+             countindex=countindex+1;
+             binindex[countindex-1]=prev;
+             rayindex[countindex-1]=currIndex;
+             if (VERBOSE) printf("pc ");
+           }
+           if (GOOD[prev][currIndex]==0) {
+             countbins=countbins+1;
+           }
+           if (GOOD[prev][right]==1) {
+             if (*pflag==0) *pflag=1;
+             countindex=countindex+1;
+             binindex[countindex-1]=prev;
+             rayindex[countindex-1]=right;
+             if (VERBOSE) printf("pr ");
+           }
+               if (GOOD[prev][right]==0) {
+             countbins=countbins+1;
+           }
+         }
+         if (GOOD[i][left]==1) {
+           if (*pflag==0) *pflag=1;
+           countindex=countindex+1;
+           binindex[countindex-1]=i;
+           rayindex[countindex-1]=left;
+           if (VERBOSE) printf("il ");
+         }
+         if (GOOD[i][left]==0) {
+           countbins=countbins+1;
+         }
+         if (GOOD[i][right]==1) {
+           if (*pflag==0) *pflag=1;
+           countindex=countindex+1;
+           binindex[countindex-1]=i;
+           rayindex[countindex-1]=right;
+           if (VERBOSE) printf("ir ");     
+         }
+         if (GOOD[i][right]==0) {
+           countbins=countbins+1;
+         }
+         if (i<numBins-1) {  
+           if (GOOD[next][left]==1) {
+             if (*pflag==0) *pflag=1;
+             countindex=countindex+1;
+             binindex[countindex-1]=next;
+             rayindex[countindex-1]=left;
+             if (VERBOSE) printf("nl "); 
+           }
+           if (GOOD[next][left]==0) {
+             countbins=countbins+1;
+           }
+           if (GOOD[next][currIndex]==1) {
+             if (*pflag==0) *pflag=1;
+             countindex=countindex+1;
+             binindex[countindex-1]=next;
+             rayindex[countindex-1]=currIndex;
+             if (VERBOSE) printf("nc ");
+           }
+           if (GOOD[next][currIndex]==0) {
+             countbins=countbins+1;
+           }
+           if (GOOD[next][right]==1) {
+             if (*pflag==0) *pflag=1;
+             countindex=countindex+1;
+             binindex[countindex-1]=next;
+             rayindex[countindex-1]=right;
+             if (VERBOSE) printf("nr ");
+           }
+           if (GOOD[next][right]==0) {
+             countbins=countbins+1;
+           }
+         }
+         }
+         /* Perform last step of Bergen and Albers filter: */
+         if (loopcount==1 && countbins+countindex<1) 
+               GOOD[i][currIndex]=-1;  
+
+         if (countindex>=1) {
+           /* Unfold against all adjacent values where GOOD==1 */
+           numtimes=0;
+           while(val!=missingVal&&GOOD[i][currIndex]==0) {
+             numtimes=numtimes+1;
+             in=0;
+             out=0;
+             numneg=0;
+             numpos=0;
+             if (VERBOSE) printf("countindex: %d\n", countindex); 
+             for (l=0;l<countindex;l++) {
+               if (VERBOSE) printf("%d %d %f\n",binindex[l],
+              rayindex[l],goodval);
+               goodval=(float)rvVolume->sweep[sweepIndex]->ray
+             [rayindex[l]]->h.f(rvVolume->sweep[sweepIndex]->
+             ray[rayindex[l]]->range[binindex[l]]);
+                   diffs[l]=goodval-val;
+               if (fabs(diffs[l])<pfraction*NyqVelocity) in=in+1;
+               else {
+             out=out+1;
+             if (diffs[l]>NyqVelocity) {
+               numpos=numpos+1;
+             } else if (diffs[l]<-NyqVelocity){
+               numneg=numneg+1;
+             }
+               }
+             }
+             if (in>0 && out==0) {
+               finalval=(float)rvVolume->sweep[sweepIndex]->
+             ray[currIndex]->h.invf(val);
+               rvVolume->sweep[sweepIndex]->ray[currIndex]->
+             range[i]=(unsigned short) (finalval);
+               GOOD[i][currIndex]=1;
+               if (VERBOSE) printf("Finalval: %4.2f\n", val);
+             } else {
+               if (numtimes<=MAXCOUNT) {
+             if ((numpos+numneg)<(in+out-(numpos+numneg))) {
+               if (loopcount>2)
+               { /* Keep the value after two passes through
+                 ** data. */
+                 finalval=(float)rvVolume->sweep[sweepIndex]->
+                   ray[currIndex]->h.invf(val);
+                 rvVolume->sweep[sweepIndex]->ray[currIndex]->
+                   range[i]=(unsigned short) (finalval);
+                 GOOD[i][currIndex]=1;
+                 if (VERBOSE) printf(
+                     "Keeping after two passes: %f\n",val);
+               }
+             } else if (numpos>numneg) {
+               val=val+NyqInterval;
+             } else if (numneg>numpos) {
+               val=val-NyqInterval;
+             } else {
+               /* Save bin for windowing if unsuccessful after
+               ** four passes: */
+               if (loopcount>4) GOOD[i][currIndex]=-2;
+               if (VERBOSE) printf("Saving for windowing\n");
+             }
+               } else {
+             /* Remove bin: */
+             GOOD[i][currIndex]=-2;
+             if (VERBOSE) printf("Saving for windowing\n");
+               }
+             }
+           }
+         }
+           }
+         }
+       }
+     }
+
 }

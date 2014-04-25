@@ -79,6 +79,14 @@ void continuity_dealias(
     float val, int prevIndex, int numSweeps, int abIndex, float NyqVelocity,
     float NyqInterval, float valcheck, float fraction);
 
+void spatial_dealias(
+    Volume* VAL, Volume* rvVolume,
+    int sweepIndex, int currIndex, int numRays, int numBins,
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, float pfraction,
+    unsigned short *flag, int *step,
+    int binindex[8], int rayindex[8], float diffs[8]
+    );
 #endif /* DEALIAS_H */
 
 
