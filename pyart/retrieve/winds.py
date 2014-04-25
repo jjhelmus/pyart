@@ -578,7 +578,7 @@ def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
                     grid in grids], axis=0)
     
     # Compute the precipitation concentration
-    M = np.exp((ze - 43.1) / 7.6)
+    M = np.ma.exp((ze - 43.1) / 7.6)
     
     # Define liquid and ice relations
     liquid = lambda M: -5.94 * M**(1.0 / 8.0) * np.exp(Z / 20000.0)
