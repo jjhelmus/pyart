@@ -39,7 +39,7 @@ def configuration(parent_package='', top_path=None):
     if check_rsl_path(rsl_lib_path, rsl_include_path):
         fourdd_sources = ['src/findRay.c', 'src/firstGuess_noread.c',
                           'src/prepVolume.c', 'src/unfoldVolume.c',
-                          'src/window.c']
+                          'src/window.c', 'src/unfoldVolume_funcs.c']
         # Cython wrapper around FourDD
         config.add_extension(
             '_fourdd_interface',

@@ -127,68 +127,8 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
          if (val==missingVal) GOOD[i][currIndex]=-1;
          else {
            if (filt==1) {
-         /*Perform a 3x3 filter, as proposed by Bergen & Albers 1988*/
-         countindex=0;
-         if (currIndex==0) left=numRays-1;
-         else left=currIndex-1;
-         if (currIndex==numRays-1) right=0;
-         else right=currIndex+1;
-         next=i+1;
-         prev=i-1;
-         /* Look at all bins adjacent to current bin in question: */
-         if (i>DELNUM) {
-           if (((float) VALS->sweep[sweepIndex]->
-            ray[left]->h.f(VALS->sweep[sweepIndex]->ray
-                    [left]->range[prev]))!=missingVal) {
-             countindex=countindex+1;
-           }
-           if (((float) VALS->sweep[sweepIndex]->
-            ray[currIndex]->h.f(VALS->sweep[sweepIndex]->ray
-                [currIndex]->range[prev]))!=missingVal) {
-             countindex=countindex+1;
-           }
-           if (((float) VALS->sweep[sweepIndex]->
-            ray[right]->h.f(VALS->sweep[sweepIndex]->ray
-            [right]->range[prev]))!=missingVal) {
-             countindex=countindex+1;
-           }
-         }
-         if (((float) VALS->sweep[sweepIndex]->
-              ray[left]->h.f(VALS->sweep[sweepIndex]->ray
-              [left]->range[i]))!=missingVal) {
-           countindex=countindex+1;
-         }
-         if (((float) VALS->sweep[sweepIndex]->
-              ray[right]->h.f(VALS->sweep[sweepIndex]->ray
-              [right]->range[i]))!=missingVal) {
-           countindex=countindex+1;
-         }
-         if (i<numBins-1) {  
-           if (((float) VALS->sweep[sweepIndex]->
-            ray[left]->h.f(VALS->sweep[sweepIndex]->ray
-                        [left]->range[next]))!=missingVal) {
-             countindex=countindex+1;
-           }
-           if (((float) VALS->sweep[sweepIndex]->
-            ray[currIndex]->h.f(VALS->sweep[sweepIndex]->ray
-            [currIndex]->range[next]))!=missingVal) {
-             countindex=countindex+1;
-           }
-           if (((float) VALS->sweep[sweepIndex]->
-            ray[right]->h.f(VALS->sweep[sweepIndex]->ray
-                        [right]->range[next]))!=missingVal) {
-             countindex=countindex+1;
-           }
-         }
-         if (((i==numBins-1 || i==DELNUM) && countindex>=3)||
-             (countindex>=5)) {
-           /* Save the bin for dealiasing: */
-           GOOD[i][currIndex]=0;
-         } else {
-           /* Assign missing value to the current bin. */
-           GOOD[i][currIndex]=-1;
-         }   
-           /* End 3 x 3 filter */
+               GOOD[i][currIndex] = bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
+                                    numBins, missingVal);
            } else {
          /* If no filter is being applied save bin for dealiasing: */
          GOOD[i][currIndex]=0;
@@ -781,7 +721,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
          }
        }
      }
-       }
+       } // end of loop over sweeps
     *success=1;
     return;
 }
