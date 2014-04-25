@@ -8,7 +8,6 @@ cdef extern from "FourDD.h":
 
     cdef int MAXRAYS
     cdef int MAXBINS
-    cdef float HIGHDZBTHRESHOLD
     cdef int VERBOSE
     cdef int PROXIMITY
     cdef float COMPTHRESH
