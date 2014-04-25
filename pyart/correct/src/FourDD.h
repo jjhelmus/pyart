@@ -17,7 +17,7 @@
 
 #ifndef FDD_H
 #define FDD_H
-#define MAXRAYS   375      /* added by SRB 980310 */
+#define MAXRAYS   500      /* added by SRB 980310 */
 #define MAXBINS 2048
 #define HIGHDBZTHRESHOLD (float) 80.0
 #define VERBOSE 0  /* Verbose=1 for detailed printout during execution */
@@ -54,8 +54,10 @@
 #define MAXSHEAR 0.05 /* Maximum vertical shear allowed in input sounding */
 #include <rsl.h> /* Sweep */ 
 
+/*
 void firstGuess(Volume* soundVolume, float missingVal, char* sounding_name,
      int VAD_time, unsigned short* sounding);
+*/
 
 void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
      float missingVal, unsigned short rm, unsigned short* success);

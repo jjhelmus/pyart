@@ -27,10 +27,6 @@ cdef extern from "FourDD.h":
     cdef int MAXCOUNT
     cdef float MAXSHEAR
 
-    void firstGuess(_rsl_h.Volume* soundVolume, float missingVal,
-                    char* sounding_name, int VAD_time,
-                    unsigned short* sounding)
-
     void firstGuessNoRead(_rsl_h.Volume* soundVolume, float missingVal,
                           float *height_array, float *speed_array,
                           float *direction_array, int nlevels, int VAD_time,
