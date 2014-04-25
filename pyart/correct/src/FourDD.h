@@ -71,6 +71,14 @@ float previousVal (Volume* rvVolume, Volume* lastVolume, int sweepIndex, int
 void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
                          int numRays, int numBins, float missingVal, 
                          short GOOD[MAXBINS][MAXRAYS]);
+
+void continuity_dealias(
+    Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    int sweepIndex, int currIndex, int i, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float val, int prevIndex, int numSweeps, int abIndex, float NyqVelocity,
+    float NyqInterval, float valcheck, float fraction);
+
 #endif /* DEALIAS_H */
 
 
