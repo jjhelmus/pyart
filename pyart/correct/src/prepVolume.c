@@ -20,16 +20,13 @@
 #include <stdlib.h>
 #include <rsl.h> /* Sweep */
 
-void testme(){
-	printf("chho hoo");
-}
-
 void prepVolume(Volume* DBZVolume, Volume* rvVolume, float missingVal) {
 
      int currIndex, sweepIndex, i, j, DBZIndex, numRays, numBins, numDBZRays,
        numDBZBins, numSweepsRV, numSweepsDZ;
-     float val, dzval, finalval, minpossDBZ = -50.0, startaz;
-     int DBZGateSize = 0, DBZRangeBin1 = 0, DBZfactor, step, gap, limit;
+     /* float val; XXX See below */
+     float dzval, minpossDBZ = -50.0;
+     int DBZGateSize = 0, DBZRangeBin1 = 0, DBZfactor, limit;
      int rvGateSize = 0, rvRangeBin1 = 0, remainder;
      div_t ratioGateSize;
      
@@ -107,9 +104,12 @@ void prepVolume(Volume* DBZVolume, Volume* rvVolume, float missingVal) {
 	 for (currIndex=0; currIndex<numRays; currIndex++) {
 	   for (i=DELNUM; i<limit; i++) {
  	     if (DBZVolume!=NULL) {
-	       val=(float) rvVolume->sweep[sweepIndex]->ray[currIndex]
+           /* XXX This is broken since the code is trying to use val as a 
+            * pointer
+            */
+	       /* val=(float) rvVolume->sweep[sweepIndex]->ray[currIndex]
 		 ->h.f(rvVolume->sweep[sweepIndex]->ray[currIndex]->
-		      range[i]);
+		      range[i]); */
 	       for (j=0; j<DBZfactor; j++) {	       
 		 DBZIndex=i*DBZfactor+j;
 		 if (DBZIndex>=numDBZBins) {
@@ -123,7 +123,7 @@ void prepVolume(Volume* DBZVolume, Volume* rvVolume, float missingVal) {
 		     minpossDBZ)||(dzval>HIGHDBZ))&&NODBZRMRV==1)) {
 		    rvVolume->sweep[sweepIndex]->ray[currIndex]->
 		      range[i]=(unsigned short) (missingVal);
-		    val=missingVal;
+		    /* val=missingVal; */
 		 } 
 	       }
 	     }

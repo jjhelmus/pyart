@@ -32,22 +32,16 @@ void firstGuessNoRead(Volume* soundVolume, float missingVal,
           float *height_array, float *speed_array, float *direction_array, int nlevels, int VAD_time, unsigned short* sounding) {
 
      int numLevs, alt, i,idx, sweepIndex, currIndex, index, numBins, numRays, 
-       numSweeps, time, naz;
-     unsigned short sond_type = 0; /* sond_type: 0=sounding and 1=VAD */
+       numSweeps;
      unsigned short flag = 0;
-     float ua_data[1000][5],data;
+     float ua_data[1000][5];
      float ke,dRdz,height,rnge,elev,az,start_range,h_range,gate_size,val
-       ,wind, wind_val_rv,dir,offset,ang, U, V, H1, H2, meanShearU=0.0,
+       ,wind, wind_val_rv,dir,offset,ang, U, V, meanShearU=0.0,
        meanShearV=0.0;   
-     /*float sumz, sumz2, sumz3, sumz4, N, sumU, sumUz, sumUz2, sumV, sumVz,
-     **  sumVz2, DET, DETAU0, DETAU1, DETAU2, DETAV0, DETAV1, DETAV2;
-     **     Summations and determinants for least-squares quadratic fit
-     ** float AU0, AU1, AU2, AV0, AV1, AV2; Final coefficients of quadratic
-     **					    for U and V least-squares fit */
-     char line[100];
-     FILE *sond_file;
-
-	 /* Sounding */
+	 
+     dir = 0;       /* initial values */
+     wind = 0;      /* initial values */
+     /* Sounding */
 	 i=1;
 	 ua_data[0][0]=0.0;
 	 ua_data[0][1]=0.0;

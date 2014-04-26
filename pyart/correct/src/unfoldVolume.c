@@ -59,19 +59,21 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
       float missingVal, unsigned short filt, unsigned short* success) 
 {
 
-    int sweepIndex, currIndex, i, l, m, n, direction, numSweeps, numRays,
-        numBins, numdo, left, right, next, prev, rayindex[8], binindex[8],
+    int sweepIndex, currIndex, i, l, direction, numSweeps, numRays,
+        numBins, left, right, next, prev, rayindex[8], binindex[8],
         countindex, numneg, numpos, in, out, startray, endray, firstbin, 
-        lastbin, step = -1, startindex, endindex, prevIndex, abIndex, loopcount,
-        countbins;
+        lastbin, step = -1, startindex, endindex, prevIndex, abIndex, loopcount;
     
     unsigned short numtimes, flag=1, wsuccess;
     short GOOD[MAXBINS][MAXRAYS];
     float NyqVelocity, NyqInterval, val, diff, fraction, finalval, initval, 
-        valcheck, goodval, winval, vdiff, diffs[8], fraction2;
-    float pfraction, backval, soundval, std;
+        valcheck, goodval, winval, diffs[8], fraction2;
+    float pfraction, soundval, std;
     
     Volume* VALS;
+
+    abIndex = 0;        /* initialize to supress compiler warning */
+    prevIndex = 0;      /* initialize to spresss compiler watning */
 
     // Either a sounding or last volume must be provided
     if (soundVolume==NULL && lastVolume==NULL) {

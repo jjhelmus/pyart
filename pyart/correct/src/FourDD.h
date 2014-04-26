@@ -68,6 +68,13 @@ int findRay (Volume* rvVolume1, Volume* rvVolume2, int sweepIndex1, int
 float previousVal (Volume* rvVolume, Volume* lastVolume, int sweepIndex, int
 	currIndex, int rangeIndex, float missingVal);
 
+
+void firstGuessNoRead(
+    Volume* soundVolume, float missingVal, float *height_array, 
+    float *speed_array, float *direction_array, int nlevels, int VAD_time,
+    unsigned short* sounding);
+
+
 void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
                          int numRays, int numBins, float missingVal, 
                          short GOOD[MAXBINS][MAXRAYS]);

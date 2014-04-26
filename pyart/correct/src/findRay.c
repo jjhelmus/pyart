@@ -23,9 +23,9 @@
 int findRay (Volume* rvVolume1, Volume* rvVolume2, int sweepIndex1, int
      sweepIndex2, int currIndex, float missingVal) {
 
-     int numSweeps, numRays, numBins, gatesz0, gatesz1, rayIndex1, i1;
-     float prevval, az0, az1, diffaz, range0, range1;
-     float startrange0,startrange1,spacing;
+     int numRays, rayIndex1;
+     float az0, az1, diffaz;
+     float spacing;
      short direction, lastdir;
      
      numRays = rvVolume2->sweep[sweepIndex2]->h.nrays;
