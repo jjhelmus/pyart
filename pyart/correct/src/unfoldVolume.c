@@ -59,16 +59,16 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
       float missingVal, unsigned short filt, unsigned short* success) 
 {
 
-    int sweepIndex, currIndex, i, l, direction, numSweeps, numRays,
-        numBins, left, right, next, prev, rayindex[8], binindex[8],
-        countindex, numneg, numpos, in, out, startray, endray, firstbin, 
-        lastbin, step = -1, startindex, endindex, prevIndex, abIndex, loopcount;
+    int sweepIndex, currIndex, i, direction, numSweeps, numRays,
+        numBins, rayindex[8], binindex[8],
+        startray, endray, firstbin, 
+        lastbin, step = -1, prevIndex, abIndex;
     
     unsigned short numtimes, flag=1, wsuccess;
     short GOOD[MAXBINS][MAXRAYS];
     float NyqVelocity, NyqInterval, val, diff, fraction, finalval, initval, 
-        valcheck, goodval, winval, diffs[8], fraction2;
-    float pfraction, soundval, std;
+        valcheck, winval, diffs[8], fraction2;
+    float pfraction, std;
     
     Volume* VALS;
 
@@ -255,211 +255,15 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
        }
      }
      
-     /* Beginning second pass through the data, this time using 
-     **  soundVolume only: */
-
-     if (lastVolume!=NULL && soundVolume!=NULL) {
-       flag=1;
-       for (currIndex=0;currIndex<numRays;currIndex++) {
-         if (sweepIndex<numSweeps-1) abIndex=findRay(rvVolume, rvVolume,
-             sweepIndex, sweepIndex+1, currIndex, missingVal);
-         for (i=DELNUM;i<numBins;i++) {
-           if (GOOD[i][currIndex]==0) {
-         val=(float) VALS->sweep[sweepIndex]->ray[currIndex]->
-           h.f(VALS->sweep[sweepIndex]->ray[currIndex]->range
-               [i]);
-         valcheck=val;
-         soundval=(float) soundVolume->
-           sweep[sweepIndex]->ray[currIndex]->h.f(soundVolume->
-            sweep[sweepIndex]->ray[currIndex]->range[i]);
-             
-         if (soundval!=missingVal&&val!=missingVal) {
-           diff=soundval-val;        
-           if (diff<0.0) {
-             diff=-diff;
-             direction=-1;
-           } else direction=1;
-           numtimes=0;
-           while (diff>0.99999*NyqVelocity&&numtimes<=MAXCOUNT) {
-             val=val+NyqInterval*direction;
-             numtimes=numtimes+1;
-             diff=soundval-val;
-             if (diff<0.0) {
-               diff=-diff;
-               direction=-1;
-             } else direction=1;
-           }
-           if (diff<fraction2*NyqVelocity&&fabs(valcheck)>CKVAL) {
-             /* Return the good value. */
-             finalval=(float)rvVolume->sweep[sweepIndex]->
-               ray[currIndex]->h.invf(val);
-             rvVolume->sweep[sweepIndex]->ray[currIndex]->
-               range[i]=(unsigned short) (finalval);
-             GOOD[i][currIndex]=1;
-           }
-         }
-           }
-         }
-       }
-           
-       /* Now, try to unfold the rest of the GOOD=0 bins, assuming spatial
-          continuity: */
-       loopcount=0;
-       while (flag==1) {
-         loopcount=loopcount+1;
-         flag=0;
-         if (step==1) {
-           step=-1;
-           startindex=numRays-1;
-           endindex=-1;
-         } else {
-           step=1;
-           startindex=0;
-           endindex=numRays;
-         }
-         for (currIndex=startindex;currIndex!=endindex;currIndex=
-              currIndex+step) {
-           for (i=DELNUM;i<numBins;i++) {
-         if (GOOD[i][currIndex]==0) {
-           countindex=0;
-           val=(float) VALS->sweep[sweepIndex]->ray[currIndex]
-             ->h.f(VALS->sweep[sweepIndex]->ray[currIndex]->
-               range[i]);
-           valcheck=val;
-           if (currIndex==0) left=numRays-1;
-           else left=currIndex-1;
-           if (currIndex==numRays-1) right=0;
-           else right=currIndex+1;
-           next=i+1;
-           prev=i-1;
-           /* Look at all bins adjacent to current bin in
-              question: */
-           if (i>DELNUM) {
-             if (GOOD[prev][left]==1) {
-               if (flag==0) flag=1;
-               countindex=countindex+1;
-               binindex[countindex-1]=prev;
-               rayindex[countindex-1]=left;
-               if (VERBOSE) printf("pl ");
-             }
-             if (GOOD[prev][currIndex]==1) {
-               if (flag==0) flag=1;
-               countindex=countindex+1;
-               binindex[countindex-1]=prev;
-               rayindex[countindex-1]=currIndex;
-               if (VERBOSE) printf("pc ");
-             }
-             if (GOOD[prev][right]==1) {
-               if (flag==0) flag=1;
-               countindex=countindex+1;
-               binindex[countindex-1]=prev;
-               rayindex[countindex-1]=right;
-               if (VERBOSE) printf("pr ");
-             }
-           }
-           if (GOOD[i][left]==1) {
-             if (flag==0) flag=1;
-             countindex=countindex+1;
-             binindex[countindex-1]=i;
-             rayindex[countindex-1]=left;
-             if (VERBOSE) printf("il ");
-           }
-           if (GOOD[i][right]==1) {
-             if (flag==0) flag=1;
-             countindex=countindex+1;
-             binindex[countindex-1]=i;
-             rayindex[countindex-1]=right;
-             if (VERBOSE) printf("ir ");       
-           }
-           if (i<numBins-1) {  
-             if (GOOD[next][left]==1) {
-               if (flag==0) flag=1;
-               countindex=countindex+1;
-               binindex[countindex-1]=next;
-               rayindex[countindex-1]=left;
-               if (VERBOSE) printf("nl "); 
-             }
-             if (GOOD[next][currIndex]==1) {
-               if (flag==0) flag=1;
-               countindex=countindex+1;
-               binindex[countindex-1]=next;
-               rayindex[countindex-1]=currIndex;
-               if (VERBOSE) printf("nc ");
-             }
-             if (GOOD[next][right]==1) {
-               if (flag==0) flag=1;
-               countindex=countindex+1;
-               binindex[countindex-1]=next;
-               rayindex[countindex-1]=right;
-               if (VERBOSE) printf("nr ");
-             }
-           }
-           /* Unfold against all adjacent values with GOOD==1*/
-           if (countindex>=1) {
-             numtimes=0;
-             while(val!=missingVal&&GOOD[i][currIndex]==0) {
-               numtimes=numtimes+1;
-               in=0;
-               out=0;
-               numneg=0;
-               numpos=0;
-               if (VERBOSE) printf("%d: ", countindex); 
-               for (l=0;l<countindex;l++) {
-             goodval=(float)rvVolume->sweep[sweepIndex]->
-               ray[rayindex[l]]->h.f(rvVolume->sweep
-                [sweepIndex]->ray[rayindex[l]]->range
-                [binindex[l]]);
-             diffs[l]=goodval-val;
-             if (fabs(diffs[l])<pfraction*NyqVelocity) in=in+1;
-             else {
-               out=out+1;
-               if (diffs[l]>NyqVelocity) {
-                 numpos=numpos+1;
-               } else if (diffs[l]<-NyqVelocity){
-                 numneg=numneg+1;
-               }
-             }
-               }
-               if (in>out) {
-             finalval=(float)rvVolume->sweep[sweepIndex]->
-               ray[currIndex]->h.invf(val);
-             rvVolume->sweep[sweepIndex]->ray[currIndex]->
-               range[i]=(unsigned short) (finalval);
-             GOOD[i][currIndex]=1;
-             if (VERBOSE) printf("Val: %4.2f\n", val);
-               } else {
-             if (numtimes<=MAXCOUNT) {
-               if (numpos+numneg<(in+out-(numpos+numneg))) {
-                 if (loopcount<=2) val=missingVal; /* Try later */
-                 else {
-                   /* Keep the value after two passes through
-                   ** data */
-                   finalval=(float)rvVolume->sweep[sweepIndex]->
-                 ray[currIndex]->h.invf(val);
-                   rvVolume->sweep[sweepIndex]->ray[currIndex]->
-                 range[i]=(unsigned short) (finalval);
-                   GOOD[i][currIndex]=1;
-                 }
-               } else if (numpos>numneg) {
-                 val=val+NyqInterval;
-               } else if (numneg>numpos) {
-                 val=val-NyqInterval;
-               } else {
-                 /* Remove bin after four passes through data: */
-                 if (loopcount>4) GOOD[i][currIndex]=-1;
-               }
-             } else {
-               /* Remove bin: */
-               GOOD[i][currIndex]=-1;
-             }
-               }
-             }
-           }
-         }
-           }
-         }
-       }
-     }
+     second_pass(
+        VALS, rvVolume, soundVolume, lastVolume,
+        sweepIndex, currIndex, numRays, numBins, 
+        missingVal, GOOD,
+        NyqVelocity, NyqInterval, pfraction, 
+        numSweeps, fraction2, 
+        &flag, &step,
+        binindex, rayindex, diffs
+             );
        } // end of loop over sweeps
     *success=1;
     return;

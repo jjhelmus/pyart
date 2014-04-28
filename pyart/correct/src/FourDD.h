@@ -94,14 +94,17 @@ void spatial_dealias(
     unsigned short *flag, int *step,
     int binindex[8], int rayindex[8], float diffs[8]
     );
+
+
+void second_pass(
+    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    int sweepIndex, int currIndex, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, float pfraction, 
+    int numSweeps, float fraction2,
+    unsigned short *pflag, int *pstep,
+    int binindex[8], int rayindex[8], float diffs[8]    
+        );
+
+
 #endif /* DEALIAS_H */
-
-
-
-
-
-
-
-
-
-
