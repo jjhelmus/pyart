@@ -111,7 +111,7 @@ void unfold_remote(
     float NyqVelocity, float NyqInterval);
 
 // These are a layer lowest in abstraction
-void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
+void bergen_albers_filter(Sweep *vals_sweep, int currIndex, int i,
                          int numRays, int numBins, float missingVal, 
                          short GOOD[MAXBINS][MAXRAYS]);
 

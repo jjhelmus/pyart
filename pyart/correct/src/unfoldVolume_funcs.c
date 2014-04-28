@@ -7,18 +7,20 @@
 #include <stdlib.h>
 #include <rsl.h>
 
-/* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 
- * GOOD is updated 
- * */
 
 
-void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
+void bergen_albers_filter(Sweep *vals_sweep, int currIndex, int i,
                          int numRays, int numBins, float missingVal, 
                          short GOOD[MAXBINS][MAXRAYS])
 {
+    /* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 
+    * GOOD is updated 
+    * */
     int countindex=0;
     int left, right, next, prev;
 
+    //Sweep *vals_sweep = VALS->sweep[sweepIndex];
+    
     countindex=0;
     if (currIndex==0) left=numRays-1;
     else left=currIndex-1;
@@ -28,46 +30,38 @@ void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
     prev=i-1;
     /* Look at all bins adjacent to current bin in question: */
     if (i>DELNUM) {
-      if (((float) VALS->sweep[sweepIndex]->
-       ray[left]->h.f(VALS->sweep[sweepIndex]->ray
+      if (((float) vals_sweep->ray[left]->h.f(vals_sweep->ray
                [left]->range[prev]))!=missingVal) {
         countindex=countindex+1;
       }
-      if (((float) VALS->sweep[sweepIndex]->
-       ray[currIndex]->h.f(VALS->sweep[sweepIndex]->ray
+      if (((float) vals_sweep->ray[currIndex]->h.f(vals_sweep->ray
            [currIndex]->range[prev]))!=missingVal) {
         countindex=countindex+1;
       }
-      if (((float) VALS->sweep[sweepIndex]->
-       ray[right]->h.f(VALS->sweep[sweepIndex]->ray
+      if (((float) vals_sweep->ray[right]->h.f(vals_sweep->ray
        [right]->range[prev]))!=missingVal) {
         countindex=countindex+1;
       }
     }
-    if (((float) VALS->sweep[sweepIndex]->
-         ray[left]->h.f(VALS->sweep[sweepIndex]->ray
+    if (((float) vals_sweep->ray[left]->h.f(vals_sweep->ray
          [left]->range[i]))!=missingVal) {
       countindex=countindex+1;
     }
-    if (((float) VALS->sweep[sweepIndex]->
-         ray[right]->h.f(VALS->sweep[sweepIndex]->ray
+    if (((float) vals_sweep->ray[right]->h.f(vals_sweep->ray
          [right]->range[i]))!=missingVal) {
       countindex=countindex+1;
     }
     if (i<numBins-1) {  
-      if (((float) VALS->sweep[sweepIndex]->
-       ray[left]->h.f(VALS->sweep[sweepIndex]->ray
+      if (((float) vals_sweep->ray[left]->h.f(vals_sweep->ray
                    [left]->range[next]))!=missingVal) {
         countindex=countindex+1;
       }
-      if (((float) VALS->sweep[sweepIndex]->
-       ray[currIndex]->h.f(VALS->sweep[sweepIndex]->ray
+      if (((float) vals_sweep->ray[currIndex]->h.f(vals_sweep->ray
        [currIndex]->range[next]))!=missingVal) {
         countindex=countindex+1;
       }
-      if (((float) VALS->sweep[sweepIndex]->
-       ray[right]->h.f(VALS->sweep[sweepIndex]->ray
-                   [right]->range[next]))!=missingVal) {
+      if (((float) vals_sweep->
+       ray[right]->h.f(vals_sweep->ray[right]->range[next]))!=missingVal) {
         countindex=countindex+1;
       }
     }
@@ -138,7 +132,7 @@ void foobar(
                 GOOD[i][currIndex]=-1;
             } else {
                 if (filt==1) {
-                    bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
+                    bergen_albers_filter(valssweep, currIndex, i, numRays,
                                     numBins, missingVal, GOOD);
                 } else {
                     /* If no filter is being applied save bin for dealiasing: */
