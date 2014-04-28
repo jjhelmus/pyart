@@ -106,5 +106,12 @@ void second_pass(
     int binindex[8], int rayindex[8], float diffs[8]    
         );
 
+void unfold_remote(
+    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    int sweepIndex, int currIndex, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, float pfraction, 
+    int numSweeps
+    );
 
 #endif /* DEALIAS_H */
