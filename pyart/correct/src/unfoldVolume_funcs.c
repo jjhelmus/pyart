@@ -93,7 +93,7 @@ void foobar(
     unsigned short filt
     )
 {
-     /* First, unfold bins where vertical and temporal continuity
+    /* First, unfold bins where vertical and temporal continuity
      ** produces the same value (i.e., bins where the radial velocity
      ** agrees with both the previous sweep and previous volume within
      ** a COMPTHRESH of the Nyquist velocity). This produces a number
@@ -104,50 +104,57 @@ void foobar(
     int currIndex;
     int i, prevIndex, abIndex; 
     float val, initval, valcheck;
- 
+
+    Sweep *rvsweep = rvVolume->sweep[sweepIndex];
+    Sweep *valssweep = VALS->sweep[sweepIndex];
+    Ray *rvray;
+    Ray *valsray;
+
     abIndex = 0;        /* initialize to supress compiler warning */
     prevIndex = 0;      /* initialize to spresss compiler watning */
 
-     for (currIndex=0;currIndex<numRays;currIndex++) {
-       if (lastVolume!=NULL) prevIndex=findRay(rvVolume, lastVolume,
-          sweepIndex, sweepIndex,currIndex, missingVal);
-       if (sweepIndex<numSweeps-1) abIndex=findRay(rvVolume, rvVolume,
-          sweepIndex, sweepIndex+1, currIndex, missingVal);
-       for (i=DELNUM;i<numBins;i++) {
-         /* Initialize Output Sweep with missing values: */
-         initval=(float)rvVolume->sweep[sweepIndex]->
-           ray[currIndex]->h.invf(missingVal);
-         rvVolume->sweep[sweepIndex]->ray[currIndex]->
-           range[i]=(unsigned short) (initval);
-
-         /* Assign uncorrect velocity bins to the array VALS: */
-         val=(float) VALS->sweep[sweepIndex]->
-                 ray[currIndex]->h.f(VALS->sweep[sweepIndex]->ray
-                 [currIndex]->range[i]);
-         valcheck=val;
-         if (val==missingVal) GOOD[i][currIndex]=-1;
-         else {
-           if (filt==1) {
-               bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
-                                    numBins, missingVal, GOOD);
-           } else {
-         /* If no filter is being applied save bin for dealiasing: */
-         GOOD[i][currIndex]=0;
-           }
-         }
+    for (currIndex=0;currIndex<numRays;currIndex++) {
+       
+        rvray = rvsweep->ray[currIndex];
+        valsray = valssweep->ray[currIndex];
          
-         if (GOOD[i][currIndex]==0) {
-            
-            continuity_dealias(rvVolume, soundVolume, lastVolume,
-                sweepIndex, currIndex, i, numRays, numBins, 
-                missingVal, GOOD,
-                val, prevIndex, numSweeps, abIndex, NyqVelocity,
-                NyqInterval, valcheck);
-         }
-       }
-     }
+        if (lastVolume!=NULL) {
+           prevIndex=findRay(rvVolume, lastVolume, sweepIndex, sweepIndex,
+                             currIndex, missingVal);
+        }
+        if (sweepIndex<numSweeps-1) {
+            abIndex=findRay(rvVolume, rvVolume, sweepIndex, sweepIndex+1,
+                            currIndex, missingVal);
+        }
+        for (i=DELNUM;i<numBins;i++) {
+         
+            initval=(float)rvray->h.invf(missingVal);
+            rvray->range[i]=(unsigned short) (initval);
 
-
+            /* Assign uncorrect velocity bins to the array VALS: */
+            val=(float) valsray->h.f(valsray->range[i]);
+            valcheck=val;
+            if (val==missingVal) {
+                GOOD[i][currIndex]=-1;
+            } else {
+                if (filt==1) {
+                    bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
+                                    numBins, missingVal, GOOD);
+                } else {
+                    /* If no filter is being applied save bin for dealiasing: */
+                    GOOD[i][currIndex]=0;
+                }
+            }
+         
+            if (GOOD[i][currIndex]==0) {           
+                continuity_dealias(rvVolume, soundVolume, lastVolume,
+                    sweepIndex, currIndex, i, numRays, numBins, 
+                    missingVal, GOOD,
+                    val, prevIndex, numSweeps, abIndex, NyqVelocity,
+                    NyqInterval, valcheck);
+            }
+        }
+    }
 }
 
 
