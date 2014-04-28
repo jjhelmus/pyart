@@ -90,8 +90,7 @@ void foobar(
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval,
     int numSweeps,
-    unsigned short filt,
-    float fraction
+    unsigned short filt
     )
 {
      /* First, unfold bins where vertical and temporal continuity
@@ -143,7 +142,7 @@ void foobar(
                 sweepIndex, currIndex, i, numRays, numBins, 
                 missingVal, GOOD,
                 val, prevIndex, numSweeps, abIndex, NyqVelocity,
-                NyqInterval, valcheck, fraction);
+                NyqInterval, valcheck);
          }
        }
      }
@@ -157,7 +156,7 @@ void continuity_dealias(
     int sweepIndex, int currIndex, int i, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float val, int prevIndex, int numSweeps, int abIndex, float NyqVelocity,
-    float NyqInterval, float valcheck, float fraction)
+    float NyqInterval, float valcheck)
 {
     int direction;
     unsigned short numtimes, dcase; 
@@ -222,7 +221,7 @@ void continuity_dealias(
              direction=-1;
            } else direction=1;
          }
-         if (dcase==1&&diff<fraction*NyqVelocity&&
+         if (dcase==1&&diff<COMPTHRESH*NyqVelocity&&
              fabs(valcheck)>CKVAL) {
            if (VERBOSE) printf("GOOD1: %f\n", val);
            finalval=(float)rvVolume->sweep[sweepIndex]->
@@ -231,8 +230,8 @@ void continuity_dealias(
              range[i]=(unsigned short) (finalval);
            GOOD[i][currIndex]=1;
          }
-         else if (dcase==2&&diff<fraction*NyqVelocity&&fabs(soundval
-           -val)<fraction*NyqVelocity&&fabs(valcheck)>CKVAL) {
+         else if (dcase==2&&diff<COMPTHRESH*NyqVelocity&&fabs(soundval
+           -val)<COMPTHRESH*NyqVelocity&&fabs(valcheck)>CKVAL) {
            if (VERBOSE) printf("GOOD2: %f\n", val);
            finalval=(float)rvVolume->sweep[sweepIndex]->
              ray[currIndex]->h.invf(val);
@@ -240,8 +239,8 @@ void continuity_dealias(
              range[i]=(unsigned short) (finalval);
            GOOD[i][currIndex]=1;
          }
-         else if (dcase==3&&diff<fraction*NyqVelocity&&fabs(abval-val)<
-              fraction*NyqVelocity&&fabs(valcheck)>CKVAL) {
+         else if (dcase==3&&diff<COMPTHRESH*NyqVelocity&&fabs(abval-val)<
+              COMPTHRESH*NyqVelocity&&fabs(valcheck)>CKVAL) {
            if (VERBOSE) printf("GOOD3: %f\n",val);
            finalval=(float)rvVolume->sweep[sweepIndex]->
              ray[currIndex]->h.invf(val);
@@ -257,7 +256,7 @@ void spatial_dealias(
     Volume* VALS, Volume* rvVolume,
     int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction,  
+    float NyqVelocity, float NyqInterval, 
     unsigned short *pflag, int *pstep,
     int binindex[8], int rayindex[8], float diffs[8]
     )
@@ -408,7 +407,7 @@ void spatial_dealias(
              [rayindex[l]]->h.f(rvVolume->sweep[sweepIndex]->
              ray[rayindex[l]]->range[binindex[l]]);
                    diffs[l]=goodval-val;
-               if (fabs(diffs[l])<pfraction*NyqVelocity) in=in+1;
+               if (fabs(diffs[l])<THRESH*NyqVelocity) in=in+1;
                else {
              out=out+1;
              if (diffs[l]>NyqVelocity) {
@@ -468,8 +467,7 @@ void second_pass(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction, 
-    float fraction2,
+    float NyqVelocity, float NyqInterval, 
     unsigned short *pflag, int *pstep,
     int binindex[8], int rayindex[8], float diffs[8] 
         )
@@ -527,7 +525,7 @@ void second_pass(
                direction=-1;
              } else direction=1;
            }
-           if (diff<fraction2*NyqVelocity&&fabs(valcheck)>CKVAL) {
+           if (diff<COMPTHRESH2*NyqVelocity&&fabs(valcheck)>CKVAL) {
              /* Return the good value. */
              finalval=(float)rvVolume->sweep[sweepIndex]->
                ray[currIndex]->h.invf(val);
@@ -648,7 +646,7 @@ void second_pass(
                 [sweepIndex]->ray[rayindex[l]]->range
                 [binindex[l]]);
              diffs[l]=goodval-val;
-             if (fabs(diffs[l])<pfraction*NyqVelocity) in=in+1;
+             if (fabs(diffs[l])<THRESH*NyqVelocity) in=in+1;
              else {
                out=out+1;
                if (diffs[l]>NyqVelocity) {
@@ -709,8 +707,7 @@ void unfold_remote(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction 
-    )
+    float NyqVelocity, float NyqInterval)
 {
     int i, direction,
         startray, endray, firstbin, 
@@ -767,14 +764,14 @@ void unfold_remote(
              direction=-1;
            } else direction=1;
          }
-         if (diff<pfraction*NyqVelocity) {
+         if (diff<THRESH*NyqVelocity) {
            /* Return the value. */
            finalval=(float)rvVolume->sweep[sweepIndex]->
              ray[currIndex]->h.invf(val);
            rvVolume->sweep[sweepIndex]->ray[currIndex]->
              range[i]=(unsigned short) (finalval);
            GOOD[i][currIndex]=1;
-         } else if (diff<(1.0 - (1.0 - pfraction)/2.0)*NyqVelocity) {
+         } else if (diff<(1.0 - (1.0 - THRESH)/2.0)*NyqVelocity) {
            /* If within relaxed threshold, then return value, but
            **   do not use to dealias other bins. */
            finalval=(float)rvVolume->sweep[sweepIndex]->

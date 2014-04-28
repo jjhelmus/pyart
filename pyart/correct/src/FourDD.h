@@ -26,7 +26,7 @@
 #define COMPTHRESH2 0.49 /* The threshold for performing initial dealiasing 
 			** using sounding (or VAD). */
 #define THRESH 0.4 /* The unfolding threshold for unfolding using horizontal
-		   ** continuity. */
+		   ** continuity. between 0.0 and 1.0*/
 #define MINGOOD 5 /* Number of good values required within unfolding window
 		  **  to unfold the current bin. */
 #define STDTHRESH 0.8 /* Fraction of the Nyquist velocity to use as a standard
@@ -81,16 +81,14 @@ void foobar(
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval,
     int numSweeps,
-    unsigned short filt,
-    float fraction
-    );
+    unsigned short filt);
 
 // checked
 void spatial_dealias(
     Volume* VAL, Volume* rvVolume,
     int sweepIndex, int numRays, int numBins,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction,
+    float NyqVelocity, float NyqInterval,
     unsigned short *flag, int *step,
     int binindex[8], int rayindex[8], float diffs[8]
     );
@@ -100,8 +98,7 @@ void second_pass(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction, 
-    float fraction2,
+    float NyqVelocity, float NyqInterval, 
     unsigned short *pflag, int *pstep,
     int binindex[8], int rayindex[8], float diffs[8]    
         );
@@ -111,8 +108,7 @@ void unfold_remote(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction
-    );
+    float NyqVelocity, float NyqInterval);
 
 // These are a layer lowest in abstraction
 void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
@@ -124,7 +120,7 @@ void continuity_dealias(
     int sweepIndex, int currIndex, int i, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float val, int prevIndex, int numSweeps, int abIndex, float NyqVelocity,
-    float NyqInterval, float valcheck, float fraction);
+    float NyqInterval, float valcheck);
 
 
 #endif /* DEALIAS_H */
