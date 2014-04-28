@@ -74,7 +74,47 @@ void firstGuessNoRead(
     float *speed_array, float *direction_array, int nlevels, int VAD_time,
     unsigned short* sounding);
 
+//
+void foobar(
+    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    int sweepIndex, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval,
+    int numSweeps,
+    unsigned short filt,
+    float fraction
+    );
 
+// checked
+void spatial_dealias(
+    Volume* VAL, Volume* rvVolume,
+    int sweepIndex, int currIndex, int numRays, int numBins,
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, float pfraction,
+    unsigned short *flag, int *step,
+    int binindex[8], int rayindex[8], float diffs[8]
+    );
+
+// checked
+void second_pass(
+    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    int sweepIndex, int currIndex, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, float pfraction, 
+    float fraction2,
+    unsigned short *pflag, int *pstep,
+    int binindex[8], int rayindex[8], float diffs[8]    
+        );
+
+// checked
+void unfold_remote(
+    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    int sweepIndex, int currIndex, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, float pfraction
+    );
+
+// These are a layer lowest in abstraction
 void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
                          int numRays, int numBins, float missingVal, 
                          short GOOD[MAXBINS][MAXRAYS]);
@@ -86,32 +126,5 @@ void continuity_dealias(
     float val, int prevIndex, int numSweeps, int abIndex, float NyqVelocity,
     float NyqInterval, float valcheck, float fraction);
 
-void spatial_dealias(
-    Volume* VAL, Volume* rvVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction,
-    unsigned short *flag, int *step,
-    int binindex[8], int rayindex[8], float diffs[8]
-    );
-
-
-void second_pass(
-    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins, 
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction, 
-    int numSweeps, float fraction2,
-    unsigned short *pflag, int *pstep,
-    int binindex[8], int rayindex[8], float diffs[8]    
-        );
-
-void unfold_remote(
-    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins, 
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction, 
-    int numSweeps
-    );
 
 #endif /* DEALIAS_H */

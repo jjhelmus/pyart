@@ -59,20 +59,17 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
       float missingVal, unsigned short filt, unsigned short* success) 
 {
 
-    int sweepIndex, currIndex, i, numSweeps, numRays,
+    int sweepIndex, currIndex, numSweeps, numRays,
         numBins, rayindex[8], binindex[8],
-        step = -1, prevIndex, abIndex;
+        step = -1;
     
     unsigned short flag=1;
     short GOOD[MAXBINS][MAXRAYS];
-    float NyqVelocity, NyqInterval, val, fraction, initval, 
-        valcheck, diffs[8], fraction2;
+    float NyqVelocity, NyqInterval, fraction, diffs[8], fraction2;
     float pfraction;
     
     Volume* VALS;
 
-    abIndex = 0;        /* initialize to supress compiler warning */
-    prevIndex = 0;      /* initialize to spresss compiler watning */
 
     // Either a sounding or last volume must be provided
     if (soundVolume==NULL && lastVolume==NULL) {
@@ -109,46 +106,17 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
                  NyqVelocity, missingVal);
      flag=1;
 
-     for (currIndex=0;currIndex<numRays;currIndex++) {
-       if (lastVolume!=NULL) prevIndex=findRay(rvVolume, lastVolume,
-          sweepIndex, sweepIndex,currIndex, missingVal);
-       if (sweepIndex<numSweeps-1) abIndex=findRay(rvVolume, rvVolume,
-          sweepIndex, sweepIndex+1, currIndex, missingVal);
-       for (i=DELNUM;i<numBins;i++) {
-         /* Initialize Output Sweep with missing values: */
-         initval=(float)rvVolume->sweep[sweepIndex]->
-           ray[currIndex]->h.invf(missingVal);
-         rvVolume->sweep[sweepIndex]->ray[currIndex]->
-           range[i]=(unsigned short) (initval);
+    foobar(
+        VALS, rvVolume, soundVolume, lastVolume,
+        sweepIndex, numRays, numBins, 
+        missingVal, GOOD,
+        NyqVelocity, NyqInterval,
+        numSweeps,
+        filt,
+        fraction
+        );
 
-         /* Assign uncorrect velocity bins to the array VALS: */
-         val=(float) VALS->sweep[sweepIndex]->
-                 ray[currIndex]->h.f(VALS->sweep[sweepIndex]->ray
-                 [currIndex]->range[i]);
-         valcheck=val;
-         if (val==missingVal) GOOD[i][currIndex]=-1;
-         else {
-           if (filt==1) {
-               bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
-                                    numBins, missingVal, GOOD);
-           } else {
-         /* If no filter is being applied save bin for dealiasing: */
-         GOOD[i][currIndex]=0;
-           }
-         }
-         
-         if (GOOD[i][currIndex]==0) {
-            
-            continuity_dealias(rvVolume, soundVolume, lastVolume,
-                sweepIndex, currIndex, i, numRays, numBins, 
-                missingVal, GOOD,
-                val, prevIndex, numSweeps, abIndex, NyqVelocity,
-                NyqInterval, valcheck, fraction);
-         }
-       }
-     }
-
-     spatial_dealias( 
+    spatial_dealias( 
         VALS, rvVolume,
         sweepIndex, currIndex, numRays, numBins,
         missingVal, GOOD,
@@ -160,20 +128,18 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         VALS, rvVolume, soundVolume, lastVolume,
         sweepIndex, currIndex, numRays, numBins, 
         missingVal, GOOD,
-        NyqVelocity, NyqInterval, pfraction, 
-        numSweeps
+        NyqVelocity, NyqInterval, pfraction
         );   
-
 
      second_pass(
         VALS, rvVolume, soundVolume, lastVolume,
         sweepIndex, currIndex, numRays, numBins, 
         missingVal, GOOD,
         NyqVelocity, NyqInterval, pfraction, 
-        numSweeps, fraction2, 
+        fraction2, 
         &flag, &step,
         binindex, rayindex, diffs
-             );
+      );
        } // end of loop over sweeps
     *success=1;
     return;

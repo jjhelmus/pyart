@@ -84,6 +84,66 @@ void bergen_albers_filter(Volume* VALS, int sweepIndex, int currIndex, int i,
       /* End 3 x 3 filter */
 }   
 
+void foobar(
+    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    int sweepIndex, int numRays, int numBins, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval,
+    int numSweeps,
+    unsigned short filt,
+    float fraction
+    )
+{
+    int currIndex;
+    int i, prevIndex, abIndex; 
+    float val, initval, valcheck;
+ 
+    abIndex = 0;        /* initialize to supress compiler warning */
+    prevIndex = 0;      /* initialize to spresss compiler watning */
+
+     for (currIndex=0;currIndex<numRays;currIndex++) {
+       if (lastVolume!=NULL) prevIndex=findRay(rvVolume, lastVolume,
+          sweepIndex, sweepIndex,currIndex, missingVal);
+       if (sweepIndex<numSweeps-1) abIndex=findRay(rvVolume, rvVolume,
+          sweepIndex, sweepIndex+1, currIndex, missingVal);
+       for (i=DELNUM;i<numBins;i++) {
+         /* Initialize Output Sweep with missing values: */
+         initval=(float)rvVolume->sweep[sweepIndex]->
+           ray[currIndex]->h.invf(missingVal);
+         rvVolume->sweep[sweepIndex]->ray[currIndex]->
+           range[i]=(unsigned short) (initval);
+
+         /* Assign uncorrect velocity bins to the array VALS: */
+         val=(float) VALS->sweep[sweepIndex]->
+                 ray[currIndex]->h.f(VALS->sweep[sweepIndex]->ray
+                 [currIndex]->range[i]);
+         valcheck=val;
+         if (val==missingVal) GOOD[i][currIndex]=-1;
+         else {
+           if (filt==1) {
+               bergen_albers_filter(VALS, sweepIndex, currIndex, i, numRays,
+                                    numBins, missingVal, GOOD);
+           } else {
+         /* If no filter is being applied save bin for dealiasing: */
+         GOOD[i][currIndex]=0;
+           }
+         }
+         
+         if (GOOD[i][currIndex]==0) {
+            
+            continuity_dealias(rvVolume, soundVolume, lastVolume,
+                sweepIndex, currIndex, i, numRays, numBins, 
+                missingVal, GOOD,
+                val, prevIndex, numSweeps, abIndex, NyqVelocity,
+                NyqInterval, valcheck, fraction);
+         }
+       }
+     }
+
+
+}
+
+
 void continuity_dealias(
     Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     int sweepIndex, int currIndex, int i, int numRays, int numBins, 
@@ -189,8 +249,7 @@ void spatial_dealias(
     Volume* VALS, Volume* rvVolume,
     int sweepIndex, int currIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction, 
-    
+    float NyqVelocity, float NyqInterval, float pfraction,  
     unsigned short *pflag, int *pstep,
     int binindex[8], int rayindex[8], float diffs[8]
     )
@@ -401,10 +460,9 @@ void second_pass(
     int sweepIndex, int currIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, float pfraction, 
-    int numSweeps,  float fraction2,
+    float fraction2,
     unsigned short *pflag, int *pstep,
-    int binindex[8], int rayindex[8], float diffs[8]
- 
+    int binindex[8], int rayindex[8], float diffs[8] 
         )
 {
 
@@ -637,13 +695,11 @@ void second_pass(
 
 }
 
-
 void unfold_remote(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     int sweepIndex, int currIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, float pfraction, 
-    int numSweeps
+    float NyqVelocity, float NyqInterval, float pfraction 
     )
 {
     int i, direction,
