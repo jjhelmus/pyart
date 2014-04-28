@@ -94,6 +94,14 @@ void foobar(
     float fraction
     )
 {
+     /* First, unfold bins where vertical and temporal continuity
+     ** produces the same value (i.e., bins where the radial velocity
+     ** agrees with both the previous sweep and previous volume within
+     ** a COMPTHRESH of the Nyquist velocity). This produces a number
+     ** of good data points from which to begin unfolding assuming spatial
+         ** continuity. */
+
+
     int currIndex;
     int i, prevIndex, abIndex; 
     float val, initval, valcheck;
@@ -247,7 +255,7 @@ void continuity_dealias(
 
 void spatial_dealias(
     Volume* VALS, Volume* rvVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins, 
+    int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, float pfraction,  
     unsigned short *pflag, int *pstep,
@@ -257,6 +265,7 @@ void spatial_dealias(
 
     int loopcount, startindex, endindex, i, countindex, countbins,
         next, prev, left, right, numneg, numpos, l, in, out, numtimes;
+    int currIndex;
     //unsigned short flag = *pflag;
     //int step = *pstep;
     float val, finalval, goodval;
@@ -457,7 +466,7 @@ void spatial_dealias(
 
 void second_pass(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins, 
+    int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, float pfraction, 
     float fraction2,
@@ -473,6 +482,7 @@ void second_pass(
     int startindex;
     int endindex;
     /* int abIndex; */
+    int currIndex;
     int loopcount;
     
     unsigned short numtimes, flag=1;
@@ -697,7 +707,7 @@ void second_pass(
 
 void unfold_remote(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins, 
+    int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, float pfraction 
     )
@@ -705,7 +715,7 @@ void unfold_remote(
     int i, direction,
         startray, endray, firstbin, 
         lastbin;
-    
+    int currIndex; 
     unsigned short numtimes, wsuccess;
     float val, diff, finalval, winval;
     float std;

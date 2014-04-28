@@ -59,9 +59,8 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
       float missingVal, unsigned short filt, unsigned short* success) 
 {
 
-    int sweepIndex, currIndex, numSweeps, numRays,
-        numBins, rayindex[8], binindex[8],
-        step = -1;
+    int sweepIndex, numSweeps, numRays, numBins;
+    int rayindex[8], binindex[8], step = -1;
     
     unsigned short flag=1;
     short GOOD[MAXBINS][MAXRAYS];
@@ -95,12 +94,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
      numRays = rvVolume->sweep[sweepIndex]->h.nrays;
      numBins = rvVolume->sweep[sweepIndex]->ray[0]->h.nbins;
 
-     /* First, unfold bins where vertical and temporal continuity
-     ** produces the same value (i.e., bins where the radial velocity
-     ** agrees with both the previous sweep and previous volume within
-     ** a COMPTHRESH of the Nyquist velocity). This produces a number
-     ** of good data points from which to begin unfolding assuming spatial
-         ** continuity. */
      printf("Sweep: %d\n", sweepIndex);
      if (VERBOSE) printf("NyqVelocity: %f, missingVal: %f\n",
                  NyqVelocity, missingVal);
@@ -108,8 +101,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 
     foobar(
         VALS, rvVolume, soundVolume, lastVolume,
-        sweepIndex, numRays, numBins, 
-        missingVal, GOOD,
+        sweepIndex, numRays, numBins, missingVal, GOOD,
         NyqVelocity, NyqInterval,
         numSweeps,
         filt,
@@ -118,24 +110,23 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 
     spatial_dealias( 
         VALS, rvVolume,
-        sweepIndex, currIndex, numRays, numBins,
-        missingVal, GOOD,
-        NyqVelocity, NyqInterval, pfraction,
-        &flag, &step, binindex, rayindex, diffs
-             );
+        sweepIndex, numRays, numBins, missingVal, GOOD,
+        NyqVelocity, NyqInterval, 
+        pfraction, &flag, &step, binindex, rayindex, diffs
+    );
 
     unfold_remote(
         VALS, rvVolume, soundVolume, lastVolume,
-        sweepIndex, currIndex, numRays, numBins, 
-        missingVal, GOOD,
-        NyqVelocity, NyqInterval, pfraction
+        sweepIndex, numRays, numBins, missingVal, GOOD,
+        NyqVelocity, NyqInterval, 
+        pfraction
         );   
 
      second_pass(
         VALS, rvVolume, soundVolume, lastVolume,
-        sweepIndex, currIndex, numRays, numBins, 
-        missingVal, GOOD,
-        NyqVelocity, NyqInterval, pfraction, 
+        sweepIndex, numRays, numBins, missingVal, GOOD,
+        NyqVelocity, NyqInterval, 
+        pfraction, 
         fraction2, 
         &flag, &step,
         binindex, rayindex, diffs

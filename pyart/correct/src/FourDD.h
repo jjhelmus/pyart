@@ -88,7 +88,7 @@ void foobar(
 // checked
 void spatial_dealias(
     Volume* VAL, Volume* rvVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins,
+    int sweepIndex, int numRays, int numBins,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, float pfraction,
     unsigned short *flag, int *step,
@@ -98,7 +98,7 @@ void spatial_dealias(
 // checked
 void second_pass(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins, 
+    int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, float pfraction, 
     float fraction2,
@@ -109,7 +109,7 @@ void second_pass(
 // checked
 void unfold_remote(
     Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int numRays, int numBins, 
+    int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, float pfraction
     );
