@@ -109,9 +109,8 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
             filt);
 
         spatial_dealias( 
-            VALS, rvVolume,
-            sweepIndex, numRays, numBins, missingVal, GOOD,
-            NyqVelocity, NyqInterval, 
+            vals_sweep, rv_sweep,
+            missingVal, GOOD, NyqVelocity, NyqInterval, 
             &flag, &step, binindex, rayindex, diffs);
 
         unfold_remote(

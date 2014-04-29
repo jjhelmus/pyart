@@ -86,8 +86,7 @@ void foobar(
 
 // checked
 void spatial_dealias(
-    Volume* VAL, Volume* rvVolume,
-    int sweepIndex, int numRays, int numBins,
+    Sweep *vals_sweep, Sweep *rv_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval,
     unsigned short *flag, int *step,
