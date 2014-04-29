@@ -59,7 +59,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
       float missingVal, unsigned short filt, unsigned short* success) 
 {
 
-    int sweepIndex, numSweeps, numRays, numBins;
+    int sweepIndex, numSweeps;
     int rayindex[8], binindex[8], step = -1;
     
     unsigned short flag=1;
@@ -82,22 +82,19 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     for (sweepIndex=numSweeps-1;sweepIndex>=0;sweepIndex--) {
         
         last_sweep = sound_sweep = above_sweep = NULL;
-        if (lastVolume!=NULL) last_sweep = lastVolume->sweep[sweepIndex];
-        if (soundVolume!=NULL) sound_sweep = soundVolume->sweep[sweepIndex];
-        if (sweepIndex<numSweeps-1) above_sweep = rvVolume->sweep[sweepIndex+1];
+        if (lastVolume!=NULL) 
+            last_sweep = lastVolume->sweep[sweepIndex];
+        if (soundVolume!=NULL) 
+            sound_sweep = soundVolume->sweep[sweepIndex];
+        if (sweepIndex<numSweeps-1) 
+            above_sweep = rvVolume->sweep[sweepIndex+1];
         rv_sweep = rvVolume->sweep[sweepIndex];
         vals_sweep = VALS->sweep[sweepIndex];
 
         NyqVelocity =rvVolume->sweep[sweepIndex]->ray[0]->h.nyq_vel;
         if (NyqVelocity == 0.0) NyqVelocity=9.8;
         NyqInterval = 2.0 * NyqVelocity;
-        printf("NyqVelocity %f \n", NyqVelocity);
-        numRays = rv_sweep->h.nrays;
-        numBins = rv_sweep->ray[0]->h.nbins;
 
-        printf("Sweep: %d\n", sweepIndex);
-        if (VERBOSE) printf("NyqVelocity: %f, missingVal: %f\n",
-                            NyqVelocity, missingVal);
         flag=1;
 
         foobar(
@@ -114,11 +111,18 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
             vals_sweep, rv_sweep, last_sweep, sound_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval);   
 
-        second_pass(
-            VALS, rvVolume, soundVolume, lastVolume,
-            sweepIndex, numRays, numBins, missingVal, GOOD,
-            NyqVelocity, NyqInterval, 
+        if (last_sweep!=NULL && sound_sweep!=NULL) {
+            flag=1;
+            second_pass(
+                vals_sweep, rv_sweep, last_sweep, sound_sweep,
+                missingVal, GOOD, NyqVelocity, NyqInterval);
+        }
+ 
+        spatial_dealias( 
+            vals_sweep, rv_sweep,
+            missingVal, GOOD, NyqVelocity, NyqInterval, 
             &flag, &step, binindex, rayindex, diffs);
+    
     } // end of loop over sweeps
     *success=1;
     return;

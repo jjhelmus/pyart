@@ -99,13 +99,9 @@ void spatial_dealias(
 
 // checked
 void second_pass(
-    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int numRays, int numBins, 
+    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, 
-    unsigned short *pflag, int *pstep,
-    int binindex[8], int rayindex[8], float diffs[8]    
-        );
+    float NyqVelocity, float NyqInterval);
 
 // checked
 void unfold_remote(
