@@ -65,6 +65,9 @@ void prepVolume (Volume* DBZVolume, Volume* rvVolume, float missingVal);
 int findRay (Volume* rvVolume1, Volume* rvVolume2, int sweepIndex1, int 
 	sweepIndex2, int currIndex1, float missingVal);
 
+int findRay2(Sweep *sweep1, Sweep *sweep2, int currIndex1, float missingVal);
+
+
 float previousVal (Volume* rvVolume, Volume* lastVolume, int sweepIndex, int
 	currIndex, int rangeIndex, float missingVal);
 
@@ -76,11 +79,9 @@ void firstGuessNoRead(
 
 //
 void foobar(
-    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int numRays, int numBins, 
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
+    Sweep *above_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval,
-    int numSweeps,
     unsigned short filt);
 
 // checked
@@ -109,18 +110,5 @@ void unfold_remote(
     int sweepIndex, int numRays, int numBins, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval);
-
-// These are a layer lowest in abstraction
-void bergen_albers_filter(Sweep *vals_sweep, int currIndex, int i,
-                         int numRays, int numBins, float missingVal, 
-                         short GOOD[MAXBINS][MAXRAYS]);
-
-void continuity_dealias(
-    Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int i, int numRays, int numBins, 
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float val, int prevIndex, int numSweeps, int abIndex, float NyqVelocity,
-    float NyqInterval, float valcheck);
-
 
 #endif /* DEALIAS_H */

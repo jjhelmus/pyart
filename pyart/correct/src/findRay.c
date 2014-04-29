@@ -81,3 +81,65 @@ int findRay (Volume* rvVolume1, Volume* rvVolume2, int sweepIndex1, int
      }
 }
 
+
+int findRay2(Sweep *sweep1, Sweep *sweep2, int currIndex, float missingVal) 
+{
+
+     int numRays, rayIndex1;
+     float az0, az1, diffaz;
+     float spacing;
+     short direction, lastdir;
+    
+     numRays = sweep2->h.nrays;
+
+     az0 = sweep1->ray[currIndex]->h.azimuth;
+     if (currIndex<numRays) rayIndex1=currIndex;
+     else rayIndex1=numRays-1;
+     az1 = sweep2->ray[rayIndex1]->h.azimuth;
+     if (az0==az1) {
+       return rayIndex1;
+     } else {
+       /* Since the beamwidth is not necessarily the spacing between rays: */
+       spacing = fabs(sweep2->ray[0]->h.azimuth-
+		              sweep2->ray[50]->h.azimuth); 
+       if (spacing>180) spacing=360.0-spacing;
+       spacing=spacing/50.0;
+
+       /* Compute the difference in azimuth between the two rays: */
+       diffaz=az0-az1;
+       if (diffaz>=180.0) diffaz=diffaz-360.0;
+       else if (diffaz<-180.0) diffaz=diffaz+360.0;
+       
+       /* Get close to the correct index: */
+       rayIndex1=rayIndex1+(int) (diffaz/spacing);
+       if (rayIndex1>=numRays) rayIndex1=rayIndex1-numRays;
+       if (rayIndex1<0) rayIndex1=numRays+rayIndex1;
+       az1=sweep2->ray[rayIndex1]->h.azimuth;
+       diffaz=az0-az1;
+       if (diffaz>=180.0) diffaz=diffaz-360.0;
+       else if (diffaz<-180.0) diffaz=diffaz+360.0;
+
+       /* Now add or subtract indices until the nearest ray is found: */
+       if (diffaz>=0) lastdir=1;
+       else lastdir=-1;
+       while (fabs(diffaz)>spacing/2.0) {
+	 if (diffaz>=0) {
+	   rayIndex1++;
+	   direction=1;
+	 } else {
+	   rayIndex1--;
+	   direction=-1;
+	 }
+	 if (rayIndex1>=numRays) rayIndex1=rayIndex1-numRays;
+	 if (rayIndex1<0) rayIndex1=numRays+rayIndex1;
+	 az1=sweep2->ray[rayIndex1]->h.azimuth;
+	 diffaz=az0-az1;
+	 if (diffaz>=180.0) diffaz=diffaz-360.0;
+	 else if (diffaz<-180.0) diffaz=diffaz+360.0;
+	 if (direction!=lastdir) break;
+	 else lastdir=direction;
+       }
+       return rayIndex1;
+     }
+}
+

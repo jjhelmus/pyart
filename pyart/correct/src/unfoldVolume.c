@@ -67,7 +67,9 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     float NyqVelocity, NyqInterval, diffs[8];
     
     Volume* VALS;
-
+    
+    Sweep *rv_sweep, *vals_sweep, *last_sweep, *sound_sweep, *above_sweep;
+ 
     // Either a sounding or last volume must be provided
     if (soundVolume==NULL && lastVolume==NULL) {
         printf("First guess not available.\n");
@@ -80,12 +82,21 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     
     for (sweepIndex=numSweeps-1;sweepIndex>=0;sweepIndex--) {
         
+        last_sweep = sound_sweep = above_sweep = NULL;
+        if (lastVolume!=NULL) last_sweep = lastVolume->sweep[sweepIndex];
+        if (soundVolume!=NULL) sound_sweep = soundVolume->sweep[sweepIndex];
+        if (sweepIndex<numSweeps-1) above_sweep = rvVolume->sweep[sweepIndex+1];
+        rv_sweep = rvVolume->sweep[sweepIndex];
+        vals_sweep = VALS->sweep[sweepIndex];
+
+
+
         NyqVelocity =rvVolume->sweep[sweepIndex]->ray[0]->h.nyq_vel;
         if (NyqVelocity == 0.0) NyqVelocity=9.8;
         NyqInterval = 2.0 * NyqVelocity;
         printf("NyqVelocity %f \n", NyqVelocity);
-        numRays = rvVolume->sweep[sweepIndex]->h.nrays;
-        numBins = rvVolume->sweep[sweepIndex]->ray[0]->h.nbins;
+        numRays = rv_sweep->h.nrays;
+        numBins = rv_sweep->ray[0]->h.nbins;
 
         printf("Sweep: %d\n", sweepIndex);
         if (VERBOSE) printf("NyqVelocity: %f, missingVal: %f\n",
@@ -93,10 +104,9 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         flag=1;
 
         foobar(
-            VALS, rvVolume, soundVolume, lastVolume,
-            sweepIndex, numRays, numBins, missingVal, GOOD,
-            NyqVelocity, NyqInterval,
-            numSweeps, filt);
+            vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
+            missingVal, GOOD, NyqVelocity, NyqInterval,
+            filt);
 
         spatial_dealias( 
             VALS, rvVolume,

@@ -11,6 +11,8 @@
 /* Private function prototypes */
 float sweep_val(Sweep *sweep, int ray_index, int range_index);
 float ray_val(Ray *ray, int index);
+void ray_set(Ray *ray, int index, float val); 
+
 /* Gate value getters */
 
 float sweep_val(Sweep *sweep, int ray_index, int range_index)
@@ -24,19 +26,27 @@ float ray_val(Ray *ray, int index)
     return (float) ray->h.f(ray->range[index]);
 }
 
+void ray_set(Ray *ray, int index, float val) 
+{
+    /* Set the gate value in ray at index to val */
+    ray->range[index]=(unsigned short) ray->h.invf(val);
+    return;
+}
 
+
+void bergen_albers_filter(Sweep *vals_sweep, int currIndex, int i,
+                          float missingVal, short GOOD[MAXBINS][MAXRAYS]);
 
 void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
-                         int numRays, int numBins, float missingVal, 
-                         short GOOD[MAXBINS][MAXRAYS])
+                         float missingVal, short GOOD[MAXBINS][MAXRAYS])
 {
     /* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 */
     int countindex=0;
     int left, right, next, prev;
 
-    if (currIndex==0) left=numRays-1;
+    if (currIndex==0) left=sweep->h.nrays-1;
     else left=currIndex-1;
-    if (currIndex==numRays-1) right=0;
+    if (currIndex==sweep->h.nrays-1) right=0;
     else right=currIndex+1;
     next=i+1;
     prev=i-1;
@@ -58,7 +68,7 @@ void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
     if (ray_val(sweep->ray[right], i) != missingVal) {
         countindex++;
     }
-    if (i<numBins-1) {  
+    if (i<sweep->ray[0]->h.nbins-1) {  
         if (ray_val(sweep->ray[left], next) != missingVal) {
             countindex++;
         }
@@ -69,7 +79,7 @@ void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
             countindex++;
         }
     }
-    if (((i==numBins-1 || i==DELNUM) && countindex>=3) || (countindex>=5)) {
+    if (((i==sweep->ray[0]->h.nbins-1 || i==DELNUM) && countindex>=3) || (countindex>=5)) {
       GOOD[i][currIndex] = 0;  /* Save the bin for dealiasing. */
     } else {
       GOOD[i][currIndex] = -1; /* Assign missing value to the current bin. */
@@ -77,12 +87,97 @@ void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
     return;
 }   
 
-void foobar(
-    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int numRays, int numBins, 
+
+void continuity_dealias(
+    Sweep *rv_sweep, Sweep *sound_sweep, Sweep *last_sweep, Sweep *above_sweep,
+    int currIndex, int i, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float val, int prevIndex, int abIndex, float NyqVelocity,
+    float NyqInterval, float valcheck);
+
+void continuity_dealias(
+    Sweep *rv_sweep, Sweep *sound_sweep, Sweep *last_sweep, Sweep *above_sweep,
+    int currIndex, int i, 
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float val, int prevIndex, int abIndex, float NyqVelocity,
+    float NyqInterval, float valcheck)
+{
+    /* Try to dealias the bin using vertical and temporal 
+     **   continuity (this is initial dealiasing). */
+    
+    int direction;
+    unsigned short numtimes, dcase; 
+    float prevval, soundval, abval, cval, diff;
+
+    if (val==missingVal) return;  /* return if val is missingVal */
+     
+    /* Find velocities in related volumes */
+    prevval = soundval = abval = missingVal;
+    if (last_sweep!=NULL)
+        prevval=ray_val(last_sweep->ray[prevIndex], i);
+    if (sound_sweep!=NULL && last_sweep==NULL)
+        soundval=ray_val(sound_sweep->ray[currIndex], i);
+    if (above_sweep!=NULL)
+        abval=ray_val(above_sweep->ray[abIndex], i);
+    
+    if (last_sweep==NULL && soundval!=missingVal && abval==missingVal) {
+        cval=soundval;
+        dcase=1;
+    } else if (last_sweep==NULL && soundval!= missingVal && abval!=missingVal) {
+        cval=abval;
+        dcase=2;
+    } else if (prevval!=missingVal && abval!=missingVal) {
+        cval=prevval;
+        dcase=3;
+    } else {
+        cval=missingVal;
+        dcase=0;
+    }
+    
+    if (dcase>0) {
+        diff=cval-val;      
+        if (diff<0.0) {
+            diff=-diff;
+            direction=-1;
+        } else {
+            direction=1;
+        }
+        numtimes=0;
+        while (diff>0.99999*NyqVelocity && numtimes<=MAXCOUNT) {
+            val=val+NyqInterval*direction;
+            numtimes=numtimes+1;
+            diff=cval-val;
+            if (diff<0.0) {
+                diff=-diff;
+                direction=-1;
+            } else {
+                direction=1;
+            }
+        }
+        if (dcase==1 && diff<COMPTHRESH*NyqVelocity && fabs(valcheck)>CKVAL) {
+            ray_set(rv_sweep->ray[currIndex], i, val);
+            GOOD[i][currIndex]=1;
+        } else if (dcase==2 && diff<COMPTHRESH*NyqVelocity && 
+                   fabs(soundval-val)<COMPTHRESH*NyqVelocity && 
+                   fabs(valcheck)>CKVAL) {
+            ray_set(rv_sweep->ray[currIndex], i, val);
+            GOOD[i][currIndex]=1;
+        } else if (dcase==3 && diff<COMPTHRESH*NyqVelocity && fabs(abval-val)<
+                   COMPTHRESH*NyqVelocity&&fabs(valcheck)>CKVAL) {
+            ray_set(rv_sweep->ray[currIndex], i, val);
+            GOOD[i][currIndex]=1;
+        }
+    }
+}
+
+
+
+/* Public functions */
+
+void foobar(
+    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
+    Sweep *above_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval,
-    int numSweeps,
     unsigned short filt
     )
 {
@@ -94,160 +189,38 @@ void foobar(
      ** continuity. */
 
     int currIndex;
-    int i, prevIndex, abIndex; 
-    float val, initval, valcheck;
+    int i, prevIndex = 0, abIndex = 0; 
+    float val, valcheck;
 
-    Sweep *rvsweep = rvVolume->sweep[sweepIndex];
-    Sweep *valssweep = VALS->sweep[sweepIndex];
-    Ray *rvray;
-    Ray *valsray;
-
-    abIndex = 0;        /* initialize to supress compiler warning */
-    prevIndex = 0;      /* initialize to spresss compiler watning */
-
-    for (currIndex=0;currIndex<numRays;currIndex++) {
+    for (currIndex=0;currIndex<rv_sweep->h.nrays;currIndex++) {
        
-        rvray = rvsweep->ray[currIndex];
-        valsray = valssweep->ray[currIndex];
-         
-        if (lastVolume!=NULL) {
-           prevIndex=findRay(rvVolume, lastVolume, sweepIndex, sweepIndex,
-                             currIndex, missingVal);
-        }
-        if (sweepIndex<numSweeps-1) {
-            abIndex=findRay(rvVolume, rvVolume, sweepIndex, sweepIndex+1,
-                            currIndex, missingVal);
-        }
-        for (i=DELNUM;i<numBins;i++) {
-         
-            initval=(float)rvray->h.invf(missingVal);
-            rvray->range[i]=(unsigned short) (initval);
-
+        if (last_sweep!=NULL)
+           prevIndex=findRay2(rv_sweep, last_sweep, currIndex, missingVal);
+        if (above_sweep!=NULL)
+            abIndex=findRay2(rv_sweep, rv_sweep, currIndex, missingVal);
+        for (i=DELNUM;i<rv_sweep->ray[0]->h.nbins;i++) {
             /* Assign uncorrect velocity bins to the array VALS: */
-            val=(float) valsray->h.f(valsray->range[i]);
-            valcheck=val;
+            ray_set(rv_sweep->ray[currIndex], i, missingVal);
+            valcheck = val = ray_val(vals_sweep->ray[currIndex], i);
             if (val==missingVal) {
                 GOOD[i][currIndex]=-1;
             } else {
-                if (filt==1) {
-                    bergen_albers_filter(valssweep, currIndex, i, numRays,
-                                    numBins, missingVal, GOOD);
-                } else {
+                if (filt==1)
+                    bergen_albers_filter(
+                        vals_sweep, currIndex, i, missingVal, GOOD);
+                else
                     /* If no filter is being applied save bin for dealiasing: */
                     GOOD[i][currIndex]=0;
-                }
             }
-         
-            if (GOOD[i][currIndex]==0) {           
-                continuity_dealias(rvVolume, soundVolume, lastVolume,
-                    sweepIndex, currIndex, i, numRays, numBins, 
+            if (GOOD[i][currIndex]==0)      
+                continuity_dealias(
+                    rv_sweep, sound_sweep, last_sweep, above_sweep,
+                    currIndex, i, 
                     missingVal, GOOD,
-                    val, prevIndex, numSweeps, abIndex, NyqVelocity,
+                    val, prevIndex, abIndex, NyqVelocity,
                     NyqInterval, valcheck);
-            }
         }
     }
-}
-
-
-void continuity_dealias(
-    Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int currIndex, int i, int numRays, int numBins, 
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float val, int prevIndex, int numSweeps, int abIndex, float NyqVelocity,
-    float NyqInterval, float valcheck)
-{
-    int direction;
-    unsigned short numtimes, dcase; 
-    float prevval, soundval, abval, cval, finalval, diff;
-
-
-           /* Try to dealias the bin using vertical and temporal 
-           **   continuity (this is initial dealiasing). */
-           if (val!=missingVal && lastVolume!=NULL) {
-         prevval=(float) lastVolume->sweep[sweepIndex]->ray[prevIndex]
-           ->h.f(lastVolume->sweep[sweepIndex]->ray[prevIndex]->
-           range[i]);
-           } else {
-         prevval=missingVal;
-           }
-           if (val!=missingVal && soundVolume!=NULL && lastVolume==NULL) {
-         soundval=(float) soundVolume->
-           sweep[sweepIndex]->ray[currIndex]->h.f(soundVolume->
-           sweep[sweepIndex]->ray[currIndex]->range[i]);
-           } else {
-         soundval=missingVal;
-           }
-           if (val!=missingVal && sweepIndex<numSweeps-1) {
-         abval=(float) rvVolume->sweep[sweepIndex+1]->ray[abIndex]->
-           h.f(rvVolume->sweep[sweepIndex+1]->ray[abIndex]->range[i]);
-           } else {
-         abval=missingVal;
-           }
-
-           if (val!=missingVal&&lastVolume==NULL&&soundval!=
-           missingVal&&abval==missingVal) {
-         cval=soundval;
-         dcase=1;
-           }
-           else if (val!=missingVal&&lastVolume==NULL&&soundval!=
-            missingVal&&abval!=missingVal) {
-         cval=abval;
-         dcase=2;
-           }
-           else if (val!=missingVal&&prevval!=missingVal&&abval!=
-            missingVal) {
-         cval=prevval;
-         dcase=3;
-           } 
-           else {
-         cval=missingVal;
-         dcase=0;
-           }
-           if (dcase>0) {
-         diff=cval-val;      
-         if (diff<0.0) {
-           diff=-diff;
-           direction=-1;
-         } else direction=1;
-         numtimes=0;
-         while (diff>0.99999*NyqVelocity && numtimes<=MAXCOUNT) {
-           val=val+NyqInterval*direction;
-           numtimes=numtimes+1;
-           diff=cval-val;
-           if (diff<0.0) {
-             diff=-diff;
-             direction=-1;
-           } else direction=1;
-         }
-         if (dcase==1&&diff<COMPTHRESH*NyqVelocity&&
-             fabs(valcheck)>CKVAL) {
-           if (VERBOSE) printf("GOOD1: %f\n", val);
-           finalval=(float)rvVolume->sweep[sweepIndex]->
-             ray[currIndex]->h.invf(val);
-           rvVolume->sweep[sweepIndex]->ray[currIndex]->
-             range[i]=(unsigned short) (finalval);
-           GOOD[i][currIndex]=1;
-         }
-         else if (dcase==2&&diff<COMPTHRESH*NyqVelocity&&fabs(soundval
-           -val)<COMPTHRESH*NyqVelocity&&fabs(valcheck)>CKVAL) {
-           if (VERBOSE) printf("GOOD2: %f\n", val);
-           finalval=(float)rvVolume->sweep[sweepIndex]->
-             ray[currIndex]->h.invf(val);
-           rvVolume->sweep[sweepIndex]->ray[currIndex]->
-             range[i]=(unsigned short) (finalval);
-           GOOD[i][currIndex]=1;
-         }
-         else if (dcase==3&&diff<COMPTHRESH*NyqVelocity&&fabs(abval-val)<
-              COMPTHRESH*NyqVelocity&&fabs(valcheck)>CKVAL) {
-           if (VERBOSE) printf("GOOD3: %f\n",val);
-           finalval=(float)rvVolume->sweep[sweepIndex]->
-             ray[currIndex]->h.invf(val);
-           rvVolume->sweep[sweepIndex]->ray[currIndex]->
-             range[i]=(unsigned short) (finalval); 
-           GOOD[i][currIndex]=1;
-         }
-           }
 }
 
 
