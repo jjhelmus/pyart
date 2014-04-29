@@ -8,20 +8,32 @@
 #include <rsl.h>
 
 
+/* Private function prototypes */
+float sweep_val(Sweep *sweep, int ray_index, int range_index);
+float ray_val(Ray *ray, int index);
+/* Gate value getters */
 
-void bergen_albers_filter(Sweep *vals_sweep, int currIndex, int i,
+float sweep_val(Sweep *sweep, int ray_index, int range_index)
+{
+    return ray_val(sweep->ray[ray_index], range_index);
+}
+
+float ray_val(Ray *ray, int index) 
+{
+    /* Return the value of range bin at index in ray */
+    return (float) ray->h.f(ray->range[index]);
+}
+
+
+
+void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
                          int numRays, int numBins, float missingVal, 
                          short GOOD[MAXBINS][MAXRAYS])
 {
-    /* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 
-    * GOOD is updated 
-    * */
+    /* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 */
     int countindex=0;
     int left, right, next, prev;
 
-    //Sweep *vals_sweep = VALS->sweep[sweepIndex];
-    
-    countindex=0;
     if (currIndex==0) left=numRays-1;
     else left=currIndex-1;
     if (currIndex==numRays-1) right=0;
@@ -30,52 +42,39 @@ void bergen_albers_filter(Sweep *vals_sweep, int currIndex, int i,
     prev=i-1;
     /* Look at all bins adjacent to current bin in question: */
     if (i>DELNUM) {
-      if (((float) vals_sweep->ray[left]->h.f(vals_sweep->ray
-               [left]->range[prev]))!=missingVal) {
-        countindex=countindex+1;
-      }
-      if (((float) vals_sweep->ray[currIndex]->h.f(vals_sweep->ray
-           [currIndex]->range[prev]))!=missingVal) {
-        countindex=countindex+1;
-      }
-      if (((float) vals_sweep->ray[right]->h.f(vals_sweep->ray
-       [right]->range[prev]))!=missingVal) {
-        countindex=countindex+1;
-      }
+        if (ray_val(sweep->ray[left], prev) != missingVal){
+            countindex++;
+        } 
+        if (ray_val(sweep->ray[currIndex], prev) != missingVal) {
+            countindex++;
+        }
+        if (ray_val(sweep->ray[right], prev) != missingVal) {
+            countindex++;
+        }
     }
-    if (((float) vals_sweep->ray[left]->h.f(vals_sweep->ray
-         [left]->range[i]))!=missingVal) {
-      countindex=countindex+1;
+    if (ray_val(sweep->ray[left], i) != missingVal) {
+        countindex++;
     }
-    if (((float) vals_sweep->ray[right]->h.f(vals_sweep->ray
-         [right]->range[i]))!=missingVal) {
-      countindex=countindex+1;
+    if (ray_val(sweep->ray[right], i) != missingVal) {
+        countindex++;
     }
     if (i<numBins-1) {  
-      if (((float) vals_sweep->ray[left]->h.f(vals_sweep->ray
-                   [left]->range[next]))!=missingVal) {
-        countindex=countindex+1;
-      }
-      if (((float) vals_sweep->ray[currIndex]->h.f(vals_sweep->ray
-       [currIndex]->range[next]))!=missingVal) {
-        countindex=countindex+1;
-      }
-      if (((float) vals_sweep->
-       ray[right]->h.f(vals_sweep->ray[right]->range[next]))!=missingVal) {
-        countindex=countindex+1;
-      }
+        if (ray_val(sweep->ray[left], next) != missingVal) {
+            countindex++;
+        }
+        if (ray_val(sweep->ray[currIndex], next)!= missingVal) {
+            countindex++;
+        }
+        if (ray_val(sweep->ray[right], next) != missingVal) {
+            countindex++;
+        }
     }
-    if (((i==numBins-1 || i==DELNUM) && countindex>=3)||
-        (countindex>=5)) {
-      /* Save the bin for dealiasing: */
-      GOOD[i][currIndex] = 0;
-      return;
+    if (((i==numBins-1 || i==DELNUM) && countindex>=3) || (countindex>=5)) {
+      GOOD[i][currIndex] = 0;  /* Save the bin for dealiasing. */
     } else {
-      /* Assign missing value to the current bin. */
-      GOOD[i][currIndex] = -1;
-      return;
+      GOOD[i][currIndex] = -1; /* Assign missing value to the current bin. */
     }   
-      /* End 3 x 3 filter */
+    return;
 }   
 
 void foobar(
@@ -87,13 +86,12 @@ void foobar(
     unsigned short filt
     )
 {
-    /* First, unfold bins where vertical and temporal continuity
+    /** Unfold bins where vertical and temporal continuity
      ** produces the same value (i.e., bins where the radial velocity
      ** agrees with both the previous sweep and previous volume within
      ** a COMPTHRESH of the Nyquist velocity). This produces a number
      ** of good data points from which to begin unfolding assuming spatial
-         ** continuity. */
-
+     ** continuity. */
 
     int currIndex;
     int i, prevIndex, abIndex; 
