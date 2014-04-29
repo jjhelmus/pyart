@@ -60,11 +60,11 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 {
 
     int sweepIndex, numSweeps;
-    int rayindex[8], binindex[8], step = -1;
+    int step = -1;
     
     unsigned short flag=1;
     short GOOD[MAXBINS][MAXRAYS];
-    float NyqVelocity, NyqInterval, diffs[8];
+    float NyqVelocity, NyqInterval;
     
     Volume* VALS;
     Sweep *rv_sweep, *vals_sweep, *last_sweep, *sound_sweep, *above_sweep;
@@ -105,7 +105,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         spatial_dealias( 
             vals_sweep, rv_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval, 
-            &flag, &step, binindex, rayindex, diffs);
+            &flag, &step);
 
         unfold_remote(
             vals_sweep, rv_sweep, last_sweep, sound_sweep,
@@ -121,7 +121,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         spatial_dealias( 
             vals_sweep, rv_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval, 
-            &flag, &step, binindex, rayindex, diffs);
+            &flag, &step);
     
     } // end of loop over sweeps
     *success=1;

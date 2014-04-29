@@ -408,14 +408,15 @@ void spatial_dealias(
     Sweep *vals_sweep, Sweep *rv_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, 
-    unsigned short *pflag, int *pstep,
-    int binindex[8], int rayindex[8], float diffs[8]
-    )
+    unsigned short *pflag, int *pstep)
 {
 
     int loopcount, start, end, i, countindex;
     int currIndex;
     float val;
+    int binindex[8]; 
+    int rayindex[8];
+    float diffs[8];
 
     /* Now, unfold GOOD=0 bins assuming spatial continuity: */
     loopcount=0;

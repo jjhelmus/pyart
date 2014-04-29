@@ -93,8 +93,7 @@ void spatial_dealias(
     Sweep *vals_sweep, Sweep *rv_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval,
-    unsigned short *flag, int *step,
-    int binindex[8], int rayindex[8], float diffs[8]
+    unsigned short *flag, int *step
     );
 
 // checked
