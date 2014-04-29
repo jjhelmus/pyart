@@ -67,7 +67,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     float NyqVelocity, NyqInterval, diffs[8];
     
     Volume* VALS;
-    
     Sweep *rv_sweep, *vals_sweep, *last_sweep, *sound_sweep, *above_sweep;
  
     // Either a sounding or last volume must be provided
@@ -88,8 +87,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         if (sweepIndex<numSweeps-1) above_sweep = rvVolume->sweep[sweepIndex+1];
         rv_sweep = rvVolume->sweep[sweepIndex];
         vals_sweep = VALS->sweep[sweepIndex];
-
-
 
         NyqVelocity =rvVolume->sweep[sweepIndex]->ray[0]->h.nyq_vel;
         if (NyqVelocity == 0.0) NyqVelocity=9.8;
@@ -114,9 +111,8 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
             &flag, &step, binindex, rayindex, diffs);
 
         unfold_remote(
-            VALS, rvVolume, soundVolume, lastVolume,
-            sweepIndex, numRays, numBins, missingVal, GOOD,
-            NyqVelocity, NyqInterval);   
+            vals_sweep, rv_sweep, last_sweep, sound_sweep,
+            missingVal, GOOD, NyqVelocity, NyqInterval);   
 
         second_pass(
             VALS, rvVolume, soundVolume, lastVolume,

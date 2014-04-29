@@ -60,6 +60,10 @@ float window(Volume* rvVolume, int sweepIndex, int startray, int endray,
      int firstbin, int lastbin, float* std, float missingVal, unsigned 
      short* success);
 
+float window2(Sweep *rv_sweep, int startray, int endray,
+     int firstbin, int lastbin, float* std, float missingVal, unsigned 
+     short* success);
+
 void prepVolume (Volume* DBZVolume, Volume* rvVolume, float missingVal);
 
 int findRay (Volume* rvVolume1, Volume* rvVolume2, int sweepIndex1, int 
@@ -105,8 +109,7 @@ void second_pass(
 
 // checked
 void unfold_remote(
-    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int numRays, int numBins, 
+    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval);
 

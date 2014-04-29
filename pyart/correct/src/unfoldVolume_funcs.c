@@ -696,115 +696,108 @@ void second_pass(
 }
 
 void unfold_remote(
-    Volume* VALS, Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-    int sweepIndex, int numRays, int numBins, 
+    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval)
 {
-    int i, direction,
-        startray, endray, firstbin, 
-        lastbin;
-    int currIndex; 
-    unsigned short numtimes, wsuccess;
-    float val, diff, finalval, winval;
-    float std;
-  
-    
     /* Unfold remote bins or those that were previously unsuccessful
      **   using a window with dimensions 2(PROXIMITY)+1 x 2(PROXIMITY)+1:
      **   if still no luck delete data (or unfold against VAD if PASS2). */
-     for (i=DELNUM;i<numBins;i++) {
-       for (currIndex=0;currIndex<numRays;currIndex++) { 
-         if (GOOD[i][currIndex]==0 || GOOD[i][currIndex]==-2) {
-           val=(float) VALS->sweep[sweepIndex]->ray[currIndex]->
-           h.f(VALS->sweep[sweepIndex]->ray[currIndex]->range[i]);
-           startray=currIndex-PROXIMITY;
-           endray=currIndex+PROXIMITY;
-           firstbin=i-PROXIMITY;
-           lastbin=i+PROXIMITY;
-           if (startray<0) startray=numRays+startray;
-           if (endray>numRays-1) endray=endray-numRays;
-           if (firstbin<0) firstbin=0;
-           if (lastbin>numBins-1) lastbin=numBins-1;
-           winval=window(rvVolume, sweepIndex, startray, endray, 
-                 firstbin, lastbin, &std, missingVal, &wsuccess);
-           if (winval==missingVal && wsuccess==1){ /* Expand the window: */
-         startray=currIndex-2*PROXIMITY;
-         endray=currIndex+2*PROXIMITY;
-         firstbin=i-2*PROXIMITY;
-         lastbin=i+2*PROXIMITY;
-         if (startray<0) startray=numRays+startray;
-         if (endray>numRays-1) endray=endray-numRays;
-         if (firstbin<0) firstbin=0;
-         if (lastbin>numBins-1) lastbin=numBins-1;
-         winval=window(rvVolume, sweepIndex, startray, endray, 
-                   firstbin, lastbin, &std, missingVal, &wsuccess);
-           }
-           if (winval!=missingVal) {
-         diff=winval-val;
-         if (diff<0.0) {
-           diff=-diff;
-           direction=-1;
-         } else direction=1;
-         numtimes=0;
-         while (diff>0.99999*NyqVelocity && numtimes<=MAXCOUNT) {
-           val=val+NyqInterval*direction;
-           numtimes=numtimes+1;
-           diff=winval-val;
-           if (diff<0.0) {
-             diff=-diff;
-             direction=-1;
-           } else direction=1;
-         }
-         if (diff<THRESH*NyqVelocity) {
-           /* Return the value. */
-           finalval=(float)rvVolume->sweep[sweepIndex]->
-             ray[currIndex]->h.invf(val);
-           rvVolume->sweep[sweepIndex]->ray[currIndex]->
-             range[i]=(unsigned short) (finalval);
-           GOOD[i][currIndex]=1;
-         } else if (diff<(1.0 - (1.0 - THRESH)/2.0)*NyqVelocity) {
-           /* If within relaxed threshold, then return value, but
-           **   do not use to dealias other bins. */
-           finalval=(float)rvVolume->sweep[sweepIndex]->
-             ray[currIndex]->h.invf(val);
-           rvVolume->sweep[sweepIndex]->ray[currIndex]->
-             range[i]=(unsigned short) (finalval);
-           GOOD[i][currIndex]=-1;          
-         } else {
-           /* Remove bin */
-           GOOD[i][currIndex]=-1;
-         }
+    
+    int i, direction, startray, endray, firstbin, lastbin;
+    int currIndex; 
+    unsigned short numtimes, wsuccess;
+    float val, diff, winval;
+    float std;
+    int numRays = rv_sweep->h.nrays;
+    int numBins = rv_sweep->ray[0]->h.nbins;
+
+    for (i=DELNUM;i<numBins;i++) {
+        for (currIndex=0;currIndex<numRays;currIndex++) { 
+            if (GOOD[i][currIndex]==0 || GOOD[i][currIndex]==-2) {
+                val = ray_val(vals_sweep->ray[currIndex], i); 
+                startray=currIndex-PROXIMITY;
+                endray=currIndex+PROXIMITY;
+                firstbin=i-PROXIMITY;
+                lastbin=i+PROXIMITY;
+            if (startray<0) startray=numRays+startray;
+            if (endray>numRays-1) endray=endray-numRays;
+            if (firstbin<0) firstbin=0;
+            if (lastbin>numBins-1) lastbin=numBins-1;
+            winval=window2(rv_sweep, startray, endray, 
+                           firstbin, lastbin, &std, missingVal, &wsuccess);
+            if (winval==missingVal && wsuccess==1) {     
+                /* Expand the window: */
+                startray=currIndex-2*PROXIMITY;
+                endray=currIndex+2*PROXIMITY;
+                firstbin=i-2*PROXIMITY;
+                lastbin=i+2*PROXIMITY;
+                if (startray<0) startray=numRays+startray;
+                if (endray>numRays-1) endray=endray-numRays;
+                if (firstbin<0) firstbin=0;
+                if (lastbin>numBins-1) lastbin=numBins-1;
+                winval=window2(rv_sweep, startray, endray, 
+                               firstbin, lastbin, &std, missingVal, &wsuccess);
+            }
+            if (winval!=missingVal) {
+                diff=winval-val;
+                if (diff<0.0) {
+                    diff=-diff;
+                    direction=-1;
+            } else {
+                direction=1;
+            }
+            numtimes=0;
+            while (diff>0.99999*NyqVelocity && numtimes<=MAXCOUNT) {
+                val=val+NyqInterval*direction;
+                numtimes=numtimes+1;
+                diff=winval-val;
+                if (diff<0.0) {
+                    diff=-diff;
+                    direction=-1;
+                } else {
+                    direction=1;
+                }
+            }
+            if (diff<THRESH*NyqVelocity) {
+                /* Return the value. */
+                ray_set(rv_sweep->ray[currIndex], i, val);
+                GOOD[i][currIndex]=1;
+            } else if (diff<(1.0 - (1.0 - THRESH)/2.0)*NyqVelocity) {
+                /* If within relaxed threshold, then return value, but
+                **   do not use to dealias other bins. */
+                ray_set(rv_sweep->ray[currIndex], i, val);
+                GOOD[i][currIndex]=-1;          
+            } else {
+                /* Remove bin */
+                GOOD[i][currIndex]=-1;
+            }
            } else { 
-         if (wsuccess==0) {
-           /* Remove bin */
-           GOOD[i][currIndex]=-1;
-         } else if (soundVolume==NULL || lastVolume==NULL) {
-           if (GOOD[i][currIndex]==0 && RM!=1) {
-             /* Leave bin untouched. */
-             val=(float) VALS->sweep[sweepIndex]->ray[currIndex]->
-               h.f(VALS->sweep[sweepIndex]->ray[currIndex]->range[i]);
-             finalval=(float)rvVolume->sweep[sweepIndex]->
-               ray[currIndex]->h.invf(val);
-             rvVolume->sweep[sweepIndex]->ray[currIndex]->
-               range[i]=(unsigned short) (finalval);
-             GOOD[i][currIndex]=-1; /* Don't use to unfold other bins*/
-           } else {
-             /* Remove bin */
-             GOOD[i][currIndex]=-1;
-           }
-         } else if (GOOD[i][currIndex]==0 && PASS2 &&
-             soundVolume!=NULL && lastVolume!=NULL) {
-           /* Leave GOOD[i][currIndex]=0 bins for a second pass.
-           ** In the second pass, we repeat unfolding, except this
-           ** time we use soundVolume for comparison instead of
-           ** lastVolume. */
-         } else {
-           /* Remove bin */
-             GOOD[i][currIndex]=-1;
-         }
-           }
-         }
-       }
-     }
+                if (wsuccess==0) {
+                    /* Remove bin */
+                    GOOD[i][currIndex]=-1;
+                } else if (sound_sweep==NULL || last_sweep==NULL) {
+                    if (GOOD[i][currIndex]==0 && RM!=1) {
+                        /* Leave bin untouched. */
+                        val = ray_val(vals_sweep->ray[currIndex], i);
+                        ray_set(rv_sweep->ray[currIndex], i, val);
+                        GOOD[i][currIndex]=-1; /* Don't use to unfold other bins*/
+                    } else {
+                        /* Remove bin */
+                        GOOD[i][currIndex]=-1;
+                    }
+                } else if (GOOD[i][currIndex]==0 && PASS2 &&
+                           sound_sweep!=NULL && last_sweep!=NULL) {
+                    /* Leave GOOD[i][currIndex]=0 bins for a second pass.
+                    ** In the second pass, we repeat unfolding, except this
+                    ** time we use soundVolume for comparison instead of
+                    ** lastVolume. */
+                    } else {
+                        /* Remove bin */
+                        GOOD[i][currIndex]=-1;
+                    }
+                }
+            }
+        }
+    }
 }
