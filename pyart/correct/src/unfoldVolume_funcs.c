@@ -351,28 +351,22 @@ void unfold_adjacent(
     int binindex[8], int rayindex[8], float diffs[8]
     )
 {
-    int in, out, numneg, numpos, l, numtimes;
-    float goodval, finalval;
     /* Unfold against all adjacent values where GOOD==1 */
+    int in, out, numneg, numpos, l, numtimes;
     numtimes=0;
     while(val!=missingVal && GOOD[i][currIndex]==0) {
-        numtimes=numtimes+1;
-        in=0;
-        out=0;
-        numneg=0;
-        numpos=0;
-        for (l=0;l<countindex;l++) {
-            goodval=(float) rv_sweep->ray
-                [rayindex[l]]->h.f(rv_sweep->
-                ray[rayindex[l]]->range[binindex[l]]);
-            diffs[l]=goodval-val;
-            if (fabs(diffs[l])<THRESH*NyqVelocity) in=in+1;
-            else {
-                out=out+1;
+        numtimes++;
+        in = out = numneg = numpos = 0;
+        for (l=0; l<countindex; l++) {
+            diffs[l] = ray_val(rv_sweep->ray[rayindex[l]], binindex[l]) - val;
+            if (fabs(diffs[l])<THRESH*NyqVelocity) {
+                in++;
+            } else {
+                out++;
                 if (diffs[l]>NyqVelocity) {
-                    numpos=numpos+1;
+                    numpos++;
                 } else if (diffs[l]<-NyqVelocity){
-                    numneg=numneg+1;
+                    numneg++;
                 }
             }
         }
@@ -383,11 +377,8 @@ void unfold_adjacent(
             if (numtimes<=MAXCOUNT) {
                 if ((numpos+numneg)<(in+out-(numpos+numneg))) {
                     if (loopcount>2) {
-                        /* Keep the value after two passes through ** data. */
-                        finalval=(float)rv_sweep->
-                            ray[currIndex]->h.invf(val);
-                        rv_sweep->ray[currIndex]->
-                            range[i]=(unsigned short) (finalval);
+                        /* Keep the value after two passes through data. */
+                        ray_set(rv_sweep->ray[currIndex], i, val);
                         GOOD[i][currIndex]=1;
                     }
                 } else if (numpos>numneg) {
