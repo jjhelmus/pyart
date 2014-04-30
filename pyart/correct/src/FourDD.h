@@ -56,12 +56,8 @@
 void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
      float missingVal, unsigned short rm, unsigned short* success);
 
-float window(Volume* rvVolume, int sweepIndex, int startray, int endray,
-     int firstbin, int lastbin, float* std, float missingVal, unsigned 
-     short* success);
-
-float window2(Sweep *rv_sweep, int startray, int endray,
-     int firstbin, int lastbin, float* std, float missingVal, unsigned 
+float window(Sweep *rv_sweep, int startray, int endray,
+     int firstbin, int lastbin, float missingVal, unsigned 
      short* success);
 
 void prepVolume (Volume* DBZVolume, Volume* rvVolume, float missingVal);
@@ -107,5 +103,8 @@ void unfold_remote(
     Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval);
+
+
+float ray_val(Ray *ray, int index);
 
 #endif /* DEALIAS_H */

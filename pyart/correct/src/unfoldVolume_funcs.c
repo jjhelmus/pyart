@@ -10,7 +10,7 @@
 
 /* Private function prototypes */
 float sweep_val(Sweep *sweep, int ray_index, int range_index);
-float ray_val(Ray *ray, int index);
+
 void ray_set(Ray *ray, int index, float val); 
 
 /* Gate value getters */
@@ -488,6 +488,42 @@ void second_pass(
     }
 }
 
+
+float find_window(Sweep *rv_sweep, float missingVal, int currIndex, int i, unsigned short *wsuccess);
+
+float find_window(Sweep *rv_sweep, float missingVal, int currIndex, int i, unsigned short *wsuccess)
+{
+    int startray, endray, firstbin, lastbin;
+    float winval;
+    int numRays = rv_sweep->h.nrays;
+    int numBins = rv_sweep->ray[0]->h.nbins;
+
+    startray = currIndex - PROXIMITY;
+    endray = currIndex + PROXIMITY;
+    firstbin = i - PROXIMITY;
+    lastbin = i + PROXIMITY;
+    if (startray < 0) startray = numRays + startray;
+    if (endray > numRays - 1) endray = endray - numRays;
+    if (firstbin < 0) firstbin = 0;
+    if (lastbin > numBins-1) lastbin = numBins - 1;
+    winval=window(rv_sweep, startray, endray, 
+                   firstbin, lastbin, missingVal, wsuccess);
+    if (winval == missingVal && *wsuccess == 1) {     
+        /* Expand the window: */
+        startray = currIndex - 2 * PROXIMITY;
+        endray = currIndex + 2 * PROXIMITY;
+        firstbin = i - 2 * PROXIMITY;
+        lastbin = i + 2 * PROXIMITY;
+        if (startray < 0) startray = numRays + startray;
+        if (endray > numRays - 1) endray = endray - numRays;
+        if (firstbin < 0) firstbin = 0;
+        if (lastbin > numBins - 1) lastbin = numBins - 1;
+        winval=window(rv_sweep, startray, endray, 
+                       firstbin, lastbin, missingVal, wsuccess);
+    }
+    return winval;
+}
+
 void unfold_remote(
     Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
@@ -497,75 +533,46 @@ void unfold_remote(
      **   using a window with dimensions 2(PROXIMITY)+1 x 2(PROXIMITY)+1:
      **   if still no luck delete data (or unfold against VAD if PASS2). */
     
-    int i, direction, startray, endray, firstbin, lastbin;
-    int currIndex; 
-    unsigned short numtimes, wsuccess;
+    int i, j, currIndex; 
+    unsigned short wsuccess;
     float val, diff, winval;
-    float std;
     int numRays = rv_sweep->h.nrays;
     int numBins = rv_sweep->ray[0]->h.nbins;
 
-    for (i=DELNUM;i<numBins;i++) {
-        for (currIndex=0;currIndex<numRays;currIndex++) { 
-            if (GOOD[i][currIndex]==0 || GOOD[i][currIndex]==-2) {
-                val = ray_val(vals_sweep->ray[currIndex], i); 
-                startray=currIndex-PROXIMITY;
-                endray=currIndex+PROXIMITY;
-                firstbin=i-PROXIMITY;
-                lastbin=i+PROXIMITY;
-            if (startray<0) startray=numRays+startray;
-            if (endray>numRays-1) endray=endray-numRays;
-            if (firstbin<0) firstbin=0;
-            if (lastbin>numBins-1) lastbin=numBins-1;
-            winval=window2(rv_sweep, startray, endray, 
-                           firstbin, lastbin, &std, missingVal, &wsuccess);
-            if (winval==missingVal && wsuccess==1) {     
-                /* Expand the window: */
-                startray=currIndex-2*PROXIMITY;
-                endray=currIndex+2*PROXIMITY;
-                firstbin=i-2*PROXIMITY;
-                lastbin=i+2*PROXIMITY;
-                if (startray<0) startray=numRays+startray;
-                if (endray>numRays-1) endray=endray-numRays;
-                if (firstbin<0) firstbin=0;
-                if (lastbin>numBins-1) lastbin=numBins-1;
-                winval=window2(rv_sweep, startray, endray, 
-                               firstbin, lastbin, &std, missingVal, &wsuccess);
-            }
+    for (i=DELNUM; i<numBins; i++) {
+        for (currIndex=0; currIndex<numRays; currIndex++) { 
+            
+            if (GOOD[i][currIndex]!=0 && GOOD[i][currIndex]!=-2)
+                continue;
+            val = ray_val(vals_sweep->ray[currIndex], i); 
+            winval = find_window(rv_sweep, missingVal, currIndex, i, &wsuccess);
             if (winval!=missingVal) {
-                diff=winval-val;
-                if (diff<0.0) {
-                    diff=-diff;
-                    direction=-1;
-            } else {
-                direction=1;
-            }
-            numtimes=0;
-            while (diff>0.99999*NyqVelocity && numtimes<=MAXCOUNT) {
-                val=val+NyqInterval*direction;
-                numtimes=numtimes+1;
-                diff=winval-val;
-                if (diff<0.0) {
-                    diff=-diff;
-                    direction=-1;
-                } else {
-                    direction=1;
+                
+                /* Add or subtract Nyquist intervals until within range */
+                for (j=0; j<MAXCOUNT; j++) {
+                    if (fabs(winval - val) <= 0.99999 * NyqVelocity)
+                        break;
+                    if (val > winval)
+                        val -= NyqInterval;
+                    else
+                        val += NyqInterval;
                 }
-            }
-            if (diff<THRESH*NyqVelocity) {
-                /* Return the value. */
-                ray_set(rv_sweep->ray[currIndex], i, val);
-                GOOD[i][currIndex]=1;
-            } else if (diff<(1.0 - (1.0 - THRESH)/2.0)*NyqVelocity) {
-                /* If within relaxed threshold, then return value, but
-                **   do not use to dealias other bins. */
-                ray_set(rv_sweep->ray[currIndex], i, val);
-                GOOD[i][currIndex]=-1;          
-            } else {
-                /* Remove bin */
-                GOOD[i][currIndex]=-1;
-            }
-           } else { 
+                diff = fabs(winval - val);
+                
+                if (diff < THRESH  *NyqVelocity) {
+                    /* Return the value. */
+                    ray_set(rv_sweep->ray[currIndex], i, val);
+                    GOOD[i][currIndex]=1;
+                } else if (diff<(1.0 - (1.0 - THRESH)/2.0)*NyqVelocity) {
+                    /* If within relaxed threshold, then return value, but
+                    **   do not use to dealias other bins. */
+                    ray_set(rv_sweep->ray[currIndex], i, val);
+                    GOOD[i][currIndex]=-1;  
+                } else {
+                    /* Remove bin */
+                    GOOD[i][currIndex]=-1;
+                }
+            } else { 
                 if (wsuccess==0) {
                     /* Remove bin */
                     GOOD[i][currIndex]=-1;
@@ -585,10 +592,9 @@ void unfold_remote(
                     ** In the second pass, we repeat unfolding, except this
                     ** time we use soundVolume for comparison instead of
                     ** lastVolume. */
-                    } else {
-                        /* Remove bin */
-                        GOOD[i][currIndex]=-1;
-                    }
+                } else {
+                    /* Remove bin */
+                    GOOD[i][currIndex]=-1;
                 }
             }
         }
