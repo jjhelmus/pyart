@@ -19,7 +19,7 @@
 **
 **
 */
-#include "FourDD.h"
+#include "helpers.h"
 
 #include <stdio.h>
 #include <math.h>
@@ -28,16 +28,20 @@
 #include <rsl.h> /* Sweep */
 
 
-void firstGuessNoRead(Volume* soundVolume, float missingVal,
-          float *height_array, float *speed_array, float *direction_array, int nlevels, int VAD_time, unsigned short* sounding) {
+void firstGuessNoRead(
+    Volume* soundVolume, float missingVal,
+    float *height_array, float *speed_array, float *direction_array, 
+    int nlevels, int VAD_time, unsigned short* sounding
+) 
+{
 
-     int numLevs, alt, i,idx, sweepIndex, currIndex, index, numBins, numRays, 
-       numSweeps;
-     unsigned short flag = 0;
-     float ua_data[1000][5];
-     float ke,dRdz,height,rnge,elev,az,start_range,h_range,gate_size,val
-       ,wind, wind_val_rv,dir,offset,ang, U, V, meanShearU=0.0,
-       meanShearV=0.0;   
+    int numLevs, alt, i,idx, sweepIndex, currIndex, index, numBins, numRays, 
+        numSweeps;
+    unsigned short flag = 0;
+    float ua_data[1000][5];
+    float ke,dRdz,height,rnge,elev,az,start_range,h_range,gate_size,val,
+          wind, wind_val_rv,dir,offset,ang, U, V, meanShearU=0.0,
+          meanShearV=0.0;   
 	 
      dir = 0;       /* initial values */
      wind = 0;      /* initial values */
@@ -177,12 +181,3 @@ void firstGuessNoRead(Volume* soundVolume, float missingVal,
      if (flag) *sounding=1;
      return;
 }
-
-
-
-
-
-
-
-
-

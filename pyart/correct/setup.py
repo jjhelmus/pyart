@@ -37,9 +37,8 @@ def configuration(parent_package='', top_path=None):
 
     # build the FourDD dealiaser if RSL is installed
     if check_rsl_path(rsl_lib_path, rsl_include_path):
-        fourdd_sources = ['src/findRay.c', 'src/firstGuess_noread.c',
-                          'src/prepVolume.c', 'src/unfoldVolume.c',
-                          'src/window.c', 'src/unfoldVolume_funcs.c']
+        fourdd_sources = ['src/fourdd_jjh.c', 'src/firstGuess_noread.c',
+                          'src/prepVolume.c', 'src/helpers.c']
         # Cython wrapper around FourDD
         config.add_extension(
             '_fourdd_interface',
