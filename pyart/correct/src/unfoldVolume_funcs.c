@@ -575,7 +575,8 @@ void unfold_remote(
             } else { 
                 if (wsuccess==0) {
                     /* Remove bin */
-                    GOOD[i][currIndex]=-1;
+                    GOOD[i][currIndex]=-1; 
+                    /* I don't think this ever happens -jjh */
                 } else if (sound_sweep==NULL || last_sweep==NULL) {
                     if (GOOD[i][currIndex]==0 && RM!=1) {
                         /* Leave bin untouched. */
