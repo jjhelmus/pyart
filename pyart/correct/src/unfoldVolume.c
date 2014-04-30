@@ -61,8 +61,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 
     int sweepIndex, numSweeps;
     int step = -1;
-    
-    unsigned short flag=1;
     short GOOD[MAXBINS][MAXRAYS];
     float NyqVelocity, NyqInterval;
     
@@ -95,8 +93,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         if (NyqVelocity == 0.0) NyqVelocity=9.8;
         NyqInterval = 2.0 * NyqVelocity;
 
-        flag=1;
-
         foobar(
             vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval,
@@ -105,24 +101,22 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         spatial_dealias( 
             vals_sweep, rv_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval, 
-            &flag, &step);
+            &step);
 
         unfold_remote(
             vals_sweep, rv_sweep, last_sweep, sound_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval);   
 
         if (last_sweep!=NULL && sound_sweep!=NULL) {
-            flag=1;
             second_pass(
                 vals_sweep, rv_sweep, last_sweep, sound_sweep,
                 missingVal, GOOD, NyqVelocity, NyqInterval);
+        
+            spatial_dealias( 
+                vals_sweep, rv_sweep,
+                missingVal, GOOD, NyqVelocity, NyqInterval, 
+                &step);
         }
- 
-        spatial_dealias( 
-            vals_sweep, rv_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval, 
-            &flag, &step);
-    
     } // end of loop over sweeps
     *success=1;
     return;

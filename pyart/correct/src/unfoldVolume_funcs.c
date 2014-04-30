@@ -227,15 +227,13 @@ void foobar(
 int count_neighbors(    
     Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     int i, int currIndex, int loopcount,
-    unsigned short *pflag,
-    int binindex[8], int rayindex[8], float diffs[8]
+    int binindex[8], int rayindex[8]
     );
 
 int count_neighbors(
     Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     int i, int currIndex, int loopcount,
-    unsigned short *pflag,
-    int binindex[8], int rayindex[8], float diffs[8]
+    int binindex[8], int rayindex[8]
     )
 {
     int next, prev, left, right;
@@ -252,125 +250,108 @@ int count_neighbors(
     /* Look at all bins adjacent to current bin in question: */
     if (i>DELNUM) {
         if (GOOD[prev][left]==1) {
-            if (*pflag==0) *pflag=1;
+            binindex[countindex]=prev;
+            rayindex[countindex]=left;
             countindex++;
-            binindex[countindex-1]=prev;
-            rayindex[countindex-1]=left;
-            if (VERBOSE) printf("pl ");
-        }
-        if (GOOD[prev][left]==0) {
-            countbins++;
         }
         if (GOOD[prev][currIndex]==1) {
-            if (*pflag==0) *pflag=1;
+            binindex[countindex]=prev;
+            rayindex[countindex]=currIndex;
             countindex++;
-            binindex[countindex-1]=prev;
-            rayindex[countindex-1]=currIndex;
-            if (VERBOSE) printf("pc ");
-        }
-        if (GOOD[prev][currIndex]==0) {
-            countbins++;
         }
         if (GOOD[prev][right]==1) {
-            if (*pflag==0) *pflag=1;
+            binindex[countindex]=prev;
+            rayindex[countindex]=right;
             countindex++;
-            binindex[countindex-1]=prev;
-            rayindex[countindex-1]=right;
-            if (VERBOSE) printf("pr ");
-        }
-        if (GOOD[prev][right]==0) {
-            countbins++;
         }
     }
     if (GOOD[i][left]==1) {
-        if (*pflag==0) *pflag=1;
+        binindex[countindex]=i;
+        rayindex[countindex]=left;
         countindex++;
-        binindex[countindex-1]=i;
-        rayindex[countindex-1]=left;
-        if (VERBOSE) printf("il ");
-    }
-    if (GOOD[i][left]==0) {
-        countbins=countbins+1;
     }
     if (GOOD[i][right]==1) {
-        if (*pflag==0) *pflag=1;
+        binindex[countindex]=i;
+        rayindex[countindex]=right;
         countindex++;
-        binindex[countindex-1]=i;
-        rayindex[countindex-1]=right;
-        if (VERBOSE) printf("ir ");     
-    }
-    if (GOOD[i][right]==0) {
-        countbins++;
     }
     if (i<rv_sweep->ray[0]->h.nbins-1) {  
         if (GOOD[next][left]==1) {
-            if (*pflag==0) *pflag=1;
+            binindex[countindex]=next;
+            rayindex[countindex]=left;
             countindex++;
-            binindex[countindex-1]=next;
-            rayindex[countindex-1]=left;
-            if (VERBOSE) printf("nl "); 
-        }
-        if (GOOD[next][left]==0) {
-            countbins++;
         }
         if (GOOD[next][currIndex]==1) {
-            if (*pflag==0) *pflag=1;
+            binindex[countindex]=next;
+            rayindex[countindex]=currIndex;
             countindex++;
-            binindex[countindex-1]=next;
-            rayindex[countindex-1]=currIndex;
-            if (VERBOSE) printf("nc ");
-        }
-        if (GOOD[next][currIndex]==0) {
-            countbins++;
         }
         if (GOOD[next][right]==1) {
-            if (*pflag==0) *pflag=1;
+            binindex[countindex]=next;
+            rayindex[countindex]=right;
             countindex++;
-            binindex[countindex-1]=next;
-            rayindex[countindex-1]=right;
-            if (VERBOSE) printf("nr ");
-        }
-        if (GOOD[next][right]==0) {
-            countbins=countbins+1;
         }
     }
 
-    if (loopcount==1 && countbins+countindex<1) 
+    /* This only needs to be performed on the first pass of the spatial
+       dealiasing */
+    if (loopcount==1 && countindex<1) { 
+        if (i>DELNUM) {
+            if (GOOD[prev][left]==0)
+                countbins++;
+            if (GOOD[prev][currIndex]==0)
+                countbins++;
+            if (GOOD[prev][right]==0)
+                countbins++;
+        }
+        if (GOOD[i][left]==0)
+            countbins++;
+        if (GOOD[i][right]==0)
+            countbins++;
+        if (i<rv_sweep->ray[0]->h.nbins-1) {
+            if (GOOD[next][left]==0)
+                countbins++;
+            if (GOOD[next][currIndex]==0)
+                countbins++;
+            if (GOOD[next][right]==0)
+                countbins++;
+        }
+        if (countbins == 0)
         GOOD[i][currIndex]=-1;  
-    
+    }
     return countindex;
-
 }
 
 void unfold_adjacent(
     float val, Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, 
     int i, int currIndex, int countindex, int loopcount,
-    int binindex[8], int rayindex[8], float diffs[8]
+    int binindex[8], int rayindex[8]
     );
 
 void unfold_adjacent(
     float val, Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, 
     int i, int currIndex, int countindex, int loopcount,
-    int binindex[8], int rayindex[8], float diffs[8]
+    int binindex[8], int rayindex[8]
     )
 {
     /* Unfold against all adjacent values where GOOD==1 */
     int in, out, numneg, numpos, l, numtimes;
+    float diff;
     numtimes=0;
     while(val!=missingVal && GOOD[i][currIndex]==0) {
         numtimes++;
         in = out = numneg = numpos = 0;
         for (l=0; l<countindex; l++) {
-            diffs[l] = ray_val(rv_sweep->ray[rayindex[l]], binindex[l]) - val;
-            if (fabs(diffs[l]) < THRESH*NyqVelocity)
+            diff = ray_val(rv_sweep->ray[rayindex[l]], binindex[l]) - val;
+            if (fabs(diff) < THRESH*NyqVelocity)
                 in++;
             else
                 out++;
-            if (diffs[l] > NyqVelocity)
+            if (diff > NyqVelocity)
                 numpos++;
-            else if (diffs[l] < -NyqVelocity)
+            else if (diff < -NyqVelocity)
                 numneg++; 
         }
         if (in>0 && out==0) {
@@ -408,21 +389,20 @@ void spatial_dealias(
     Sweep *vals_sweep, Sweep *rv_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, 
-    unsigned short *pflag, int *pstep)
+    int *pstep)
 {
 
-    int loopcount, start, end, i, countindex;
-    int currIndex;
+    int loopcount, start, end, i, countindex, currIndex;
+    int binindex[8], rayindex[8];
     float val;
-    int binindex[8]; 
-    int rayindex[8];
-    float diffs[8];
+    unsigned short flag;
 
     /* Now, unfold GOOD=0 bins assuming spatial continuity: */
     loopcount=0;
-    while (*pflag==1) {
+    flag=1;
+    while (flag==1) {
         loopcount++;
-        *pflag=0;
+        flag=0;
         if (*pstep==1) {
             *pstep=-1;
             start=rv_sweep->h.nrays-1;
@@ -442,14 +422,15 @@ void spatial_dealias(
                 countindex = count_neighbors(
                     rv_sweep, missingVal, GOOD,
                     i, currIndex, loopcount,
-                    pflag,
-                    binindex, rayindex, diffs);
-                if (countindex>=1)
+                    binindex, rayindex);
+                if (countindex>=1) {
+                    flag=1;
                     unfold_adjacent(
                         val, rv_sweep, missingVal, GOOD,
                         NyqVelocity, NyqInterval,
                         i, currIndex, countindex, loopcount,
-                        binindex, rayindex, diffs);
+                        binindex, rayindex);
+                }
             }
         }
     }
