@@ -16,11 +16,11 @@ cdef extern from "prepVolume.h":
     void prepVolume(_rsl_h.Volume* DBZVolume, _rsl_h.Volume* rvVolume,
                     float missingVal)
 
-cdef extern from "firstGuess_noread.h":
+cdef extern from "sounding_to_volume.h":
     
-    void firstGuessNoRead(_rsl_h.Volume* soundVolume, float missingVal,
-                          float *height_array, float *speed_array,
-                          float *direction_array, int nlevels, int VAD_time,
-                          unsigned short* sounding)
+    int sounding_to_volume(_rsl_h.Volume* soundVolume, float missingVal,
+                           float *height_array, float *speed_array,
+                           float *direction_array, int nlevels, 
+                           float maxshear, int sign)
 
 

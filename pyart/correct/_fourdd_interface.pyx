@@ -57,11 +57,13 @@ cpdef create_soundvolume(radialVelVolume,
     cdef _RslVolume soundVolume
     cdef unsigned short success = 0
     cdef float MISSINGVEL = 131072.0
+    cdef float MAXSHEAR = 0.05
+    cdef int SIGN = 1
     soundVolume = _rsl_interface.copy_volume(radialVelVolume)
-    _fourdd_h.firstGuessNoRead(soundVolume._Volume, MISSINGVEL,
-                               <float *> hc.data, <float *> sc.data,
-                               <float *> dc.data, <int> len(hc),
-                               vad_time, &success)
+    success = _fourdd_h.sounding_to_volume(
+        soundVolume._Volume, MISSINGVEL,
+        <float *> hc.data, <float *> sc.data, <float *> dc.data,
+        <int> len(hc), MAXSHEAR, SIGN)
     return success, soundVolume
 
 

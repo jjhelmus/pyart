@@ -50,7 +50,6 @@
 #define MAXCOUNT 10 /* Maximum number of folds. */
 #define A 6372.0 /* Radius of earth in kilometers. */
 #define PI 3.1415927 
-#define MAXSHEAR 0.05 /* Maximum vertical shear allowed in input sounding */
 #include <rsl.h> /* Sweep */ 
 
 float ray_val(Ray *ray, int index);
