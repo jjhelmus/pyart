@@ -11,10 +11,11 @@ cdef extern from "fourdd_jjh.h":
                       unsigned short rm, unsigned short* success)
 
 
-cdef extern from "prepVolume.h":
+cdef extern from "filter_by_reflectivity.h":
 
-    void prepVolume(_rsl_h.Volume* DBZVolume, _rsl_h.Volume* rvVolume,
-                    float missingVal)
+    int filter_by_reflectivity(
+        _rsl_h.Volume* DBZVolume, _rsl_h.Volume* rvVolume, float missingVal,
+        float lowdbz, float highdbz, int rm_missing)
 
 cdef extern from "sounding_to_volume.h":
     

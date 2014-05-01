@@ -117,6 +117,9 @@ cpdef fourdd_dealias(_RslVolume radialVelVolume,
     """
     cdef _RslVolume unfoldedVolume
     cdef float MISSINGVEL = 131072.0
+    cdef float LOWDBZ = 0.0
+    cdef float HIGHDBZ = 80.0
+    cdef int RM_MISSING = 0 
     cdef unsigned short usuccess = 0
 
     if lastVelVolume is None and soundVolume is None:
@@ -132,8 +135,11 @@ cpdef fourdd_dealias(_RslVolume radialVelVolume,
             raise ValueError('DZvolume must be defined if prep is True')
         # remove any bins where reflectivity is missing or outside
         # the accepted interval.
-        _fourdd_h.prepVolume(DZvolume._Volume, unfoldedVolume._Volume,
-                             MISSINGVEL)
+        flag = _fourdd_h.filter_by_reflectivity(
+            DZvolume._Volume, unfoldedVolume._Volume, MISSINGVEL, 
+            LOWDBZ, HIGHDBZ, RM_MISSING)
+        if flag == 0:
+            raise ValueError('Reflectivity filtering failed')
 
     # unfold the velocity fields in unfoldedVolume
     if lastVelVolume is None:   # only soundVolume
