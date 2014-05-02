@@ -19,7 +19,6 @@
 #define FDD_H
 #define MAXRAYS   500      /* added by SRB 980310 */
 #define MAXBINS 2048
-#define VERBOSE 0  /* Verbose=1 for detailed printout during execution */
 #define PROXIMITY 5 /* For unfolding using windowing.*/
 #define COMPTHRESH 0.25 /* The threshold for performing initial dealiasing 
 			** using a previously unfolded volume. */
@@ -40,8 +39,6 @@
 #define CKVAL 1.0 /* If absolute value of the radial velocity gate is less 
 		  ** than this value, it will not be used as a PRELIM gate. */
 #define MAXCOUNT 10 /* Maximum number of folds. */
-#define A 6372.0 /* Radius of earth in kilometers. */
-#define PI 3.1415927 
 #include <rsl.h> /* Sweep */ 
 
 float ray_val(Ray *ray, int index);

@@ -1,7 +1,22 @@
 /*
+ * Unfold the doppler velocity data for a single radar volume using 
+ * sounding data and/or a priviously unfolded volume.
+ *  
+ * Adapted from routines from:
+ * 
+ * UW Radial Velocity Dealiasing Algorithm
+ * Four-Dimensional Dealiasing (4DD)
+ * 
+ * Developer by Curtis N. James     Jan-Feb 1999
+ *
+ * See UWASHINGTON_4DD_README file for license
+ *
+ * Adapted for use in Py-ART by Jonathan J. Helmus May 2014
+ */
+
+
+/*
 **
-**  UW Radial Velocity Unfolding Algorithm
-**  Four-Dimensional Dealiasing (4DD)
 **
 **  DESCRIPTION:
 **     This algorithm unfolds a volume of single Doppler radial velocity data.
@@ -10,10 +25,16 @@
 **  in each sweep. Then, it completes the unfolding, assuming spatial
 **  continuity around each bin.
 **
-**  DEVELOPER:
-**     Curtis N. James            25 Jan 99
 **
 */
+
+/* TODO
+ * 
+ * - Introduce Dealias structure to hold sweeps, etc
+ * - Remove use of constants, add these to structure and make arguments to
+ *   unfoldVolume function.
+ * - Refactor and clean.
+ */
 
 #include "helpers.h"
 #include <stdio.h>
@@ -21,248 +42,14 @@
 #include <stdlib.h>
 #include <rsl.h> /* Sweep */ 
 
-/* Private function prototypes */
-void foobar(
-    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
-    Sweep *above_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval,
-    unsigned short filt);
 
-    int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex1, float missingVal);
-    
-    void bergen_albers_filter(Sweep *vals_sweep, int currIndex, int i,
-                          float missingVal, short GOOD[MAXBINS][MAXRAYS]);
+/******************************
+ * Private data and functions *
+ ******************************/
 
-    void continuity_dealias(
-        Sweep *rv_sweep, Sweep *sound_sweep, Sweep *last_sweep, Sweep *above_sweep,
-        int currIndex, int i, 
-        float missingVal, short GOOD[MAXBINS][MAXRAYS],
-        float val, int prevIndex, int abIndex, float NyqVelocity,
-        float NyqInterval, float valcheck);
-
-void spatial_dealias(
-    Sweep *vals_sweep, Sweep *rv_sweep,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval,
-    int *step);
-
-    int count_neighbors(    
-        Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
-        int i, int currIndex, int loopcount,
-        int binindex[8], int rayindex[8]);
-
-    void unfold_adjacent(
-        float val, Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
-        float NyqVelocity, float NyqInterval, 
-        int i, int currIndex, int countindex, int loopcount,
-        int binindex[8], int rayindex[8]);
-
-
-void unfold_remote(
-    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval);
-
-    float find_window(Sweep *rv_sweep, float missingVal, int currIndex, 
-                      int i, unsigned short *wsuccess);
-
-    float window(Sweep *rv_sweep, int startray, int endray,
-                 int firstbin, int lastbin, float missingVal, unsigned 
-                 short* success);
-
-void second_pass(
-    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval);
-
-/*
-**
-**  UW Radial Velocity Dealiasing Algorithm
-**  Four-Dimensional Dealiasing (4DD)
-**
-**  DESCRIPTION:
-**     This algorithm unfolds a volume of single Doppler radial velocity data.
-**  The algorithm uses a previously unfolded volume (or VAD if previous volume
-**  is unavailable) and the previous elevation sweep to unfold some of gates 
-**  in each sweep. Then, it spreads outward from the 'good' gates, completing
-**  the unfolding using gate-to-gate continuity. Gates that still remain
-**  unfolded are compared to an areal average of neighboring dealiased gates.
-**  Isolated echoes that still remain uncorrected are dealiased against a VAD
-**  (as a last resort).
-**
-**  DEVELOPER:
-**  Curtis N. James     25 Jan 99
-**
-**  Refactor April, 2014 by Jonathan J. Helmus (jhelmus@anl.gov)
-**
-**
-*/
-
-
-/* This routine performs a preliminary unfold on the data using the bin in the
-** next highest sweep (already unfolded), and the last unfolded volume. If the 
-** last unfolded volume is not available, the VAD is used (or sounding if VAD
-** not available). If this is successful, the bin is considered GOOD. Every 
-** other bin is set to GOOD=0 or GOOD=-1 (if the bin is missing or bad).
-**
-** Then, the algorithm scans azimuthally and radially. If the majority of the
-** GOOD=1 bins (up to 8) adjacent to a particular GOOD=0 bin are within 
-** THRESH*Vnyq it is saved and considered GOOD as well. Otherwise, Nyquist 
-** intervals are added/subtracted until the condition is met. If unsuccessful, 
-** then GOOD is set to -2 for that bin.
-**
-** When all GOOD=0 bins that are next to GOOD=1 bins have been examined, then
-** GOOD=0 and GOOD=-2 bins are unfolded against a window of GOOD=1 values. If
-** there are too few GOOD=1 values inside the window, then the data are
-** unfolded against the VAD, if available.
-** 
-** PARAMETERS:
-** rvVolume: The radial velocity field to be unfolded.
-** soundVolume: A first guess radial velocity field using VAD (or sounding) 
-** lastVolume: The last radial velocity field unfolded (time of lastVolume 
-**    should be within 10 minutes prior to rvVolume)
-** missingVal: The value for missing radial velocity data.
-** filt: A flag that specifies whether or not to use Bergen/Albers filter.
-** success: flag indicating whether or not unfolding is possible.
-*/
-
-
-void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-      float missingVal, unsigned short filt, unsigned short* success) 
-{
-
-    int sweepIndex, numSweeps;
-    int step = -1;
-    short GOOD[MAXBINS][MAXRAYS];
-    float NyqVelocity, NyqInterval;
-    
-    Volume* VALS;
-    Sweep *rv_sweep, *vals_sweep, *last_sweep, *sound_sweep, *above_sweep;
- 
-    // Either a sounding or last volume must be provided
-    if (soundVolume==NULL && lastVolume==NULL) {
-        printf("First guess not available.\n");
-        *success=0;
-        return;
-    }
-    
-    numSweeps = rvVolume->h.nsweeps;
-    VALS=RSL_copy_volume(rvVolume);
-    
-    for (sweepIndex=numSweeps-1;sweepIndex>=0;sweepIndex--) {
-        
-        last_sweep = sound_sweep = above_sweep = NULL;
-        if (lastVolume!=NULL) 
-            last_sweep = lastVolume->sweep[sweepIndex];
-        if (soundVolume!=NULL) 
-            sound_sweep = soundVolume->sweep[sweepIndex];
-        if (sweepIndex<numSweeps-1) 
-            above_sweep = rvVolume->sweep[sweepIndex+1];
-        rv_sweep = rvVolume->sweep[sweepIndex];
-        vals_sweep = VALS->sweep[sweepIndex];
-
-        NyqVelocity =rvVolume->sweep[sweepIndex]->ray[0]->h.nyq_vel;
-        if (NyqVelocity == 0.0) NyqVelocity=9.8;
-        NyqInterval = 2.0 * NyqVelocity;
-
-        foobar(
-            vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval,
-            filt);
-
-        spatial_dealias( 
-            vals_sweep, rv_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval, 
-            &step);
-
-        unfold_remote(
-            vals_sweep, rv_sweep, last_sweep, sound_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval);   
-
-        if (last_sweep!=NULL && sound_sweep!=NULL) {
-            second_pass(
-                vals_sweep, rv_sweep, last_sweep, sound_sweep,
-                missingVal, GOOD, NyqVelocity, NyqInterval);
-        
-            spatial_dealias( 
-                vals_sweep, rv_sweep,
-                missingVal, GOOD, NyqVelocity, NyqInterval, 
-                &step);
-        }
-    } // end of loop over sweeps
-    *success=1;
-    return;
-}
-
-
-/* Private functions */
-
-/** Unfold bins where vertical and temporal continuity
- ** produces the same value (i.e., bins where the radial velocity
- ** agrees with both the previous sweep and previous volume within
- ** a COMPTHRESH of the Nyquist velocity). This produces a number
- ** of good data points from which to begin unfolding assuming spatial
- ** continuity. */
-void foobar(
-    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
-    Sweep *above_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval,
-    unsigned short filt
-    )
-{
-
-    int currIndex;
-    int i, prevIndex = 0, abIndex = 0; 
-    float val, valcheck;
-
-    for (currIndex=0;currIndex<rv_sweep->h.nrays;currIndex++) {
-       
-        if (last_sweep!=NULL)
-           prevIndex=findRay(rv_sweep, last_sweep, currIndex, missingVal);
-        if (above_sweep!=NULL)
-            abIndex=findRay(rv_sweep, rv_sweep, currIndex, missingVal);
-        for (i=DELNUM;i<rv_sweep->ray[0]->h.nbins;i++) {
-            /* Assign uncorrect velocity bins to the array VALS: */
-            ray_set(rv_sweep->ray[currIndex], i, missingVal);
-            valcheck = val = ray_val(vals_sweep->ray[currIndex], i);
-            if (val==missingVal) {
-                GOOD[i][currIndex]=-1;
-            } else {
-                if (filt==1)
-                    bergen_albers_filter(
-                        vals_sweep, currIndex, i, missingVal, GOOD);
-                else
-                    /* If no filter is being applied save bin for dealiasing: */
-                    GOOD[i][currIndex]=0;
-            }
-            if (GOOD[i][currIndex]==0)      
-                continuity_dealias(
-                    rv_sweep, sound_sweep, last_sweep, above_sweep,
-                    currIndex, i, 
-                    missingVal, GOOD,
-                    val, prevIndex, abIndex, NyqVelocity,
-                    NyqInterval, valcheck);
-        }
-    }
-}
-
-/*
-**
-**  UW Radial Velocity Dealiasing Algorithm
-**  Four-Dimensional Dealiasing (4DD)
-**
-**  DESCRIPTION:
-**      This routine finds the rayindex of the nearest ray in sweepIndex2 of 
-**  rvVolume2 to sweepIndex1 in rvVolume1.
-**
-**  DEVELOPER:
-**	Curtis N. James    1 Feb 1999
-**
-**
-**
-*/
-
-int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex, float missingVal) 
+/* Finds the rayindex of the nearest ray in sweep2 to
+ * the currIndex ray in sweep1. */
+static int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex, float missingVal) 
 {
 
      int numRays, rayIndex1;
@@ -322,8 +109,9 @@ int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex, float missingVal)
        return rayIndex1;
      }
 }
+
 /* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 */
-void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
+static void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
                          float missingVal, short GOOD[MAXBINS][MAXRAYS])
 {
     int countindex=0;
@@ -370,11 +158,11 @@ void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
       GOOD[i][currIndex] = -1; /* Assign missing value to the current bin. */
     }   
     return;
-}   
+}
 
-/* Try to dealias the bin using vertical and temporal 
- **   continuity (this is initial dealiasing). */
-void continuity_dealias(
+/* Try to dealias the using vertical and temporal continuity 
+ * (initial dealiasing). */
+static void continuity_dealias(
     Sweep *rv_sweep, Sweep *sound_sweep, Sweep *last_sweep, Sweep *above_sweep,
     int currIndex, int i, 
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
@@ -447,60 +235,57 @@ void continuity_dealias(
     }
 }
 
-
-/* Now, unfold GOOD=0 bins assuming spatial continuity: */
-void spatial_dealias(
-    Sweep *vals_sweep, Sweep *rv_sweep,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, 
-    int *pstep)
+/* Unfold bins where vertical and temporal continuity
+ * produces the same value (i.e., bins where the radial velocity
+ * agrees with both the previous sweep and previous volume within
+ * a COMPTHRESH of the Nyquist velocity). This produces a number
+ * of good data points from which to begin unfolding assuming spatial
+ * continuity. */
+static void foobar(
+    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
+    Sweep *above_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval,
+    unsigned short filt
+    )
 {
 
-    int loopcount, start, end, i, countindex, currIndex;
-    int binindex[8], rayindex[8];
-    float val;
-    unsigned short flag;
+    int currIndex;
+    int i, prevIndex = 0, abIndex = 0; 
+    float val, valcheck;
 
-    loopcount=0;
-    flag=1;
-    while (flag==1) {
-        loopcount++;
-        flag=0;
-        if (*pstep==1) {
-            *pstep=-1;
-            start=rv_sweep->h.nrays-1;
-            end=-1;
-        } else {
-            *pstep=1;
-            start=0;
-            end=rv_sweep->h.nrays;
-        }
-        for (i=DELNUM; i<rv_sweep->ray[0]->h.nbins; i++) {
-            for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
-                if (GOOD[i][currIndex] != 0)
-                    continue;
-                val=ray_val(vals_sweep->ray[currIndex], i); 
-                if (val == missingVal)
-                    continue; 
-                countindex = count_neighbors(
-                    rv_sweep, missingVal, GOOD,
-                    i, currIndex, loopcount,
-                    binindex, rayindex);
-                if (countindex>=1) {
-                    flag=1;
-                    unfold_adjacent(
-                        val, rv_sweep, missingVal, GOOD,
-                        NyqVelocity, NyqInterval,
-                        i, currIndex, countindex, loopcount,
-                        binindex, rayindex);
-                }
+    for (currIndex=0;currIndex<rv_sweep->h.nrays;currIndex++) {
+       
+        if (last_sweep!=NULL)
+           prevIndex=findRay(rv_sweep, last_sweep, currIndex, missingVal);
+        if (above_sweep!=NULL)
+            abIndex=findRay(rv_sweep, rv_sweep, currIndex, missingVal);
+        for (i=DELNUM;i<rv_sweep->ray[0]->h.nbins;i++) {
+            /* Assign uncorrect velocity bins to the array VALS: */
+            ray_set(rv_sweep->ray[currIndex], i, missingVal);
+            valcheck = val = ray_val(vals_sweep->ray[currIndex], i);
+            if (val==missingVal) {
+                GOOD[i][currIndex]=-1;
+            } else {
+                if (filt==1)
+                    bergen_albers_filter(
+                        vals_sweep, currIndex, i, missingVal, GOOD);
+                else
+                    /* If no filter is being applied save bin for dealiasing: */
+                    GOOD[i][currIndex]=0;
             }
+            if (GOOD[i][currIndex]==0)      
+                continuity_dealias(
+                    rv_sweep, sound_sweep, last_sweep, above_sweep,
+                    currIndex, i, 
+                    missingVal, GOOD,
+                    val, prevIndex, abIndex, NyqVelocity,
+                    NyqInterval, valcheck);
         }
     }
-
 }
 
-int count_neighbors(
+/* Count the number of GOOD == 1 neighbors */
+static int count_neighbors(
     Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     int i, int currIndex, int loopcount,
     int binindex[8], int rayindex[8]
@@ -592,14 +377,14 @@ int count_neighbors(
     return countindex;
 }
 
-void unfold_adjacent(
+/* Unfold against all adjacent values where GOOD==1 */
+static void unfold_adjacent(
     float val, Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval, 
     int i, int currIndex, int countindex, int loopcount,
     int binindex[8], int rayindex[8]
     )
 {
-    /* Unfold against all adjacent values where GOOD==1 */
     int in, out, numneg, numpos, l, numtimes;
     float diff;
     numtimes=0;
@@ -645,10 +430,158 @@ void unfold_adjacent(
     }
 }
 
+/* Unfold GOOD=0 bins assuming spatial continuity: */
+static void spatial_dealias(
+    Sweep *vals_sweep, Sweep *rv_sweep,
+    float missingVal, short GOOD[MAXBINS][MAXRAYS],
+    float NyqVelocity, float NyqInterval, 
+    int *pstep)
+{
+
+    int loopcount, start, end, i, countindex, currIndex;
+    int binindex[8], rayindex[8];
+    float val;
+    unsigned short flag;
+
+    loopcount=0;
+    flag=1;
+    while (flag==1) {
+        loopcount++;
+        flag=0;
+        if (*pstep==1) {
+            *pstep=-1;
+            start=rv_sweep->h.nrays-1;
+            end=-1;
+        } else {
+            *pstep=1;
+            start=0;
+            end=rv_sweep->h.nrays;
+        }
+        for (i=DELNUM; i<rv_sweep->ray[0]->h.nbins; i++) {
+            for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
+                if (GOOD[i][currIndex] != 0)
+                    continue;
+                val=ray_val(vals_sweep->ray[currIndex], i); 
+                if (val == missingVal)
+                    continue; 
+                countindex = count_neighbors(
+                    rv_sweep, missingVal, GOOD,
+                    i, currIndex, loopcount,
+                    binindex, rayindex);
+                if (countindex>=1) {
+                    flag=1;
+                    unfold_adjacent(
+                        val, rv_sweep, missingVal, GOOD,
+                        NyqVelocity, NyqInterval,
+                        i, currIndex, countindex, loopcount,
+                        binindex, rayindex);
+                }
+            }
+        }
+    }
+}
+
+/* Calculate the mean for gates within a window of a sweep */
+static float window(Sweep *rv_sweep, int startray, 
+	int endray, int firstbin, int lastbin, float missingVal,
+    unsigned short* success) 
+{
+    int num, currIndex, rangeIndex, numRays, numBins;
+    float val, sum, sumsq, ave, NyqVelocity, std;
+     
+    *success=0;
+    NyqVelocity = rv_sweep->ray[0]->h.nyq_vel;
+    numRays = rv_sweep->h.nrays;
+    numBins = rv_sweep->ray[0]->h.nbins;
+
+    /* Now, sum the data in the window region between startray, 
+     **  endray, firstbin, lastbin. */
+    num=0;
+    sum=0.0;
+    sumsq=0.0;
+       
+    if (firstbin>=numBins || lastbin>=numBins || firstbin<0 || lastbin<0)
+        return missingVal;
+	for (rangeIndex=firstbin; rangeIndex<=lastbin; rangeIndex++) {
+        if (startray>endray){
+            for (currIndex=startray; currIndex<numRays; currIndex++) {
+	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
+	            if (val!=missingVal) {
+	                num++;
+	                sum+=val;
+	                sumsq+=(val*val);
+	            }
+	        }
+            for (currIndex=0; currIndex<=endray; currIndex++) {
+	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
+	            if (val!=missingVal) {
+	                num++;
+	                sum+=val;
+	                sumsq+=(val*val);
+	            }
+	        }
+        } else {
+            for (currIndex=startray; currIndex<=endray; currIndex++) { 
+	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
+	            if (val!=missingVal) {
+	                num++;
+	                sum+=val;
+	                sumsq+=(val*val);
+	            }
+	        }
+        }
+    }
+    if (num>=MINGOOD) {
+        ave=sum/num;
+        std=sqrt(fabs((sumsq-(sum*sum)/num)/(num-1)));
+        if (std<=STDTHRESH*NyqVelocity) *success=1;
+    } else {
+        ave=missingVal;
+        std=0.0;
+        *success=1;
+    }
+    return ave; 
+}
+
+/* Detemine the window mean and if windowing is succeeded */
+static float find_window(
+    Sweep *rv_sweep, float missingVal, int currIndex, int i, unsigned short *wsuccess)
+{
+    int startray, endray, firstbin, lastbin;
+    float winval;
+    int numRays = rv_sweep->h.nrays;
+    int numBins = rv_sweep->ray[0]->h.nbins;
+
+    startray = currIndex - PROXIMITY;
+    endray = currIndex + PROXIMITY;
+    firstbin = i - PROXIMITY;
+    lastbin = i + PROXIMITY;
+    if (startray < 0) startray = numRays + startray;
+    if (endray > numRays - 1) endray = endray - numRays;
+    if (firstbin < 0) firstbin = 0;
+    if (lastbin > numBins-1) lastbin = numBins - 1;
+    winval=window(rv_sweep, startray, endray, 
+                   firstbin, lastbin, missingVal, wsuccess);
+    if (winval == missingVal && *wsuccess == 1) {     
+        /* Expand the window: */
+        startray = currIndex - 2 * PROXIMITY;
+        endray = currIndex + 2 * PROXIMITY;
+        firstbin = i - 2 * PROXIMITY;
+        lastbin = i + 2 * PROXIMITY;
+        if (startray < 0) startray = numRays + startray;
+        if (endray > numRays - 1) endray = endray - numRays;
+        if (firstbin < 0) firstbin = 0;
+        if (lastbin > numBins - 1) lastbin = numBins - 1;
+        winval=window(rv_sweep, startray, endray, 
+                       firstbin, lastbin, missingVal, wsuccess);
+    }
+    return winval;
+}
+
 /* Unfold remote bins or those that were previously unsuccessful
- **   using a window with dimensions 2(PROXIMITY)+1 x 2(PROXIMITY)+1:
- **   if still no luck delete data (or unfold against VAD if PASS2). */
-void unfold_remote(
+ * using a window with dimensions 2(PROXIMITY)+1 x 2(PROXIMITY)+1:
+ * if still no luck delete data (or unfold against VAD if PASS2). */
+static void unfold_remote(
     Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval)
@@ -723,121 +656,8 @@ void unfold_remote(
     }
 }
 
-
-float find_window(
-    Sweep *rv_sweep, float missingVal, int currIndex, int i, unsigned short *wsuccess)
-{
-    int startray, endray, firstbin, lastbin;
-    float winval;
-    int numRays = rv_sweep->h.nrays;
-    int numBins = rv_sweep->ray[0]->h.nbins;
-
-    startray = currIndex - PROXIMITY;
-    endray = currIndex + PROXIMITY;
-    firstbin = i - PROXIMITY;
-    lastbin = i + PROXIMITY;
-    if (startray < 0) startray = numRays + startray;
-    if (endray > numRays - 1) endray = endray - numRays;
-    if (firstbin < 0) firstbin = 0;
-    if (lastbin > numBins-1) lastbin = numBins - 1;
-    winval=window(rv_sweep, startray, endray, 
-                   firstbin, lastbin, missingVal, wsuccess);
-    if (winval == missingVal && *wsuccess == 1) {     
-        /* Expand the window: */
-        startray = currIndex - 2 * PROXIMITY;
-        endray = currIndex + 2 * PROXIMITY;
-        firstbin = i - 2 * PROXIMITY;
-        lastbin = i + 2 * PROXIMITY;
-        if (startray < 0) startray = numRays + startray;
-        if (endray > numRays - 1) endray = endray - numRays;
-        if (firstbin < 0) firstbin = 0;
-        if (lastbin > numBins - 1) lastbin = numBins - 1;
-        winval=window(rv_sweep, startray, endray, 
-                       firstbin, lastbin, missingVal, wsuccess);
-    }
-    return winval;
-}
-
-/*
-**
-**  UW Radial Velocity Dealiasing Algorithm
-**  Four-Dimensional Dealiasing (4DD)
-**
-**  DESCRIPTION:
-**      This routine averages the values in a range and azimuth window of a
-**      sweep and computes the standard deviation.
-**
-**  DEVELOPER:
-**	Curtis N. James    26 Jan 1999
-**
-**
-**
-*/
-
-float window(Sweep *rv_sweep, int startray, 
-	int endray, int firstbin, int lastbin, float missingVal,
-    unsigned short* success) 
-{
-    /* Calculate the mean for gates within a window of a sweep */
-    int num, currIndex, rangeIndex, numRays, numBins;
-    float val, sum, sumsq, ave, NyqVelocity, std;
-     
-    *success=0;
-    NyqVelocity = rv_sweep->ray[0]->h.nyq_vel;
-    numRays = rv_sweep->h.nrays;
-    numBins = rv_sweep->ray[0]->h.nbins;
-
-    /* Now, sum the data in the window region between startray, 
-     **  endray, firstbin, lastbin. */
-    num=0;
-    sum=0.0;
-    sumsq=0.0;
-       
-    if (firstbin>=numBins || lastbin>=numBins || firstbin<0 || lastbin<0)
-        return missingVal;
-	for (rangeIndex=firstbin; rangeIndex<=lastbin; rangeIndex++) {
-        if (startray>endray){
-            for (currIndex=startray; currIndex<numRays; currIndex++) {
-	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
-	            if (val!=missingVal) {
-	                num++;
-	                sum+=val;
-	                sumsq+=(val*val);
-	            }
-	        }
-            for (currIndex=0; currIndex<=endray; currIndex++) {
-	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
-	            if (val!=missingVal) {
-	                num++;
-	                sum+=val;
-	                sumsq+=(val*val);
-	            }
-	        }
-        } else {
-            for (currIndex=startray; currIndex<=endray; currIndex++) { 
-	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
-	            if (val!=missingVal) {
-	                num++;
-	                sum+=val;
-	                sumsq+=(val*val);
-	            }
-	        }
-        }
-    }
-    if (num>=MINGOOD) {
-        ave=sum/num;
-        std=sqrt(fabs((sumsq-(sum*sum)/num)/(num-1)));
-        if (std<=STDTHRESH*NyqVelocity) *success=1;
-    } else {
-        ave=missingVal;
-        std=0.0;
-        *success=1;
-    }
-    return ave; 
-}
-
-
-void second_pass(
+/* Second pass dealiasing using only sounding data */
+static void second_pass(
     Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     float missingVal, short GOOD[MAXBINS][MAXRAYS],
     float NyqVelocity, float NyqInterval)
@@ -849,7 +669,6 @@ void second_pass(
     int numRays = rv_sweep->h.nrays;
     int numBins = rv_sweep->ray[0]->h.nbins;
     
-
      /* Beginning second pass, this time using sounding only: */
     for (currIndex=0;currIndex<numRays;currIndex++) {
         for (i=DELNUM;i<numBins;i++) {
@@ -886,4 +705,111 @@ void second_pass(
             }
         }
     }
+}
+
+/********************
+ * Public functions *
+*********************/
+
+/*
+**     This algorithm unfolds a volume of single Doppler radial velocity data.
+**  The algorithm uses a previously unfolded volume (or VAD if previous volume
+**  is unavailable) and the previous elevation sweep to unfold some of gates 
+**  in each sweep. Then, it spreads outward from the 'good' gates, completing
+**  the unfolding using gate-to-gate continuity. Gates that still remain
+**  unfolded are compared to an areal average of neighboring dealiased gates.
+**  Isolated echoes that still remain uncorrected are dealiased against a VAD
+**  (as a last resort).
+**
+** This routine performs a preliminary unfold on the data using the bin in the
+** next highest sweep (already unfolded), and the last unfolded volume. If the 
+** last unfolded volume is not available, the VAD is used (or sounding if VAD
+** not available). If this is successful, the bin is considered GOOD. Every 
+** other bin is set to GOOD=0 or GOOD=-1 (if the bin is missing or bad).
+**
+** Then, the algorithm scans azimuthally and radially. If the majority of the
+** GOOD=1 bins (up to 8) adjacent to a particular GOOD=0 bin are within 
+** THRESH*Vnyq it is saved and considered GOOD as well. Otherwise, Nyquist 
+** intervals are added/subtracted until the condition is met. If unsuccessful, 
+** then GOOD is set to -2 for that bin.
+**
+** When all GOOD=0 bins that are next to GOOD=1 bins have been examined, then
+** GOOD=0 and GOOD=-2 bins are unfolded against a window of GOOD=1 values. If
+** there are too few GOOD=1 values inside the window, then the data are
+** unfolded against the VAD, if available.
+** 
+** PARAMETERS:
+** rvVolume: The radial velocity field to be unfolded.
+** soundVolume: A first guess radial velocity field using VAD (or sounding) 
+** lastVolume: The last radial velocity field unfolded (time of lastVolume 
+**    should be within 10 minutes prior to rvVolume)
+** missingVal: The value for missing radial velocity data.
+** filt: A flag that specifies whether or not to use Bergen/Albers filter.
+** success: flag indicating whether or not unfolding is possible.
+*/
+void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+      float missingVal, unsigned short filt, unsigned short* success) 
+{
+
+    int sweepIndex, numSweeps;
+    int step = -1;
+    short GOOD[MAXBINS][MAXRAYS];
+    float NyqVelocity, NyqInterval;
+    
+    Volume* VALS;
+    Sweep *rv_sweep, *vals_sweep, *last_sweep, *sound_sweep, *above_sweep;
+ 
+    // Either a sounding or last volume must be provided
+    if (soundVolume==NULL && lastVolume==NULL) {
+        printf("First guess not available.\n");
+        *success=0;
+        return;
+    }
+    
+    numSweeps = rvVolume->h.nsweeps;
+    VALS=RSL_copy_volume(rvVolume);
+    
+    for (sweepIndex=numSweeps-1;sweepIndex>=0;sweepIndex--) {
+        
+        last_sweep = sound_sweep = above_sweep = NULL;
+        if (lastVolume!=NULL) 
+            last_sweep = lastVolume->sweep[sweepIndex];
+        if (soundVolume!=NULL) 
+            sound_sweep = soundVolume->sweep[sweepIndex];
+        if (sweepIndex<numSweeps-1) 
+            above_sweep = rvVolume->sweep[sweepIndex+1];
+        rv_sweep = rvVolume->sweep[sweepIndex];
+        vals_sweep = VALS->sweep[sweepIndex];
+
+        NyqVelocity =rvVolume->sweep[sweepIndex]->ray[0]->h.nyq_vel;
+        if (NyqVelocity == 0.0) NyqVelocity=9.8;
+        NyqInterval = 2.0 * NyqVelocity;
+
+        foobar(
+            vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
+            missingVal, GOOD, NyqVelocity, NyqInterval,
+            filt);
+
+        spatial_dealias( 
+            vals_sweep, rv_sweep,
+            missingVal, GOOD, NyqVelocity, NyqInterval, 
+            &step);
+
+        unfold_remote(
+            vals_sweep, rv_sweep, last_sweep, sound_sweep,
+            missingVal, GOOD, NyqVelocity, NyqInterval);   
+
+        if (last_sweep!=NULL && sound_sweep!=NULL) {
+            second_pass(
+                vals_sweep, rv_sweep, last_sweep, sound_sweep,
+                missingVal, GOOD, NyqVelocity, NyqInterval);
+        
+            spatial_dealias( 
+                vals_sweep, rv_sweep,
+                missingVal, GOOD, NyqVelocity, NyqInterval, 
+                &step);
+        }
+    } // end of loop over sweeps
+    *success=1;
+    return;
 }

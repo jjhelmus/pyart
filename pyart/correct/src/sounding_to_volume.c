@@ -14,12 +14,15 @@
  */
 
 
-#include "helpers.h"  /* Uses constants A, PI */
+#include "helpers.h"
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include <rsl.h>
+
+#define A 6372.0 /* Radius of earth in kilometers. */
+#define PI 3.1415927 
 
 /******************************
  * Private data and functions *
