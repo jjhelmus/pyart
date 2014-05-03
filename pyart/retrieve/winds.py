@@ -7,10 +7,11 @@ pyart.retrieve.winds
 import time
 import numpy as np
 
-from warnings import warn
+from datetime import datetime
 from copy import deepcopy
 from scipy.optimize import minimize
 from mpl_toolkits.basemap import pyproj
+from netCDF4 import num2date
 
 from ..io import Grid
 from ..util.datetime_utils import datetime_from_grid, datetimes_from_dataset
@@ -1179,15 +1180,16 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     w['data'] = np.ma.masked_equal(w['data'], fill_value)
     
     # Define the fields
-    fields = {u_field: u,
-              v_field: v,
-              w_field: w,
-              'radar_coverage': cover}
+    fields = {
+            u_field: u,
+            v_field: v,
+            w_field: w,
+            'radar_coverage': cover
+            }
     
     # Calculate the maximum reflectivity from all grids, which we will save
     # as a field in the output grid object
     if save_refl:
-        
         # Get metadata from configuration file
         ze = get_metadata(refl_field)
         
@@ -1202,22 +1204,84 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
         ze['comment'] = ('Reflectivity values are maximum values, '
                          'not mean values')
         
-        # Add reflectivity to fields
         fields[refl_field] = ze
     
-    # Define the axes. We will use the axes of the grid (radar) which has the
-    # latest start time
-    grid_dates = [datetime_from_grid(grid) for grid in grids]
-    last_radar = grids[np.argmax(grid_dates)]
-    axes = last_radar.axes
+    # Define the axes
+    # We will populate the axes with that of the first grid and then
+    # update this accordingly
+    axes = deepcopy(grids[0].axes)
+    
+    # Remove only the time axes since we will populate these ourself
+    [axes.pop(key) for key in axes.keys() if 'time' in key]
+    
+    # Find the grid with the earliest volume start time and the grid with
+    # the latest volume end time. This will become the start and end times
+    volume_starts = [num2date(grid.axes['time_start']['data'][0],
+                              grid.axes['time_start']['units'])
+                     for grid in grids]
+    volume_ends = [num2date(grid.axes['time_end']['data'][0],
+                            grid.axes['time_end']['units'])
+                   for grid in grids]
+    grid_start = grids[np.argmin(volume_starts)]
+    grid_end = grids[np.argmax(volume_ends)]
+    
+    # Populate the start and end time axes
+    axes['time_start'] = grid_start.axes['time_start']
+    axes['time_end'] = grid_end.axes['time_end']
+    
+    # Populate the time axis 
+    # This time will correspond to the time half-way between
+    # the start and end times
+    td = max(volume_ends) - min(volume_starts)
+    seconds_since_start = (td.seconds + td.days * 24 * 3600) / 2 
+    axes['time'] = {
+            'data': np.array(seconds_since_start, np.float64),
+            'long_name': 'Time in seconds since volume start',
+            'calendar': 'gregorian',
+            'units': axes['time_start']['units']
+            }
+    
+    # ARM time variables
+    dt = num2date(axes['time']['data'], axes['time']['units'])
+    td = dt - datetime.utcfromtimestamp(0)
+    td = td.seconds + td.days * 24 * 3600
+    
+    axes['base_time'] = {
+            'data': np.array(td, np.int32),
+            'long_name': 'Base time in Epoch',
+            'string': dt.strftime('%d-%b-%Y,%H:%M:%S GMT'),
+            'units': 'seconds since 1970-1-1 0:00:00 0:00',
+            'ancillary_variables': 'time_offset'
+            }
+    
+    axes['time_offset'] = {
+            'data': np.array(axes['time']['data'], np.float64),
+            'long_name': 'Time offset from base_time',
+            'units': axes['time']['units'].replace('T',' ').replace('Z',''),
+            'ancillary_variables': 'base_time',
+            'calendar': 'gregorian'
+            }
     
     # Define the metadata
-    metadata = {'title': 'Convective Vertical Velocities',
-                'dod_version': '',
-                'command_line': '',
-                'source': '',
-                'Conventions': '',
-                'references': '',
-                'state': ''}
+    datastreams_description = ('A string consisting of the datastream(s), '
+                               'datastream version(s), and datastream '
+                               'date (range).')
+    
+    metadata = {
+        'title': 'Convective Vertical Velocities',
+        'dod_version': '',
+        'process_version': '',
+        'command_line': '',
+        'site_id': '',
+        'facility_id': '',
+        'source': '',
+        'Conventions': '',
+        'references': '',
+        'input_datastreams_description': datastreams_description,
+        'input_datastreams_num': '',
+        'input_datastreams': '',
+        'state': '',
+        'history': ''
+        }
     
     return Grid(fields, axes, metadata)
