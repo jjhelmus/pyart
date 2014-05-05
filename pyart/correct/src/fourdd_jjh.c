@@ -47,192 +47,204 @@
  * Private data and functions *
  ******************************/
 
+/* Count the number of neighbors which do not have a missing value */
+static int count_nonmissing_neighbors(
+    Sweep *sweep, int currIndex, int i, float missingVal)
+{
+    int countindex=0;
+    int left, right, next, prev;
+
+    if (currIndex==0) 
+        left=sweep->h.nrays-1;
+    else 
+        left=currIndex-1;
+    if (currIndex==sweep->h.nrays-1) 
+        right=0;
+    else 
+        right=currIndex+1;
+    next = i+1;
+    prev = i-1;
+    /* Look at all bins adjacent to current bin in question: */
+    if (ray_val(sweep->ray[left], prev) != missingVal)
+        countindex++;
+    if (ray_val(sweep->ray[currIndex], prev) != missingVal)
+        countindex++;
+    if (ray_val(sweep->ray[right], prev) != missingVal)
+        countindex++;
+    if (ray_val(sweep->ray[left], i) != missingVal)
+        countindex++;
+    if (ray_val(sweep->ray[right], i) != missingVal)
+        countindex++;
+    if (i < sweep->ray[0]->h.nbins-1) {  
+        if (ray_val(sweep->ray[left], next) != missingVal)
+            countindex++;
+        if (ray_val(sweep->ray[currIndex], next)!= missingVal)
+            countindex++;
+        if (ray_val(sweep->ray[right], next) != missingVal)
+            countindex++;
+    }
+    return countindex;
+}
+
+/* Perform a 3x3 missing value Berger and Albers filter */
+/* TODO remove use of 5 and 3 magic values */
+static void berger_albers_filter(
+    Sweep *sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS])
+{
+    int currIndex, i, count;
+    float val;
+    for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
+        for (i=DELNUM; i<sweep->ray[0]->h.nbins; i++) {
+            val = ray_val(sweep->ray[currIndex], i); 
+            if (val==missingVal) {
+                GOOD[i][currIndex]=-1;
+            } else {
+                count = count_nonmissing_neighbors(
+                    sweep, currIndex, i, missingVal);
+                if (count >= 5)
+                    GOOD[i][currIndex] = 0;  
+                else if (i == (sweep->ray[0]->h.nbins - 1) && count >= 3)
+                    GOOD[i][currIndex] = 0;  
+                else
+                    GOOD[i][currIndex] = -1; 
+            }
+        }
+    }
+} 
+
+/* Fill the GOOD array with zeros at all location where the value in sweep 
+ * is not missing */
+static void zero_good(
+    Sweep *sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS])
+{
+    int currIndex, i;
+    float val;
+    for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
+        for (i=DELNUM; i<sweep->ray[0]->h.nbins; i++) {
+            val = ray_val(sweep->ray[currIndex], i); 
+            if (val==missingVal)
+                GOOD[i][currIndex]=-1;
+            else
+                GOOD[i][currIndex]=0;
+        }
+    }
+}
+
+/* Initalize (fill) a sweep with a given value */
+static void init_sweep(Sweep *sweep, float val)
+{
+    int currIndex, i;
+    for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
+        for (i=DELNUM; i<sweep->ray[0]->h.nbins; i++) {
+            ray_set(sweep->ray[currIndex], i, val);
+        }
+    }
+}
+
 /* Finds the rayindex of the nearest ray in sweep2 to
  * the currIndex ray in sweep1. */
 static int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex, float missingVal) 
 {
-
-     int numRays, rayIndex1;
-     float az0, az1, diffaz;
-     float spacing;
-     short direction, lastdir;
+    int numRays, rayIndex1;
+    float az0, az1, diffaz;
+    float spacing;
+    short direction, lastdir;
     
-     numRays = sweep2->h.nrays;
+    numRays = sweep2->h.nrays;
 
-     az0 = sweep1->ray[currIndex]->h.azimuth;
-     if (currIndex<numRays) rayIndex1=currIndex;
-     else rayIndex1=numRays-1;
-     az1 = sweep2->ray[rayIndex1]->h.azimuth;
-     if (az0==az1) {
-       return rayIndex1;
-     } else {
-       /* Since the beamwidth is not necessarily the spacing between rays: */
-       spacing = fabs(sweep2->ray[0]->h.azimuth-
-		              sweep2->ray[50]->h.azimuth); 
-       if (spacing>180) spacing=360.0-spacing;
-       spacing=spacing/50.0;
+    if (currIndex<numRays) 
+        rayIndex1=currIndex;
+    else 
+        rayIndex1=numRays-1;
+    
+    az0 = sweep1->ray[currIndex]->h.azimuth;
+    az1 = sweep2->ray[rayIndex1]->h.azimuth;
+    if (az0 == az1) {
+        return rayIndex1;
+    } else {
+        
+        /* Since the beamwidth is not necessarily the spacing between rays: */
+        spacing = fabs(sweep2->ray[0]->h.azimuth - sweep2->ray[50]->h.azimuth);
+        if (spacing>180)
+            spacing = 360.0 - spacing;
+        spacing = spacing / 50.0;
 
-       /* Compute the difference in azimuth between the two rays: */
-       diffaz=az0-az1;
-       if (diffaz>=180.0) diffaz=diffaz-360.0;
-       else if (diffaz<-180.0) diffaz=diffaz+360.0;
+        /* Compute the difference in azimuth between the two rays: */
+        diffaz=az0-az1;
+        if (diffaz>=180.0) 
+            diffaz=diffaz-360.0;
+        else if (diffaz<-180.0) 
+            diffaz=diffaz+360.0;
        
-       /* Get close to the correct index: */
-       rayIndex1=rayIndex1+(int) (diffaz/spacing);
-       if (rayIndex1>=numRays) rayIndex1=rayIndex1-numRays;
-       if (rayIndex1<0) rayIndex1=numRays+rayIndex1;
-       az1=sweep2->ray[rayIndex1]->h.azimuth;
-       diffaz=az0-az1;
-       if (diffaz>=180.0) diffaz=diffaz-360.0;
-       else if (diffaz<-180.0) diffaz=diffaz+360.0;
+        /* Get close to the correct index: */
+        rayIndex1=rayIndex1+(int) (diffaz/spacing);
+        if (rayIndex1>=numRays) 
+            rayIndex1=rayIndex1-numRays;
+        if (rayIndex1<0) 
+            rayIndex1=numRays+rayIndex1;
+        az1=sweep2->ray[rayIndex1]->h.azimuth;
+        diffaz=az0-az1;
+        if (diffaz>=180.0)
+            diffaz=diffaz-360.0;
+        else if 
+            (diffaz<-180.0) diffaz=diffaz+360.0;
 
-       /* Now add or subtract indices until the nearest ray is found: */
-       if (diffaz>=0) lastdir=1;
-       else lastdir=-1;
-       while (fabs(diffaz)>spacing/2.0) {
-	 if (diffaz>=0) {
-	   rayIndex1++;
-	   direction=1;
-	 } else {
-	   rayIndex1--;
-	   direction=-1;
-	 }
-	 if (rayIndex1>=numRays) rayIndex1=rayIndex1-numRays;
-	 if (rayIndex1<0) rayIndex1=numRays+rayIndex1;
-	 az1=sweep2->ray[rayIndex1]->h.azimuth;
-	 diffaz=az0-az1;
-	 if (diffaz>=180.0) diffaz=diffaz-360.0;
-	 else if (diffaz<-180.0) diffaz=diffaz+360.0;
-	 if (direction!=lastdir) break;
-	 else lastdir=direction;
+        /* Now add or subtract indices until the nearest ray is found: */
+        if (diffaz>=0) 
+            lastdir=1;
+        else 
+            lastdir=-1;
+        while (fabs(diffaz)>spacing/2.0) {
+	        if (diffaz>=0) {
+	            rayIndex1++;
+	            direction=1;
+	        } else {
+	            rayIndex1--;
+	            direction=-1;
+	        }
+	        if (rayIndex1>=numRays) 
+                rayIndex1=rayIndex1-numRays;
+	        if (rayIndex1<0) 
+                rayIndex1=numRays+rayIndex1;
+	        az1=sweep2->ray[rayIndex1]->h.azimuth;
+	        diffaz=az0-az1;
+	        if (diffaz>=180.0) 
+                diffaz=diffaz-360.0;
+	        else if 
+                (diffaz<-180.0) diffaz=diffaz+360.0;
+	        if (direction!=lastdir) 
+                break;
+	        else 
+                lastdir=direction;
        }
        return rayIndex1;
      }
 }
 
-/* Perform a 3x3 filter, as proposed by Bergen & Albers 1988 */
-static void bergen_albers_filter(Sweep *sweep, int currIndex, int i,
-                         float missingVal, short GOOD[MAXBINS][MAXRAYS])
+/* Minize the difference between val and cval by adding or substracting 
+ * the Nyquist Interval, update val. */
+static float min_diff(float *val, float cval, float NyqVelocity)
 {
-    int countindex=0;
-    int left, right, next, prev;
-
-    if (currIndex==0) left=sweep->h.nrays-1;
-    else left=currIndex-1;
-    if (currIndex==sweep->h.nrays-1) right=0;
-    else right=currIndex+1;
-    next=i+1;
-    prev=i-1;
-    /* Look at all bins adjacent to current bin in question: */
-    if (i>DELNUM) {
-        if (ray_val(sweep->ray[left], prev) != missingVal){
-            countindex++;
-        } 
-        if (ray_val(sweep->ray[currIndex], prev) != missingVal) {
-            countindex++;
-        }
-        if (ray_val(sweep->ray[right], prev) != missingVal) {
-            countindex++;
-        }
+    int numtimes; 
+    numtimes=0;
+    while (fabs(cval-*val) > 0.99999 * NyqVelocity && numtimes <= MAXCOUNT) {
+        numtimes++;
+        if (*val > cval)
+            *val-=2 * NyqVelocity;
+        else
+            *val+=2 * NyqVelocity;
     }
-    if (ray_val(sweep->ray[left], i) != missingVal) {
-        countindex++;
-    }
-    if (ray_val(sweep->ray[right], i) != missingVal) {
-        countindex++;
-    }
-    if (i<sweep->ray[0]->h.nbins-1) {  
-        if (ray_val(sweep->ray[left], next) != missingVal) {
-            countindex++;
-        }
-        if (ray_val(sweep->ray[currIndex], next)!= missingVal) {
-            countindex++;
-        }
-        if (ray_val(sweep->ray[right], next) != missingVal) {
-            countindex++;
-        }
-    }
-    if (((i==sweep->ray[0]->h.nbins-1 || i==DELNUM) && countindex>=3) || (countindex>=5)) {
-      GOOD[i][currIndex] = 0;  /* Save the bin for dealiasing. */
-    } else {
-      GOOD[i][currIndex] = -1; /* Assign missing value to the current bin. */
-    }   
-    return;
+    return fabs(cval-*val);
 }
 
-/* Try to dealias the using vertical and temporal continuity 
- * (initial dealiasing). */
-static void continuity_dealias(
-    Sweep *rv_sweep, Sweep *sound_sweep, Sweep *last_sweep, Sweep *above_sweep,
-    int currIndex, int i, 
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float val, int prevIndex, int abIndex, float NyqVelocity,
-    float NyqInterval, float valcheck)
+/* Set a value in GOOD and the corresponding ray value in a sweep */
+static void set_good_ray(
+    short GOOD[MAXBINS][MAXRAYS], Sweep *sweep, 
+    int ray_idx, int bin_idx, short good_val, float ray_val)
 {
-    
-    int direction;
-    unsigned short numtimes, dcase; 
-    float prevval, soundval, abval, cval, diff;
-
-    if (val==missingVal) return;  /* return if val is missingVal */
-     
-    /* Find velocities in related volumes */
-    prevval = soundval = abval = missingVal;
-    if (last_sweep!=NULL)
-        prevval=ray_val(last_sweep->ray[prevIndex], i);
-    if (sound_sweep!=NULL && last_sweep==NULL)
-        soundval=ray_val(sound_sweep->ray[currIndex], i);
-    if (above_sweep!=NULL)
-        abval=ray_val(above_sweep->ray[abIndex], i);
-    
-    if (last_sweep==NULL && soundval!=missingVal && abval==missingVal) {
-        cval=soundval;
-        dcase=1;
-    } else if (last_sweep==NULL && soundval!= missingVal && abval!=missingVal) {
-        cval=abval;
-        dcase=2;
-    } else if (prevval!=missingVal && abval!=missingVal) {
-        cval=prevval;
-        dcase=3;
-    } else {
-        cval=missingVal;
-        dcase=0;
-    }
-    
-    if (dcase>0) {
-        diff=cval-val;      
-        if (diff<0.0) {
-            diff=-diff;
-            direction=-1;
-        } else {
-            direction=1;
-        }
-        numtimes=0;
-        while (diff>0.99999*NyqVelocity && numtimes<=MAXCOUNT) {
-            val=val+NyqInterval*direction;
-            numtimes=numtimes+1;
-            diff=cval-val;
-            if (diff<0.0) {
-                diff=-diff;
-                direction=-1;
-            } else {
-                direction=1;
-            }
-        }
-        if (dcase==1 && diff<COMPTHRESH*NyqVelocity && fabs(valcheck)>CKVAL) {
-            ray_set(rv_sweep->ray[currIndex], i, val);
-            GOOD[i][currIndex]=1;
-        } else if (dcase==2 && diff<COMPTHRESH*NyqVelocity && 
-                   fabs(soundval-val)<COMPTHRESH*NyqVelocity && 
-                   fabs(valcheck)>CKVAL) {
-            ray_set(rv_sweep->ray[currIndex], i, val);
-            GOOD[i][currIndex]=1;
-        } else if (dcase==3 && diff<COMPTHRESH*NyqVelocity && fabs(abval-val)<
-                   COMPTHRESH*NyqVelocity&&fabs(valcheck)>CKVAL) {
-            ray_set(rv_sweep->ray[currIndex], i, val);
-            GOOD[i][currIndex]=1;
-        }
-    }
+    ray_set(sweep->ray[ray_idx], bin_idx, ray_val);
+    GOOD[bin_idx][ray_idx] = good_val;
+    return;
 }
 
 /* Unfold bins where vertical and temporal continuity
@@ -241,48 +253,66 @@ static void continuity_dealias(
  * a COMPTHRESH of the Nyquist velocity). This produces a number
  * of good data points from which to begin unfolding assuming spatial
  * continuity. */
-static void foobar(
+static void continuity_dealias(
     Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
     Sweep *above_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval,
-    unsigned short filt
+    float NyqVelocity, float NyqInterval
     )
 {
-
     int currIndex;
     int i, prevIndex = 0, abIndex = 0; 
-    float val, valcheck;
+    float val;
+    float prevval, soundval, abval, diff, thresh;
+    thresh = COMPTHRESH*NyqVelocity;
 
-    for (currIndex=0;currIndex<rv_sweep->h.nrays;currIndex++) {
-       
+    for (currIndex=0; currIndex<rv_sweep->h.nrays; currIndex++) { 
+        
         if (last_sweep!=NULL)
-           prevIndex=findRay(rv_sweep, last_sweep, currIndex, missingVal);
+           prevIndex = findRay(rv_sweep, last_sweep, currIndex, missingVal);
         if (above_sweep!=NULL)
-            abIndex=findRay(rv_sweep, rv_sweep, currIndex, missingVal);
-        for (i=DELNUM;i<rv_sweep->ray[0]->h.nbins;i++) {
-            /* Assign uncorrect velocity bins to the array VALS: */
-            ray_set(rv_sweep->ray[currIndex], i, missingVal);
-            valcheck = val = ray_val(vals_sweep->ray[currIndex], i);
-            if (val==missingVal) {
-                GOOD[i][currIndex]=-1;
+            abIndex = findRay(rv_sweep, above_sweep, currIndex, missingVal);
+        
+        for (i=DELNUM; i<rv_sweep->ray[0]->h.nbins; i++) { 
+           
+            if (GOOD[i][currIndex]!=0) continue;
+            val = ray_val(vals_sweep->ray[currIndex], i);
+            if (val == missingVal) continue;
+            if (fabs(val) <= CKVAL) continue;
+            
+            /* Find velocities in related volumes */
+            prevval = soundval = abval = missingVal;
+            if (last_sweep!=NULL)
+                prevval=ray_val(last_sweep->ray[prevIndex], i);
+            if (sound_sweep!=NULL && last_sweep==NULL)
+                soundval=ray_val(sound_sweep->ray[currIndex], i);
+            if (above_sweep!=NULL)
+                abval=ray_val(above_sweep->ray[abIndex], i);
+            
+            if (last_sweep==NULL) {
+                if (soundval == missingVal) continue;
+                if (abval==missingVal) {
+                    diff = min_diff(&val, soundval, NyqVelocity);
+                    if (diff < thresh)
+                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val);
+                } else {
+                    diff = min_diff(&val, abval, NyqVelocity);
+                    if (diff < thresh && fabs(soundval-val) < thresh)
+                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val);
+                }
             } else {
-                if (filt==1)
-                    bergen_albers_filter(
-                        vals_sweep, currIndex, i, missingVal, GOOD);
-                else
-                    /* If no filter is being applied save bin for dealiasing: */
-                    GOOD[i][currIndex]=0;
+                if (prevval != missingVal && abval != missingVal) {
+                    diff = min_diff(&val, prevval, NyqVelocity);
+                    if (diff < thresh && fabs(abval-val) < thresh)
+                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val);
+            
+                }
             }
-            if (GOOD[i][currIndex]==0)      
-                continuity_dealias(
-                    rv_sweep, sound_sweep, last_sweep, above_sweep,
-                    currIndex, i, 
-                    missingVal, GOOD,
-                    val, prevIndex, abIndex, NyqVelocity,
-                    NyqInterval, valcheck);
         }
     }
 }
+
+
+
 
 /* Count the number of GOOD == 1 neighbors */
 static int count_neighbors(
@@ -785,10 +815,18 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         if (NyqVelocity == 0.0) NyqVelocity=9.8;
         NyqInterval = 2.0 * NyqVelocity;
 
-        foobar(
+        /* Apply Berger Albers filter if requested */
+        if (filt == 1)
+            berger_albers_filter(vals_sweep, missingVal, GOOD);
+        /* Initialize GOOD with zeros for all non-missing locations */
+        else
+            zero_good(vals_sweep, missingVal, GOOD);
+    
+        init_sweep(rv_sweep, missingVal);
+
+        continuity_dealias(
             vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval,
-            filt);
+            missingVal, GOOD, NyqVelocity, NyqInterval);
 
         spatial_dealias( 
             vals_sweep, rv_sweep,
