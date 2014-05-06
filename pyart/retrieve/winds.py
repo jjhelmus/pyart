@@ -310,8 +310,8 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None,
     return
     
             
-def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7, 
-              window_size=5, noise_ratio=85.0, fill_value=None, 
+def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
+              rhv_min=0.7, window_size=5, noise_ratio=85.0, fill_value=None,
               refl_field=None, vel_field=None, ncp_field=None,
               rhv_field=None):
     """
@@ -326,6 +326,8 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
         Minimum detectable signal in dBZ.
     vel_max : float
         Maximum absolute radial velocity allowed in m/s.
+    vel_grad_max : float
+        Maximum velocity gradient magnitude allowed in m/s.
     ncp_min, rhv_min : float
         Minimum values allowed for normalized coherent power and correlation
         coefficient.
@@ -359,7 +361,16 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
     # Loop over all grids
     for grid in grids:
         
-        # Get data
+        # Compute the magnitude of the radial velocity gradient and determine
+        # where it's bad
+        vr = np.copy(grid.fields[vel_field]['data'])
+        dvrz, dvry, dvrx = np.gradient(vr)
+        grad_mag = np.ma.sqrt(dvrx**2 + dvry**2 + dvrz**2)
+        grad_mag = np.ma.filled(grad_mag, fill_value)
+        is_bad_vel_grad = np.logical_or(grad_mag > vel_grad_max,
+                                        grad_mag == fill_value)
+        
+        # Fill data
         ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
         vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
         ncp = np.ma.filled(grid.fields[ncp_field]['data'], fill_value)
@@ -368,12 +379,13 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, ncp_min=0.3, rhv_min=0.7,
         # Create appropriate boolean arrays
         is_noise = np.logical_or(ze < mds, ze == fill_value)
         is_high_vel = np.logical_or(np.abs(vr) > vel_max, vr == fill_value)
+        is_vel_art = np.logical_or(is_high_vel, is_bad_vel_grad)
         is_bad_ncp = np.logical_or(ncp < ncp_min, ncp == fill_value)
         is_bad_rhv = np.logical_or(rhv < rhv_min, rhv == fill_value)
         is_non_meteo = np.logical_or(is_bad_ncp, is_bad_rhv)
         
         is_bad_refl = np.logical_or(is_noise, is_non_meteo)
-        is_bad_vel = np.logical_or(is_high_vel, is_non_meteo)
+        is_bad_vel = np.logical_or(is_vel_art, is_non_meteo)
         
         # Special attention to heights below 2000 m where velocity artifacts
         # can be a problem
@@ -896,13 +908,14 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     # arguments are not specified by the user, their default values will be
     # used instead        
     mds = kwargs.get('mds', 0.0)
-    vel_max = kwargs.get('vel_max', 50.0)
+    vel_max = kwargs.get('vel_max', 40.0)
+    vel_grad_max = kwargs.get('vel_grad_max', 10.0)
     ncp_min = kwargs.get('ncp_min', 0.5)
     rhv_min = kwargs.get('rhv_min', 0.8)
     min_layer = kwargs.get('min_layer', 1500.0)
     top_offset = kwargs.get('top_offset', 500.0)
     window_size = kwargs.get('window_size', 10)
-    noise_ratio = kwargs.get('noise_ratio', 85.0)
+    noise_ratio = kwargs.get('noise_ratio', 50.0)
     
     # Use the ARM interpolated or merged sounding product to get the
     # atmospheric thermodynamic and horizontal wind profiles
@@ -953,8 +966,8 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     # Quality control procedures. This attempts to remove noise from gridded
     # reflectivity and non-meteorological returns using polarization data
     if use_qc:
-        _radar_qc(grids, mds=mds, vel_max=vel_max, ncp_min=ncp_min,
-                  rhv_min=rhv_min, window_size=window_size,
+        _radar_qc(grids, mds=mds, vel_max=vel_max, vel_grad_max=vel_grad_max,
+                  ncp_min=ncp_min, rhv_min=rhv_min, window_size=window_size,
                   noise_ratio=noise_ratio, refl_field=refl_field,
                   vel_field=vel_field, ncp_field=ncp_field,
                   rhv_field=rhv_field)
