@@ -1192,12 +1192,17 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     v['data'] = np.ma.masked_equal(v['data'], fill_value)
     w['data'] = np.ma.masked_equal(w['data'], fill_value)
     
+    # Get hydrometeor fall velocity since we will add this to the fields
+    # of the output grid object
+    vt = grids[0].fields['hydrometeor_fall_velocity']
+    
     # Define the fields
     fields = {
             u_field: u,
             v_field: v,
             w_field: w,
-            'radar_coverage': cover
+            'radar_coverage': cover,
+            'hydrometeor_fall_velocity': vt
             }
     
     # Calculate the maximum reflectivity from all grids, which we will save
