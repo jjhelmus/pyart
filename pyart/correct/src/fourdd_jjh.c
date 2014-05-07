@@ -279,7 +279,7 @@ static void continuity_dealias(
             if (val == missingVal) continue;
             if (fabs(val) <= CKVAL) continue;
             
-            /* Find velocities in related volumes */
+            /* find velocities in related sweeps */
             prevval = soundval = abval = missingVal;
             if (last_sweep!=NULL)
                 prevval=ray_val(last_sweep->ray[prevIndex], i);
@@ -303,8 +303,7 @@ static void continuity_dealias(
                 if (prevval != missingVal && abval != missingVal) {
                     diff = min_diff(&val, prevval, NyqVelocity);
                     if (diff < thresh && fabs(abval-val) < thresh)
-                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val);
-            
+                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val); 
                 }
             }
         }
@@ -312,100 +311,96 @@ static void continuity_dealias(
 }
 
 
+/* Mark gates where all neighbors are GOOD == 0 with GOOD == -1 */
+static void mark_neighborless(
+    short GOOD[MAXBINS][MAXRAYS], int currIndex, int i, int nrays, int nbins)
+{
+    int next, prev, left, right;
+    int countbins = 0;
+    if (currIndex==0) left=nrays-1;
+    else left=currIndex-1;
+    if (currIndex==nrays-1) right=0;
+    else right=currIndex+1;
+    next = i+1;
+    prev = i-1;
+ 
+    if (i != 0) {
+        if (GOOD[prev][left]==0)
+            countbins++;
+        if (GOOD[prev][currIndex]==0)
+            countbins++;
+        if (GOOD[prev][right]==0)
+            countbins++;
+    }
+    if (GOOD[i][left]==0)
+        countbins++;
+    if (GOOD[i][right]==0)
+        countbins++;
+    if (i<nbins-1) {
+        if (GOOD[next][left]==0)
+            countbins++;
+        if (GOOD[next][currIndex]==0)
+            countbins++;
+        if (GOOD[next][right]==0)
+            countbins++;
+    }
+    if (countbins == 0)
+        GOOD[i][currIndex]=-1;  
+    return;
+}
 
+/* Record the location of a bin and ray index in the arrays */
+static void record_gate(
+    int countindex, int b_index, int r_index, 
+    int binindex[8], int rayindex[8])
+{
+    binindex[countindex] = b_index;
+    rayindex[countindex] = r_index;
+    return;
+}
 
 /* Count the number of GOOD == 1 neighbors */
 static int count_neighbors(
-    Sweep* rv_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    int i, int currIndex, int loopcount,
+    short GOOD[MAXBINS][MAXRAYS],
+    int currIndex, int i, int nrays, int nbins,
     int binindex[8], int rayindex[8]
     )
 {
     int next, prev, left, right;
-    int countindex, countbins;
-    countindex = countbins = 0;
+    int countindex = 0;
     
-    if (currIndex==0) left=rv_sweep->h.nrays-1;
+    if (currIndex==0) left = nrays-1;
     else left=currIndex-1;
-    if (currIndex==rv_sweep->h.nrays-1) right=0;
+    if (currIndex==nrays-1) right=0;
     else right=currIndex+1;
     next=i+1;
     prev=i-1;
  
-    /* Look at all bins adjacent to current bin in question: */
-    if (i>DELNUM) {
-        if (GOOD[prev][left]==1) {
-            binindex[countindex]=prev;
-            rayindex[countindex]=left;
-            countindex++;
-        }
-        if (GOOD[prev][currIndex]==1) {
-            binindex[countindex]=prev;
-            rayindex[countindex]=currIndex;
-            countindex++;
-        }
-        if (GOOD[prev][right]==1) {
-            binindex[countindex]=prev;
-            rayindex[countindex]=right;
-            countindex++;
-        }
+    /* Look at all 8 bins adjacent to current bin in question: */
+    if (i!=0) { 
+        if (GOOD[prev][left]==1)
+            record_gate(countindex++, prev, left, binindex, rayindex);
+        if (GOOD[prev][currIndex]==1)
+            record_gate(countindex++, prev, currIndex, binindex, rayindex);
+        if (GOOD[prev][right]==1)
+            record_gate(countindex++, prev, right, binindex, rayindex);
     }
-    if (GOOD[i][left]==1) {
-        binindex[countindex]=i;
-        rayindex[countindex]=left;
-        countindex++;
-    }
-    if (GOOD[i][right]==1) {
-        binindex[countindex]=i;
-        rayindex[countindex]=right;
-        countindex++;
-    }
-    if (i<rv_sweep->ray[0]->h.nbins-1) {  
-        if (GOOD[next][left]==1) {
-            binindex[countindex]=next;
-            rayindex[countindex]=left;
-            countindex++;
-        }
-        if (GOOD[next][currIndex]==1) {
-            binindex[countindex]=next;
-            rayindex[countindex]=currIndex;
-            countindex++;
-        }
-        if (GOOD[next][right]==1) {
-            binindex[countindex]=next;
-            rayindex[countindex]=right;
-            countindex++;
-        }
-    }
-
-    /* This only needs to be performed on the first pass of the spatial
-       dealiasing */
-    if (loopcount==1 && countindex<1) { 
-        if (i>DELNUM) {
-            if (GOOD[prev][left]==0)
-                countbins++;
-            if (GOOD[prev][currIndex]==0)
-                countbins++;
-            if (GOOD[prev][right]==0)
-                countbins++;
-        }
-        if (GOOD[i][left]==0)
-            countbins++;
-        if (GOOD[i][right]==0)
-            countbins++;
-        if (i<rv_sweep->ray[0]->h.nbins-1) {
-            if (GOOD[next][left]==0)
-                countbins++;
-            if (GOOD[next][currIndex]==0)
-                countbins++;
-            if (GOOD[next][right]==0)
-                countbins++;
-        }
-        if (countbins == 0)
-        GOOD[i][currIndex]=-1;  
+    if (GOOD[i][left]==1)
+        record_gate(countindex++, i, left, binindex, rayindex);
+    if (GOOD[i][right]==1)
+        record_gate(countindex++, i, right, binindex, rayindex);
+    if (i<nbins-1) {  
+        if (GOOD[next][left]==1)
+            record_gate(countindex++, next, left, binindex, rayindex);
+        if (GOOD[next][currIndex]==1)
+            record_gate(countindex++, next, currIndex, binindex, rayindex);
+        if (GOOD[next][right]==1)
+            record_gate(countindex++, next, right, binindex, rayindex);
     }
     return countindex;
 }
+
+
 
 /* Unfold against all adjacent values where GOOD==1 */
 static void unfold_adjacent(
@@ -468,10 +463,13 @@ static void spatial_dealias(
     int *pstep)
 {
 
-    int loopcount, start, end, i, countindex, currIndex;
+    int loopcount, start, end, i, countindex, currIndex, nbins, nrays;
     int binindex[8], rayindex[8];
     float val;
     unsigned short flag;
+
+    nbins = rv_sweep->ray[0]->h.nbins;
+    nrays = rv_sweep->h.nrays;
 
     loopcount=0;
     flag=1;
@@ -491,20 +489,26 @@ static void spatial_dealias(
             for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
                 if (GOOD[i][currIndex] != 0)
                     continue;
-                val=ray_val(vals_sweep->ray[currIndex], i); 
-                if (val == missingVal)
-                    continue; 
+                
+
                 countindex = count_neighbors(
-                    rv_sweep, missingVal, GOOD,
-                    i, currIndex, loopcount,
+                    GOOD, currIndex, i,nrays, nbins,
                     binindex, rayindex);
+                
                 if (countindex>=1) {
                     flag=1;
+                    val=ray_val(vals_sweep->ray[currIndex], i); 
                     unfold_adjacent(
                         val, rv_sweep, missingVal, GOOD,
                         NyqVelocity, NyqInterval,
                         i, currIndex, countindex, loopcount,
                         binindex, rayindex);
+                }
+                
+                /* This only needs to be performed on the first pass of the spatial
+                dealiasing */
+                if (loopcount==1 && countindex<1) {
+                    mark_neighborless(GOOD, currIndex, i, nrays, nbins);
                 }
             }
         }
@@ -815,15 +819,20 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         if (NyqVelocity == 0.0) NyqVelocity=9.8;
         NyqInterval = 2.0 * NyqVelocity;
 
-        /* Apply Berger Albers filter if requested */
+        /* Fill GOOD with -1 for missing value, 0 where not missing.
+         * If requested the Berger Albers 3x3 filter is applied. */
         if (filt == 1)
             berger_albers_filter(vals_sweep, missingVal, GOOD);
-        /* Initialize GOOD with zeros for all non-missing locations */
         else
             zero_good(vals_sweep, missingVal, GOOD);
     
+        /* Initialize the output sweep with missingVal */
         init_sweep(rv_sweep, missingVal);
 
+        /* Find non-missing value gates where the velocity either agrees with
+         * or can be unfolded to agree with the sounding, the last volume, 
+         * or the sweep directly above the current sweep.  Record the unfolded
+         * velocity in these cases and mark GOOD with 1. */
         continuity_dealias(
             vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval);
@@ -837,6 +846,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
             vals_sweep, rv_sweep, last_sweep, sound_sweep,
             missingVal, GOOD, NyqVelocity, NyqInterval);   
 
+        /* These are not called so can't refactor at the moment */
         if (last_sweep!=NULL && sound_sweep!=NULL) {
             second_pass(
                 vals_sweep, rv_sweep, last_sweep, sound_sweep,
