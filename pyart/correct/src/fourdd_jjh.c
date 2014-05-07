@@ -647,7 +647,7 @@ static void unfold_remote(
                 }
                 diff = fabs(winval - val);
                 
-                if (diff < THRESH  *NyqVelocity) {
+                if (diff < THRESH * NyqVelocity) {
                     /* Return the value. */
                     ray_set(rv_sweep->ray[currIndex], i, val);
                     GOOD[i][currIndex]=1;
@@ -655,12 +655,12 @@ static void unfold_remote(
                     /* If within relaxed threshold, then return value, but
                     **   do not use to dealias other bins. */
                     ray_set(rv_sweep->ray[currIndex], i, val);
-                    GOOD[i][currIndex]=-1;  
+                    GOOD[i][currIndex]=-1;
                 } else {
                     /* Remove bin */
                     GOOD[i][currIndex]=-1;
                 }
-            } else { 
+            } else {
                 if (wsuccess==0) {
                     /* Remove bin */
                     GOOD[i][currIndex]=-1; 
