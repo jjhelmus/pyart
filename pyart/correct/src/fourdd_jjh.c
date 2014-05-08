@@ -292,9 +292,9 @@ static void set_good_ray(
  * a COMPTHRESH of the Nyquist velocity). This produces a number
  * of good data points from which to begin unfolding assuming spatial
  * continuity. */
-static void continuity_dealias(SweepCollection *sweepc, 
-                               DealiasParams *dp,
-                               short GOOD[MAXBINS][MAXRAYS])
+static void continuity_dealias(
+    SweepCollection *sweepc, DealiasParams *dp, 
+    short GOOD[MAXBINS][MAXRAYS])
 {
     int currIndex;
     int i, prevIndex = 0, abIndex = 0; 
@@ -549,21 +549,20 @@ static void unfold_adjacent2(
         }
     }
 }
+
 /* Unfold GOOD=0 bins assuming spatial continuity: */
 static void spatial_dealias(
-    Sweep *vals_sweep, Sweep *rv_sweep,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval, 
+    SweepCollection *sweepc, DealiasParams *dp, 
+    short GOOD[MAXBINS][MAXRAYS],
     int *pstep, int pass)
 {
-
-    int loopcount, start, end, i, countindex, currIndex, nbins, nrays;
+    int loopcount, start, end, i, countindex, currIndex;
     int binindex[8], rayindex[8];
     float val;
     unsigned short flag;
 
-    nbins = rv_sweep->ray[0]->h.nbins;
-    nrays = rv_sweep->h.nrays;
+    Sweep *rv_sweep;
+    rv_sweep = sweepc->rv;
 
     loopcount=0;
     flag=1;
@@ -572,29 +571,29 @@ static void spatial_dealias(
         flag=0;
         if (*pstep==1) {
             *pstep=-1;
-            start=rv_sweep->h.nrays-1;
+            start=sweepc->nrays-1;
             end=-1;
         } else {
             *pstep=1;
             start=0;
-            end=rv_sweep->h.nrays;
+            end=sweepc->nrays;
         }
         if (pass == 1) {
-            for (i=DELNUM; i<rv_sweep->ray[0]->h.nbins; i++) {
+            for (i=DELNUM; i < sweepc->nbins; i++) {
                 for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
                     if (GOOD[i][currIndex] != 0)
                         continue;
                 
                     countindex = count_neighbors(
-                        GOOD, currIndex, i,nrays, nbins,
+                        GOOD, currIndex, i, sweepc->nrays, sweepc->nbins,
                         binindex, rayindex);
                 
                     if (countindex>=1) {
                         flag=1;
-                        val=ray_val(vals_sweep->ray[currIndex], i); 
+                        val=ray_val(sweepc->vals->ray[currIndex], i); 
                         unfold_adjacent(
-                            val, rv_sweep, missingVal, GOOD,
-                            NyqVelocity, NyqInterval,
+                            val, sweepc->rv, dp->missingVal, GOOD,
+                            sweepc->NyqVelocity, sweepc->NyqInterval,
                             i, currIndex, countindex, loopcount,
                             binindex, rayindex);
                     }
@@ -602,27 +601,28 @@ static void spatial_dealias(
                     /* This only needs to be performed on the first pass of the spatial
                     dealiasing */
                     if (loopcount==1 && countindex<1) {
-                    mark_neighborless(GOOD, currIndex, i, nrays, nbins);
+                    mark_neighborless(GOOD, currIndex, i, 
+                                      sweepc->nrays, sweepc->nbins);
                     }
                 }
             }
         } else {  /* 2nd pass, reverse ray/bin loop order, different unfold 
                      and no marking of neighborless gates */
             for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
-                for (i=DELNUM; i<rv_sweep->ray[0]->h.nbins; i++) {
+                for (i=DELNUM; i < sweepc->nbins; i++) {
                     if (GOOD[i][currIndex] != 0)
                         continue;
                 
                     countindex = count_neighbors(
-                        GOOD, currIndex, i,nrays, nbins,
+                        GOOD, currIndex, i, sweepc->nrays, sweepc->nbins,
                         binindex, rayindex);
                 
                     if (countindex>=1) {
                         flag=1;
-                        val=ray_val(vals_sweep->ray[currIndex], i); 
+                        val=ray_val(sweepc->vals->ray[currIndex], i); 
                         unfold_adjacent2(
-                            val, rv_sweep, missingVal, GOOD,
-                            NyqVelocity, NyqInterval,
+                            val, sweepc->rv, dp->missingVal, GOOD,
+                            sweepc->NyqVelocity, sweepc->NyqInterval,
                             i, currIndex, countindex, loopcount,
                             binindex, rayindex);
                     }
@@ -915,9 +915,10 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     SweepCollection sweepc;
     DealiasParams dp;
 
+    /* Fill in Dealiasing parameters from arguments */
     dp.missingVal = missingVal;
     dp.compthresh = COMPTHRESH;     /* XXX make this a function argument */
-    dp.ckval = CKVAL;               /* XX Make this a function argument  */
+    dp.ckval = CKVAL;               /* XXX Make this a function argument  */
 
     // Either a sounding or last volume must be provided
     if (soundVolume==NULL && lastVolume==NULL) {
@@ -955,7 +956,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         sweepc.nrays = rv_sweep->h.nrays;
         sweepc.nbins = rv_sweep->ray[0]->h.nbins;
 
-
         /* Fill GOOD with -1 for missing value, 0 where not missing.
          * If requested the Berger Albers 3x3 filter is applied. */
         if (filt == 1)
@@ -975,10 +975,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         //    vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
         //    missingVal, GOOD, NyqVelocity, NyqInterval);
 
-        spatial_dealias( 
-            vals_sweep, rv_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval, 
-            &step, 1);
+        spatial_dealias(&sweepc, &dp, GOOD, &step, 1);
 
         unfold_remote(
             vals_sweep, rv_sweep, last_sweep, sound_sweep,
@@ -991,8 +988,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
                 missingVal, GOOD, NyqVelocity, NyqInterval);
             
             spatial_dealias( 
-                vals_sweep, rv_sweep,
-                missingVal, GOOD, NyqVelocity, NyqInterval, 
+                &sweepc, &dp, GOOD,
                 &step, 2);
         }
     } // end of loop over sweeps
