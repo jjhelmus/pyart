@@ -47,6 +47,26 @@
 /******************************
  * Private data and functions *
  ******************************/
+typedef struct DealiasParams {
+    float missingVal;
+    float compthresh;
+    float ckval;
+} DealiasParams;
+
+
+/* Structure for storing data on sweeps being examined for unfolding */
+typedef struct SweepCollection {
+    Sweep *vals;
+    Sweep *rv;
+    Sweep *last;
+    Sweep *sound;
+    Sweep *above;
+    float NyqVelocity;
+    float NyqInterval;
+    int nrays;
+    int nbins;
+} SweepCollection;
+
 
 /*
  * Berger and Albers filter functions
@@ -258,7 +278,7 @@ static float min_diff(float *val, float cval, float NyqVelocity)
 
 /* Set a value in GOOD and the corresponding ray value in a sweep */
 static void set_good_ray(
-    short GOOD[MAXBINS][MAXRAYS], Sweep *sweep, 
+    short GOOD[][MAXRAYS], Sweep *sweep, 
     int ray_idx, int bin_idx, short good_val, float ray_val)
 {
     ray_set(sweep->ray[ray_idx], bin_idx, ray_val);
@@ -272,57 +292,56 @@ static void set_good_ray(
  * a COMPTHRESH of the Nyquist velocity). This produces a number
  * of good data points from which to begin unfolding assuming spatial
  * continuity. */
-static void continuity_dealias(
-    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
-    Sweep *above_sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval
-    )
+static void continuity_dealias(SweepCollection *sweepc, 
+                               DealiasParams *dp,
+                               short GOOD[MAXBINS][MAXRAYS])
 {
     int currIndex;
     int i, prevIndex = 0, abIndex = 0; 
     float val;
     float prevval, soundval, abval, diff, thresh;
-    thresh = COMPTHRESH*NyqVelocity;
 
-    for (currIndex=0; currIndex<rv_sweep->h.nrays; currIndex++) { 
+    thresh = dp->compthresh * sweepc->NyqVelocity;
+
+    for (currIndex=0; currIndex < sweepc->nrays; currIndex++) { 
         
-        if (last_sweep!=NULL)
-           prevIndex = findRay(rv_sweep, last_sweep, currIndex);
-        if (above_sweep!=NULL)
-            abIndex = findRay(rv_sweep, above_sweep, currIndex);
+        if (sweepc->last != NULL)
+           prevIndex = findRay(sweepc->rv, sweepc->last, currIndex);
+        if (sweepc->above != NULL)
+            abIndex = findRay(sweepc->rv, sweepc->above, currIndex);
         
-        for (i=DELNUM; i<rv_sweep->ray[0]->h.nbins; i++) { 
+        for (i=DELNUM; i < sweepc->nbins; i++) { 
            
             if (GOOD[i][currIndex]!=0) continue;
-            val = ray_val(vals_sweep->ray[currIndex], i);
-            if (val == missingVal) continue;
-            if (fabs(val) <= CKVAL) continue;
+            val = ray_val(sweepc->vals->ray[currIndex], i);
+            if (val == dp->missingVal) continue;
+            if (fabs(val) <= dp->ckval) continue;
             
             /* find velocities in related sweeps */
-            prevval = soundval = abval = missingVal;
-            if (last_sweep!=NULL)
-                prevval=ray_val(last_sweep->ray[prevIndex], i);
-            if (sound_sweep!=NULL && last_sweep==NULL)
-                soundval=ray_val(sound_sweep->ray[currIndex], i);
-            if (above_sweep!=NULL)
-                abval=ray_val(above_sweep->ray[abIndex], i);
+            prevval = soundval = abval = dp->missingVal;
+            if (sweepc->last!=NULL)
+                prevval=ray_val(sweepc->last->ray[prevIndex], i);
+            if (sweepc->sound != NULL && sweepc->last == NULL)
+                soundval=ray_val(sweepc->sound->ray[currIndex], i);
+            if (sweepc->above != NULL)
+                abval=ray_val(sweepc->above->ray[abIndex], i);
             
-            if (last_sweep==NULL) {
-                if (soundval == missingVal) continue;
-                if (abval==missingVal) {
-                    diff = min_diff(&val, soundval, NyqVelocity);
+            if (sweepc->last == NULL) {
+                if (soundval == dp->missingVal) continue;
+                if (abval == dp->missingVal) {
+                    diff = min_diff(&val, soundval, sweepc->NyqVelocity);
                     if (diff < thresh)
-                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val);
+                        set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
                 } else {
-                    diff = min_diff(&val, abval, NyqVelocity);
+                    diff = min_diff(&val, abval, sweepc->NyqVelocity);
                     if (diff < thresh && fabs(soundval-val) < thresh)
-                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val);
+                        set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
                 }
             } else {
-                if (prevval != missingVal && abval != missingVal) {
-                    diff = min_diff(&val, prevval, NyqVelocity);
+                if (prevval != dp->missingVal && abval != dp->missingVal) {
+                    diff = min_diff(&val, prevval, sweepc->NyqVelocity);
                     if (diff < thresh && fabs(abval-val) < thresh)
-                        set_good_ray(GOOD, rv_sweep, currIndex, i, 1, val); 
+                        set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val); 
                 }
             }
         }
@@ -893,7 +912,13 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     
     Volume* VALS;
     Sweep *rv_sweep, *vals_sweep, *last_sweep, *sound_sweep, *above_sweep;
- 
+    SweepCollection sweepc;
+    DealiasParams dp;
+
+    dp.missingVal = missingVal;
+    dp.compthresh = COMPTHRESH;     /* XXX make this a function argument */
+    dp.ckval = CKVAL;               /* XX Make this a function argument  */
+
     // Either a sounding or last volume must be provided
     if (soundVolume==NULL && lastVolume==NULL) {
         printf("First guess not available.\n");
@@ -920,23 +945,35 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         if (NyqVelocity == 0.0) NyqVelocity=9.8;
         NyqInterval = 2.0 * NyqVelocity;
 
+        sweepc.vals = vals_sweep;
+        sweepc.rv = rv_sweep;
+        sweepc.last = last_sweep;
+        sweepc.sound = sound_sweep;
+        sweepc.above = above_sweep;
+        sweepc.NyqVelocity = NyqVelocity;
+        sweepc.NyqInterval = NyqInterval;
+        sweepc.nrays = rv_sweep->h.nrays;
+        sweepc.nbins = rv_sweep->ray[0]->h.nbins;
+
+
         /* Fill GOOD with -1 for missing value, 0 where not missing.
          * If requested the Berger Albers 3x3 filter is applied. */
         if (filt == 1)
-            berger_albers_filter(vals_sweep, missingVal, GOOD);
+            berger_albers_filter(sweepc.vals, dp.missingVal, GOOD);
         else
-            zero_good(vals_sweep, missingVal, GOOD);
+            zero_good(sweepc.vals, dp.missingVal, GOOD);
     
         /* Initialize the output sweep with missingVal */
-        init_sweep(rv_sweep, missingVal);
+        init_sweep(sweepc.rv, missingVal);
 
         /* Find non-missing value gates where the velocity either agrees with
          * or can be unfolded to agree with the sounding, the last volume, 
          * or the sweep directly above the current sweep.  Record the unfolded
          * velocity in these cases and mark GOOD with 1. */
-        continuity_dealias(
-            vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval);
+        continuity_dealias(&sweepc, &dp, GOOD);
+        //continuity_dealias(
+        //    vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
+        //    missingVal, GOOD, NyqVelocity, NyqInterval);
 
         spatial_dealias( 
             vals_sweep, rv_sweep,
