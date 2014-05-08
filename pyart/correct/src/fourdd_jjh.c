@@ -51,6 +51,10 @@ typedef struct DealiasParams {
     float missingVal;
     float compthresh;
     float ckval;
+    float thresh;
+    int maxcount;
+    int pass2;
+    int rm;
 } DealiasParams;
 
 
@@ -561,9 +565,6 @@ static void spatial_dealias(
     float val;
     unsigned short flag;
 
-    Sweep *rv_sweep;
-    rv_sweep = sweepc->rv;
-
     loopcount=0;
     flag=1;
     while (flag==1) {
@@ -733,45 +734,40 @@ static float find_window(
  * using a window with dimensions 2(PROXIMITY)+1 x 2(PROXIMITY)+1:
  * if still no luck delete data (or unfold against VAD if PASS2). */
 static void unfold_remote(
-    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval)
+    SweepCollection *sweepc, DealiasParams *dp, short GOOD[MAXBINS][MAXRAYS])
 {
-    
     int i, j, currIndex; 
     unsigned short wsuccess;
     float val, diff, winval;
-    int numRays = rv_sweep->h.nrays;
-    int numBins = rv_sweep->ray[0]->h.nbins;
-
-    for (i=DELNUM; i<numBins; i++) {
-        for (currIndex=0; currIndex<numRays; currIndex++) { 
+    
+    for (i=DELNUM; i < sweepc->nbins; i++) {
+        for (currIndex=0; currIndex < sweepc->nrays; currIndex++) { 
             
             if (GOOD[i][currIndex]!=0 && GOOD[i][currIndex]!=-2)
                 continue;
-            val = ray_val(vals_sweep->ray[currIndex], i); 
-            winval = find_window(rv_sweep, missingVal, currIndex, i, &wsuccess);
-            if (winval!=missingVal) {
+            val = ray_val(sweepc->vals->ray[currIndex], i); 
+            winval = find_window(sweepc->rv, dp->missingVal, currIndex, i, &wsuccess);
+            if (winval != dp->missingVal) {
                 
                 /* Add or subtract Nyquist intervals until within range */
-                for (j=0; j<MAXCOUNT; j++) {
-                    if (fabs(winval - val) <= 0.99999 * NyqVelocity)
+                for (j=0; j < dp->maxcount; j++) {
+                    if (fabs(winval - val) <= 0.99999 * sweepc->NyqVelocity)
                         break;
                     if (val > winval)
-                        val -= NyqInterval;
+                        val -= sweepc->NyqInterval;
                     else
-                        val += NyqInterval;
+                        val += sweepc->NyqInterval;
                 }
                 diff = fabs(winval - val);
                 
-                if (diff < THRESH * NyqVelocity) {
+                if (diff < dp->thresh * sweepc->NyqVelocity) {
                     /* Return the value. */
-                    ray_set(rv_sweep->ray[currIndex], i, val);
+                    ray_set(sweepc->rv->ray[currIndex], i, val);
                     GOOD[i][currIndex]=1;
-                } else if (diff<(1.0 - (1.0 - THRESH)/2.0)*NyqVelocity) {
+                } else if (diff<(1.0 - (1.0 - dp->thresh)/2.0)*sweepc->NyqVelocity) {
                     /* If within relaxed threshold, then return value, but
                     **   do not use to dealias other bins. */
-                    ray_set(rv_sweep->ray[currIndex], i, val);
+                    ray_set(sweepc->rv->ray[currIndex], i, val);
                     GOOD[i][currIndex]=-1;
                 } else {
                     /* Remove bin */
@@ -782,18 +778,18 @@ static void unfold_remote(
                     /* Remove bin */
                     GOOD[i][currIndex]=-1; 
                     /* I don't think this ever happens -jjh */
-                } else if (sound_sweep==NULL || last_sweep==NULL) {
-                    if (GOOD[i][currIndex]==0 && RM!=1) {
+                } else if (sweepc->sound==NULL || sweepc->last==NULL) {
+                    if (GOOD[i][currIndex]==0 && dp->rm != 1) {
                         /* Leave bin untouched. */
-                        val = ray_val(vals_sweep->ray[currIndex], i);
-                        ray_set(rv_sweep->ray[currIndex], i, val);
+                        val = ray_val(sweepc->vals->ray[currIndex], i);
+                        ray_set(sweepc->rv->ray[currIndex], i, val);
                         GOOD[i][currIndex]=-1; /* Don't use to unfold other bins*/
                     } else {
                         /* Remove bin */
                         GOOD[i][currIndex]=-1;
                     }
-                } else if (GOOD[i][currIndex]==0 && PASS2 &&
-                           sound_sweep!=NULL && last_sweep!=NULL) {
+                } else if (GOOD[i][currIndex]==0 && dp->pass2 &&
+                           sweepc->sound != NULL && sweepc->last != NULL) {
                     /* Leave GOOD[i][currIndex]=0 bins for a second pass.
                     ** In the second pass, we repeat unfolding, except this
                     ** time we use soundVolume for comparison instead of
@@ -809,17 +805,33 @@ static void unfold_remote(
 
 /* Second pass dealiasing using only sounding data */
 static void second_pass(
-    Sweep *vals_sweep, Sweep *rv_sweep, Sweep *last_sweep, Sweep *sound_sweep,
-    float missingVal, short GOOD[MAXBINS][MAXRAYS],
-    float NyqVelocity, float NyqInterval)
+    SweepCollection *sweepc, DealiasParams *dp, short GOOD[MAXBINS][MAXRAYS])
 {
 
     int i, direction, currIndex; 
     unsigned short numtimes;
     float val, diff, valcheck, soundval;
-    int numRays = rv_sweep->h.nrays;
-    int numBins = rv_sweep->ray[0]->h.nbins;
     
+    Sweep *vals_sweep;
+    Sweep *rv_sweep;
+    Sweep *sound_sweep;
+    float NyqVelocity;
+    float NyqInterval;
+    float missingVal;
+    int numRays;
+    int numBins;
+
+    vals_sweep = sweepc->vals;
+    rv_sweep = sweepc->rv;
+    sound_sweep = sweepc->sound;
+
+    NyqVelocity = sweepc->NyqVelocity;
+    NyqInterval = sweepc->NyqInterval;
+    missingVal = dp->missingVal;
+    numRays = rv_sweep->h.nrays;
+    numBins = rv_sweep->ray[0]->h.nbins;
+
+
      /* Beginning second pass, this time using sounding only: */
     for (currIndex=0;currIndex<numRays;currIndex++) {
         for (i=DELNUM;i<numBins;i++) {
@@ -919,6 +931,10 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     dp.missingVal = missingVal;
     dp.compthresh = COMPTHRESH;     /* XXX make this a function argument */
     dp.ckval = CKVAL;               /* XXX Make this a function argument  */
+    dp.thresh = THRESH;
+    dp.maxcount = MAXCOUNT;
+    dp.pass2 = PASS2;
+    dp.rm = RM;
 
     // Either a sounding or last volume must be provided
     if (soundVolume==NULL && lastVolume==NULL) {
@@ -971,25 +987,16 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
          * or the sweep directly above the current sweep.  Record the unfolded
          * velocity in these cases and mark GOOD with 1. */
         continuity_dealias(&sweepc, &dp, GOOD);
-        //continuity_dealias(
-        //    vals_sweep, rv_sweep, last_sweep, sound_sweep, above_sweep,
-        //    missingVal, GOOD, NyqVelocity, NyqInterval);
-
+        
         spatial_dealias(&sweepc, &dp, GOOD, &step, 1);
-
-        unfold_remote(
-            vals_sweep, rv_sweep, last_sweep, sound_sweep,
-            missingVal, GOOD, NyqVelocity, NyqInterval);   
+        
+        unfold_remote(&sweepc, &dp, GOOD);
 
         if (last_sweep!=NULL && sound_sweep!=NULL) {
 	   
-            second_pass(
-                vals_sweep, rv_sweep, last_sweep, sound_sweep,
-                missingVal, GOOD, NyqVelocity, NyqInterval);
+            second_pass(&sweepc, &dp, GOOD);
             
-            spatial_dealias( 
-                &sweepc, &dp, GOOD,
-                &step, 2);
+            spatial_dealias(&sweepc, &dp, GOOD, &step, 2);
         }
     } // end of loop over sweeps
     *success=1;
