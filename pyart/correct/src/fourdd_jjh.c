@@ -733,13 +733,16 @@ static void second_pass(
                     }
                     if (diff<COMPTHRESH2*NyqVelocity&&fabs(valcheck)>CKVAL) {
                         /* Return the good value. */
-                        ray_set(rv_sweep->ray[currIndex], i, val);
+                        ray_set(rv_sweep->ray[currIndex], i, val); 
+		                GOOD[i][currIndex]=1;
                     }
                 }
             }
         }
     }
 }
+
+/* XXX REMOVE */
 
 int findRay2(Volume* rvVolume1, Volume* rvVolume2, int sweepIndex1, int
      sweepIndex2, int currIndex, float missingVal) {
@@ -912,67 +915,29 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         /* These are not called so can't refactor at the moment */
         if (last_sweep!=NULL && sound_sweep!=NULL) {
 	   
-       /* XXX Code from old file XXX */
-     int currIndex, i, l, direction, numRays,
-       numBins, left, right, next, prev, rayindex[8], binindex[8],
-       countindex, numneg, numpos, in, out, 
-       startindex, endindex, loopcount;
+            second_pass(
+                vals_sweep, rv_sweep, last_sweep, sound_sweep,
+                missingVal, GOOD, NyqVelocity, NyqInterval);
+            
+            /* XXX Code from old file XXX */
+            int currIndex, i, l, numRays,
+                numBins, left, right, next, prev, rayindex[8], binindex[8],
+                countindex, numneg, numpos, in, out, 
+                startindex, endindex, loopcount;
     
-     unsigned short numtimes, flag=1;
-     float val, diff, finalval,
-       valcheck, goodval, diffs[8], fraction2;
-     float pfraction, soundval;
+            unsigned short numtimes, flag=1;
+            float val, finalval, goodval, diffs[8], pfraction;
 
-     #define VERBOSE 0 
+            #define VERBOSE 0 
 
-	 numRays = rvVolume->sweep[sweepIndex]->h.nrays;
-	 numBins = rvVolume->sweep[sweepIndex]->ray[0]->h.nbins;
-     if (COMPTHRESH2>1.0 || COMPTHRESH2<=0.0 ) fraction2=0.25;
-     else fraction2=COMPTHRESH2;
-     if (THRESH>1.0 || THRESH<=0.0 ) pfraction=0.5;
-     else pfraction=THRESH;
+	        numRays = rvVolume->sweep[sweepIndex]->h.nrays;
+	        numBins = rvVolume->sweep[sweepIndex]->ray[0]->h.nbins;
+            if (THRESH>1.0 || THRESH<=0.0 ) pfraction=0.5;
+            else pfraction=THRESH;
 
 
-       flag=1;
-	   for (currIndex=0;currIndex<numRays;currIndex++) {
-	     for (i=DELNUM;i<numBins;i++) {
-	       if (GOOD[i][currIndex]==0) {
-		 val=(float) VALS->sweep[sweepIndex]->ray[currIndex]->
-		   h.f(VALS->sweep[sweepIndex]->ray[currIndex]->range
-		       [i]);
-		 valcheck=val;
-		 soundval=(float) soundVolume->
-		   sweep[sweepIndex]->ray[currIndex]->h.f(soundVolume->
-		    sweep[sweepIndex]->ray[currIndex]->range[i]);
-	         
-		 if (soundval!=missingVal&&val!=missingVal) {
-		   diff=soundval-val;	     
-		   if (diff<0.0) {
-		     diff=-diff;
-		     direction=-1;
-		   } else direction=1;
-		   numtimes=0;
-		   while (diff>0.99999*NyqVelocity&&numtimes<=MAXCOUNT) {
-		     val=val+NyqInterval*direction;
-		     numtimes=numtimes+1;
-		     diff=soundval-val;
-		     if (diff<0.0) {
-		       diff=-diff;
-		       direction=-1;
-		     } else direction=1;
-		   }
-		   if (diff<fraction2*NyqVelocity&&fabs(valcheck)>CKVAL) {
-		     /* Return the good value. */
-		     finalval=(float)rvVolume->sweep[sweepIndex]->
-		       ray[currIndex]->h.invf(val);
-		     rvVolume->sweep[sweepIndex]->ray[currIndex]->
-		       range[i]=(unsigned short) (finalval);
-		     GOOD[i][currIndex]=1;
-		   }
-		 }
-	       }
-	     }
-	   }
+            flag=1;
+	        
 		   
 	   /* Now, try to unfold the rest of the GOOD=0 bins, assuming spatial
 	      continuity: */
@@ -997,7 +962,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 		   val=(float) VALS->sweep[sweepIndex]->ray[currIndex]
 		     ->h.f(VALS->sweep[sweepIndex]->ray[currIndex]->
 			   range[i]);
-		   valcheck=val;
 		   if (currIndex==0) left=numRays-1;
 		   else left=currIndex-1;
 		   if (currIndex==numRays-1) right=0;
@@ -1133,10 +1097,6 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 	   }
             
             /*  New code 
-            second_pass(
-                vals_sweep, rv_sweep, last_sweep, sound_sweep,
-                missingVal, GOOD, NyqVelocity, NyqInterval);
-        
             spatial_dealias( 
                 vals_sweep, rv_sweep,
                 missingVal, GOOD, NyqVelocity, NyqInterval, 
