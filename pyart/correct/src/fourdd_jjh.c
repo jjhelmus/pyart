@@ -900,11 +900,8 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 
     int sweepIndex, numSweeps;
     int step = -1;
-    short GOOD[MAXBINS][MAXRAYS];
-    float NyqVelocity, NyqInterval;
-    
+    short GOOD[MAXBINS][MAXRAYS]; 
     Volume* VALS;
-    Sweep *rv_sweep, *vals_sweep, *last_sweep, *sound_sweep, *above_sweep;
     SweepCollection sweepc;
     DealiasParams dp;
 
@@ -917,7 +914,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     dp.pass2 = PASS2;
     dp.rm = RM;
 
-    // Either a sounding or last volume must be provided
+    /* Either a sounding or last volume must be provided */
     if (soundVolume==NULL && lastVolume==NULL) {
         printf("First guess not available.\n");
         *success=0;
@@ -927,31 +924,22 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     numSweeps = rvVolume->h.nsweeps;
     VALS=RSL_copy_volume(rvVolume);
     
-    for (sweepIndex=numSweeps-1;sweepIndex>=0;sweepIndex--) {
+    for (sweepIndex=numSweeps-1; sweepIndex>=0; sweepIndex--) {
         
-        last_sweep = sound_sweep = above_sweep = NULL;
+        /* load sweeps and structure information into sweep collection */
+        sweepc.last = sweepc.sound = sweepc.above = NULL;
         if (lastVolume!=NULL) 
-            last_sweep = lastVolume->sweep[sweepIndex];
+            sweepc.last = lastVolume->sweep[sweepIndex];
         if (soundVolume!=NULL) 
-            sound_sweep = soundVolume->sweep[sweepIndex];
-        if (sweepIndex<numSweeps-1) 
-            above_sweep = rvVolume->sweep[sweepIndex+1];
-        rv_sweep = rvVolume->sweep[sweepIndex];
-        vals_sweep = VALS->sweep[sweepIndex];
-
-        NyqVelocity =rvVolume->sweep[sweepIndex]->ray[0]->h.nyq_vel;
-        if (NyqVelocity == 0.0) NyqVelocity=9.8;
-        NyqInterval = 2.0 * NyqVelocity;
-
-        sweepc.vals = vals_sweep;
-        sweepc.rv = rv_sweep;
-        sweepc.last = last_sweep;
-        sweepc.sound = sound_sweep;
-        sweepc.above = above_sweep;
-        sweepc.NyqVelocity = NyqVelocity;
-        sweepc.NyqInterval = NyqInterval;
-        sweepc.nrays = rv_sweep->h.nrays;
-        sweepc.nbins = rv_sweep->ray[0]->h.nbins;
+            sweepc.sound = soundVolume->sweep[sweepIndex];
+        if (sweepIndex < numSweeps-1) 
+            sweepc.above = rvVolume->sweep[sweepIndex+1];
+        sweepc.rv = rvVolume->sweep[sweepIndex];
+        sweepc.vals = VALS->sweep[sweepIndex];
+        sweepc.NyqVelocity =rvVolume->sweep[sweepIndex]->ray[0]->h.nyq_vel;
+        sweepc.NyqInterval = 2.0 * sweepc.NyqVelocity;
+        sweepc.nrays = sweepc.rv->h.nrays;
+        sweepc.nbins = sweepc.rv->ray[0]->h.nbins;
 
         /* Fill GOOD with -1 for missing value, 0 where not missing.
          * If requested the Berger Albers 3x3 filter is applied. */
@@ -961,7 +949,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
             zero_good(sweepc.vals, dp.missingVal, GOOD);
     
         /* Initialize the output sweep with missingVal */
-        init_sweep(sweepc.rv, missingVal);
+        init_sweep(sweepc.rv, dp.missingVal);
 
         /* Find non-missing value gates where the velocity either agrees with
          * or can be unfolded to agree with the sounding, the last volume, 
@@ -973,8 +961,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
         
         unfold_remote(&sweepc, &dp, GOOD);
 
-        if (last_sweep!=NULL && sound_sweep!=NULL) {
-	   
+        if (sweepc.last != NULL && sweepc.sound != NULL) {
             second_pass(&sweepc, &dp, GOOD); 
             spatial_dealias(&sweepc, &dp, GOOD, &step, 2);
         }
