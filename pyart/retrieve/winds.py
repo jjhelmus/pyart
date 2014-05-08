@@ -389,7 +389,7 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
         
         # Special attention to heights below 2000 m where velocity artifacts
         # can be a problem
-        is_bad_vel[np.logical_and(np.abs(vr) > 25.0, Z < 2000.0)] = True
+        is_bad_vel[np.logical_and(np.abs(vr) > 30.0, Z < 2000.0)] = True
         
         # Update masks
         grid.fields[refl_field]['data'] = np.ma.masked_where(is_bad_refl, ze)
@@ -658,14 +658,17 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
     return
         
     
-def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
-                    fall_speed='Caya', finite_scheme='basic', proc=1,
-                    fill_value=None, verbose=False, refl_field=None,
-                    vel_field=None, u_field=None, v_field=None,
-                    w_field=None):
+def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
+                    target=None, fall_speed='Caya', finite_scheme='basic',
+                    proc=1, standard_density=False, fill_value=None,
+                    verbose=False, refl_field=None, vel_field=None,
+                    u_field=None, v_field=None, w_field=None):
     """
     Parameters
     ----------
+    grids : list
+    conv : Grid
+    sonde : netCDF4.Dataset
     
     Optional parameters
     -------------------
@@ -691,14 +694,23 @@ def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
     # Get dimensions
     nz, ny, nx = grids[0].fields[vel_field]['data'].shape
     
-    # Get wind data
-    u = conv.fields[u_field]['data']
-    v = conv.fields[v_field]['data']
-    w = conv.fields[w_field]['data']
+    # Get target time. If no target time is provided, use the earliest time
+    # out of the list of grids (radars)
+    if target is None:
+        target = min([datetime_from_grid(grid) for grid in grids])
     
-    # Get grid (radar) coverage
-    cover = _radar_coverage(grids, fill_value=fill_value,
-                refl_field=refl_field, vel_field=vel_field)
+    # Use the ARM interpolated or merged sounding product to get the
+    # atmospheric thermodynamic and horizontal wind profiles
+    res = _arm_interp_sonde(grids[0], sonde, target, fill_value,
+                            standard_density=standard_density,
+                            debug=False, verbose=verbose)
+    
+    temp, pres, rho, drho, us, vs = res
+    
+    # Get wind data
+    u = np.ma.filled(conv.fields[u_field]['data'], fill_value)
+    v = np.ma.filled(conv.fields[v_field]['data'], fill_value)
+    w = np.ma.filled(conv.fields[w_field]['data'], fill_value)
     
     # Initialize status dictionary
     status = {}
@@ -726,27 +738,20 @@ def _check_analysis(grids, conv, dx=500.0, dy=500.0, dz=500.0,
             print ('The radial velocity RMSE for radar %s is %.3f m/s'
                    %(radar_name, rmse_vr))
             
-    # Compute the normalized divergence profile
-    #
-    # This is defined on each analysis height level as the ratio of RMS
-    # velocity divergence to the root of the mean of the sum of the squares
-    # of the three terms comprising the velocity divergence
+    # Compute the normalized divergence profile. Here we look at the
+    # residual of the anelastic continuity equation
     norm_div = np.zeros(nz, dtype=np.float)
     
     res = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
                     finite_scheme=finite_scheme, fill_value=fill_value)
-               
-    div, du, dv, dw = res
     
-    div = np.ma.masked_where(cover['data'] < 1, div)
-    du = np.ma.masked_where(cover['data'] < 1, du)
-    dv = np.ma.masked_where(cover['data'] < 1, dv)
-    dw = np.ma.masked_where(cover['data'] < 1, dw)
+    div, du, dv, dw = res
     
     for k in xrange(nz):
         
-        num = np.sqrt((div[k,:,:]**2).mean())
-        den = np.sqrt((du[k,:,:]**2 + dv[k,:,:]**2 + dw[k,:,:]**2).mean())
+        num = np.sqrt(((div[k,:,:] + w[k,:,:] * drho[k] / rho[k])**2).mean())
+        den = np.sqrt((du[k,:,:]**2 + dv[k,:,:]**2 + dw[k,:,:]**2 + \
+                       (w[k,:,:] * drho[k] / rho[k])**2).mean())
         
         norm_div[k] = 100.0 * num / den
         
