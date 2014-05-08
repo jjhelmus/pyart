@@ -19,25 +19,16 @@
 #define FDD_H
 #define MAXRAYS   500      /* added by SRB 980310 */
 #define MAXBINS 2048
+
 #define PROXIMITY 5 /* For unfolding using windowing.*/
-#define COMPTHRESH 0.25 /* The threshold for performing initial dealiasing 
-			** using a previously unfolded volume. */
 #define COMPTHRESH2 0.49 /* The threshold for performing initial dealiasing 
 			** using sounding (or VAD). */
-#define THRESH 0.4 /* The unfolding threshold for unfolding using horizontal
-		   ** continuity. between 0.0 and 1.0*/
 #define MINGOOD 5 /* Number of good values required within unfolding window
 		  **  to unfold the current bin. */
 #define STDTHRESH 0.8 /* Fraction of the Nyquist velocity to use as a standard
 		      **  deviation threshold when windowing. */
-#define RM 0 /* If soundvolume is not available, remove cells left over after
-	     **  first pass. */
-#define PASS2 1 /* Flag specifying the use of a second pass using only the
-	        **   sounding (or VAD).*/
 #define DELNUM 0 /* The first DELNUM velocity bins will be deleted along each
 		 **  ray (should be between 0 and 5). */
-#define CKVAL 1.0 /* If absolute value of the radial velocity gate is less 
-		  ** than this value, it will not be used as a PRELIM gate. */
 #define MAXCOUNT 10 /* Maximum number of folds. */
 #include <rsl.h> /* Sweep */ 
 

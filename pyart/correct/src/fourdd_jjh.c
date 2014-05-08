@@ -48,13 +48,19 @@
  * Private data and functions *
  ******************************/
 typedef struct DealiasParams {
-    float missingVal;
-    float compthresh;
-    float ckval;
-    float thresh;
-    int maxcount;
-    int pass2;
-    int rm;
+    float missingVal;   /* The threshold for performing initial dealiasing 
+                         * using a previously unfolded volume. */
+    float compthresh;   /* The threshold for performing initial dealiasing 
+                         * using sounding (or VAD). */
+    float ckval;        /* If absolute value of the radial velocity gate is less 
+                         * than this value, it will not be used as a PRELIM gate. */
+    float thresh;       /* The unfolding threshold for unfolding using horizontal
+                         * continuity. between 0.0 and 1.0*/
+    int maxcount;       /* Maximum number of folds. */
+    int pass2;          /* Flag specifying the use of a second pass using only the
+                         *   sounding (or VAD).*/
+    int rm;             /* If soundvolume is not available, remove cells left
+                           over after first pass. */
 } DealiasParams;
 
 
@@ -893,12 +899,13 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 
     /* Fill in Dealiasing parameters from arguments */
     dp.missingVal = missingVal;
-    dp.compthresh = COMPTHRESH;     /* XXX make this a function argument */
-    dp.ckval = CKVAL;               /* XXX Make this a function argument  */
-    dp.thresh = THRESH;
-    dp.maxcount = MAXCOUNT;
-    dp.pass2 = PASS2;
-    dp.rm = RM;
+    /* XXX make these all function arguments */
+    dp.compthresh = 0.25;
+    dp.ckval = 1.0;
+    dp.thresh = 0.4;
+    dp.maxcount = 10;
+    dp.pass2 = 1;
+    dp.rm = 0;
 
     /* Either a sounding or last volume must be provided */
     if (soundVolume==NULL && lastVolume==NULL) {
