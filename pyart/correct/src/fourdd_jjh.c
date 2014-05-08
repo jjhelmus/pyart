@@ -807,40 +807,19 @@ static void unfold_remote(
 static void second_pass(
     SweepCollection *sweepc, DealiasParams *dp, short GOOD[MAXBINS][MAXRAYS])
 {
-
     int i, direction, currIndex; 
     unsigned short numtimes;
     float val, diff, valcheck, soundval;
     
-    Sweep *vals_sweep;
-    Sweep *rv_sweep;
-    Sweep *sound_sweep;
-    float NyqVelocity;
-    float NyqInterval;
-    float missingVal;
-    int numRays;
-    int numBins;
-
-    vals_sweep = sweepc->vals;
-    rv_sweep = sweepc->rv;
-    sound_sweep = sweepc->sound;
-
-    NyqVelocity = sweepc->NyqVelocity;
-    NyqInterval = sweepc->NyqInterval;
-    missingVal = dp->missingVal;
-    numRays = rv_sweep->h.nrays;
-    numBins = rv_sweep->ray[0]->h.nbins;
-
-
-     /* Beginning second pass, this time using sounding only: */
-    for (currIndex=0;currIndex<numRays;currIndex++) {
-        for (i=DELNUM;i<numBins;i++) {
+    for (currIndex=0; currIndex < sweepc->nrays; currIndex++) {
+        for (i=DELNUM; i < sweepc->nbins; i++) {
             if (GOOD[i][currIndex]==0) {
-                val = ray_val(vals_sweep->ray[currIndex], i);
+
+                val = ray_val(sweepc->vals->ray[currIndex], i);
                 valcheck=val;
-                soundval = ray_val(sound_sweep->ray[currIndex], i);
+                soundval = ray_val(sweepc->sound->ray[currIndex], i);
          
-                if (soundval!=missingVal && val!=missingVal) {
+                if (soundval != dp->missingVal && val!= dp->missingVal) {
                     diff=soundval-val;        
                     if (diff<0.0) {
                         diff=-diff;
@@ -849,8 +828,9 @@ static void second_pass(
                         direction=1;
                     }
                     numtimes=0;
-                    while (diff>0.99999*NyqVelocity && numtimes<=MAXCOUNT) {
-                        val=val+NyqInterval*direction;
+                    while (diff > 0.99999 * sweepc->NyqVelocity &&
+                            numtimes<=dp->maxcount) {
+                        val = val + sweepc->NyqInterval * direction;
                         numtimes=numtimes+1;
                         diff=soundval-val;
                         if (diff<0.0) {
@@ -860,9 +840,10 @@ static void second_pass(
                             direction=1;
                         }
                     }
-                    if (diff<COMPTHRESH2*NyqVelocity&&fabs(valcheck)>CKVAL) {
+                    if (diff < COMPTHRESH2 * sweepc->NyqVelocity && 
+                            fabs(valcheck) > dp->ckval) {
                         /* Return the good value. */
-                        ray_set(rv_sweep->ray[currIndex], i, val); 
+                        ray_set(sweepc->rv->ray[currIndex], i, val); 
 		                GOOD[i][currIndex]=1;
                     }
                 }
@@ -994,8 +975,7 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 
         if (last_sweep!=NULL && sound_sweep!=NULL) {
 	   
-            second_pass(&sweepc, &dp, GOOD);
-            
+            second_pass(&sweepc, &dp, GOOD); 
             spatial_dealias(&sweepc, &dp, GOOD, &step, 2);
         }
     } // end of loop over sweeps
