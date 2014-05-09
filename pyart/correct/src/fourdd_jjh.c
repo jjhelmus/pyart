@@ -30,12 +30,15 @@
 
 /* TODO
  * 
- * - Introduce Dealias structure to hold sweeps, etc
  * - Remove use of constants, add these to structure and make arguments to
  *   unfoldVolume function.
  * - Refactor and clean.
  * - change == and != missingVal to better floating point comparisons
  */
+
+
+#define MAXRAYS   500      /* XXX Remove these and make GOOD allocated */
+#define MAXBINS 2048
 
 #include "helpers.h"
 #include <stdio.h>
@@ -58,9 +61,16 @@ typedef struct DealiasParams {
                          * continuity. between 0.0 and 1.0*/
     int maxcount;       /* Maximum number of folds. */
     int pass2;          /* Flag specifying the use of a second pass using only the
-                         *   sounding (or VAD).*/
+                         *  sounding (or VAD).*/
     int rm;             /* If soundvolume is not available, remove cells left
                            over after first pass. */
+    int proximity;      /* For unfolding using windowing.*/
+    float compthresh2;  /* The threshold for performing initial dealiasing 
+                         * using sounding (or VAD). */
+    int mingood;        /* Number of good values required within unfolding window
+                         *  to unfold the current bin. */
+    float stdthresh;    /* Fraction of the Nyquist velocity to use as a standard
+                         *  deviation threshold when windowing. */
 } DealiasParams;
 
 
@@ -131,7 +141,7 @@ static void berger_albers_filter(
     int currIndex, i, count;
     float val;
     for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
-        for (i=DELNUM; i<sweep->ray[0]->h.nbins; i++) {
+        for (i=0; i<sweep->ray[0]->h.nbins; i++) {
             val = ray_val(sweep->ray[currIndex], i); 
             if (val==missingVal) {
                 GOOD[i][currIndex]=-1;
@@ -161,7 +171,7 @@ static void zero_good(
     int currIndex, i;
     float val;
     for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
-        for (i=DELNUM; i<sweep->ray[0]->h.nbins; i++) {
+        for (i=0; i<sweep->ray[0]->h.nbins; i++) {
             val = ray_val(sweep->ray[currIndex], i); 
             if (val==missingVal)
                 GOOD[i][currIndex]=-1;
@@ -180,7 +190,7 @@ static void init_sweep(Sweep *sweep, float val)
 {
     int currIndex, i;
     for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
-        for (i=DELNUM; i<sweep->ray[0]->h.nbins; i++) {
+        for (i=0; i<sweep->ray[0]->h.nbins; i++) {
             ray_set(sweep->ray[currIndex], i, val);
         }
     }
@@ -272,11 +282,11 @@ static int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex)
 
 /* Minize the difference between val and cval by adding or substracting 
  * the Nyquist Interval, update val. */
-static float min_diff(float *val, float cval, float NyqVelocity)
+static float min_diff(float *val, float cval, float NyqVelocity, int maxcount)
 {
     int numtimes; 
     numtimes=0;
-    while (fabs(cval-*val) > 0.99999 * NyqVelocity && numtimes <= MAXCOUNT) {
+    while (fabs(cval-*val) > 0.99999 * NyqVelocity && numtimes <= maxcount) {
         numtimes++;
         if (*val > cval)
             *val-=2 * NyqVelocity;
@@ -320,7 +330,7 @@ static void continuity_dealias(
         if (sweepc->above != NULL)
             abIndex = findRay(sweepc->rv, sweepc->above, currIndex);
         
-        for (i=DELNUM; i < sweepc->nbins; i++) { 
+        for (i=0; i < sweepc->nbins; i++) { 
            
             if (GOOD[i][currIndex]!=0) continue;
             val = ray_val(sweepc->vals->ray[currIndex], i);
@@ -339,17 +349,20 @@ static void continuity_dealias(
             if (sweepc->last == NULL) {
                 if (soundval == dp->missingVal) continue;
                 if (abval == dp->missingVal) {
-                    diff = min_diff(&val, soundval, sweepc->NyqVelocity);
+                    diff = min_diff(&val, soundval, sweepc->NyqVelocity, 
+                                    dp->maxcount);
                     if (diff < thresh)
                         set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
                 } else {
-                    diff = min_diff(&val, abval, sweepc->NyqVelocity);
+                    diff = min_diff(&val, abval, sweepc->NyqVelocity,
+                                    dp->maxcount);
                     if (diff < thresh && fabs(soundval-val) < thresh)
                         set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
                 }
             } else {
                 if (prevval != dp->missingVal && abval != dp->missingVal) {
-                    diff = min_diff(&val, prevval, sweepc->NyqVelocity);
+                    diff = min_diff(&val, prevval, sweepc->NyqVelocity,
+                                    dp->maxcount);
                     if (diff < thresh && fabs(abval-val) < thresh)
                         set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val); 
                 }
@@ -581,7 +594,7 @@ static void spatial_dealias(
             end=sweepc->nrays;
         }
         if (pass == 1) {
-            for (i=DELNUM; i < sweepc->nbins; i++) {
+            for (i=0; i < sweepc->nbins; i++) {
                 for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
                     if (GOOD[i][currIndex] != 0)
                         continue;
@@ -606,7 +619,7 @@ static void spatial_dealias(
         } else {  /* 2nd pass, reverse ray/bin loop order, different unfold 
                      and no marking of neighborless gates */
             for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
-                for (i=DELNUM; i < sweepc->nbins; i++) {
+                for (i=0; i < sweepc->nbins; i++) {
                     if (GOOD[i][currIndex] != 0)
                         continue;
                 
@@ -626,8 +639,8 @@ static void spatial_dealias(
 }
 
 /* Calculate the mean for gates within a window of a sweep */
-static float window(Sweep *rv_sweep, int startray, 
-	int endray, int firstbin, int lastbin, float missingVal,
+static float window(DealiasParams *dp,
+    Sweep *rv_sweep, int startray, int endray, int firstbin, int lastbin, 
     unsigned short* success) 
 {
     int num, currIndex, rangeIndex, numRays, numBins;
@@ -645,12 +658,12 @@ static float window(Sweep *rv_sweep, int startray,
     sumsq=0.0;
        
     if (firstbin>=numBins || lastbin>=numBins || firstbin<0 || lastbin<0)
-        return missingVal;
+        return dp->missingVal;
 	for (rangeIndex=firstbin; rangeIndex<=lastbin; rangeIndex++) {
         if (startray>endray){
             for (currIndex=startray; currIndex<numRays; currIndex++) {
 	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
-	            if (val!=missingVal) {
+	            if (val != dp->missingVal) {
 	                num++;
 	                sum+=val;
 	                sumsq+=(val*val);
@@ -658,7 +671,7 @@ static float window(Sweep *rv_sweep, int startray,
 	        }
             for (currIndex=0; currIndex<=endray; currIndex++) {
 	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
-	            if (val!=missingVal) {
+	            if (val != dp->missingVal) {
 	                num++;
 	                sum+=val;
 	                sumsq+=(val*val);
@@ -667,7 +680,7 @@ static float window(Sweep *rv_sweep, int startray,
         } else {
             for (currIndex=startray; currIndex<=endray; currIndex++) { 
 	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
-	            if (val!=missingVal) {
+	            if (val != dp->missingVal) {
 	                num++;
 	                sum+=val;
 	                sumsq+=(val*val);
@@ -675,12 +688,12 @@ static float window(Sweep *rv_sweep, int startray,
 	        }
         }
     }
-    if (num>=MINGOOD) {
+    if (num>=dp->mingood) {
         ave=sum/num;
         std=sqrt(fabs((sumsq-(sum*sum)/num)/(num-1)));
-        if (std<=STDTHRESH*NyqVelocity) *success=1;
+        if (std<= dp->stdthresh*NyqVelocity) *success=1;
     } else {
-        ave=missingVal;
+        ave = dp->missingVal;
         std=0.0;
         *success=1;
     }
@@ -688,36 +701,36 @@ static float window(Sweep *rv_sweep, int startray,
 }
 
 /* Detemine the window mean and if windowing is succeeded */
-static float find_window(
-    Sweep *rv_sweep, float missingVal, int currIndex, int i, unsigned short *wsuccess)
+static float find_window(DealiasParams *dp,
+    Sweep *rv_sweep, int currIndex, int i, unsigned short *wsuccess)
 {
     int startray, endray, firstbin, lastbin;
     float winval;
     int numRays = rv_sweep->h.nrays;
     int numBins = rv_sweep->ray[0]->h.nbins;
 
-    startray = currIndex - PROXIMITY;
-    endray = currIndex + PROXIMITY;
-    firstbin = i - PROXIMITY;
-    lastbin = i + PROXIMITY;
+    startray = currIndex - dp->proximity;
+    endray = currIndex + dp->proximity;
+    firstbin = i - dp->proximity;
+    lastbin = i + dp->proximity;
     if (startray < 0) startray = numRays + startray;
     if (endray > numRays - 1) endray = endray - numRays;
     if (firstbin < 0) firstbin = 0;
     if (lastbin > numBins-1) lastbin = numBins - 1;
-    winval=window(rv_sweep, startray, endray, 
-                   firstbin, lastbin, missingVal, wsuccess);
-    if (winval == missingVal && *wsuccess == 1) {     
+    winval=window(dp, rv_sweep, startray, endray, 
+                   firstbin, lastbin, wsuccess);
+    if (winval == dp->missingVal && *wsuccess == 1) {     
         /* Expand the window: */
-        startray = currIndex - 2 * PROXIMITY;
-        endray = currIndex + 2 * PROXIMITY;
-        firstbin = i - 2 * PROXIMITY;
-        lastbin = i + 2 * PROXIMITY;
+        startray = currIndex - 2 * dp->proximity;
+        endray = currIndex + 2 * dp->proximity;
+        firstbin = i - 2 * dp->proximity;
+        lastbin = i + 2 * dp->proximity;
         if (startray < 0) startray = numRays + startray;
         if (endray > numRays - 1) endray = endray - numRays;
         if (firstbin < 0) firstbin = 0;
         if (lastbin > numBins - 1) lastbin = numBins - 1;
-        winval=window(rv_sweep, startray, endray, 
-                       firstbin, lastbin, missingVal, wsuccess);
+        winval=window(dp, rv_sweep, startray, endray, 
+                       firstbin, lastbin, wsuccess);
     }
     return winval;
 }
@@ -732,13 +745,13 @@ static void unfold_remote(
     unsigned short wsuccess;
     float val, diff, winval;
     
-    for (i=DELNUM; i < sweepc->nbins; i++) {
+    for (i=0; i < sweepc->nbins; i++) {
         for (currIndex=0; currIndex < sweepc->nrays; currIndex++) { 
             
             if (GOOD[i][currIndex]!=0 && GOOD[i][currIndex]!=-2)
                 continue;
             val = ray_val(sweepc->vals->ray[currIndex], i); 
-            winval = find_window(sweepc->rv, dp->missingVal, currIndex, i, &wsuccess);
+            winval = find_window(dp, sweepc->rv, currIndex, i, &wsuccess);
             if (winval != dp->missingVal) {
                 
                 /* Add or subtract Nyquist intervals until within range */
@@ -804,7 +817,7 @@ static void second_pass(
     float val, diff, valcheck, soundval;
     
     for (currIndex=0; currIndex < sweepc->nrays; currIndex++) {
-        for (i=DELNUM; i < sweepc->nbins; i++) {
+        for (i=0; i < sweepc->nbins; i++) {
             if (GOOD[i][currIndex]==0) {
 
                 val = ray_val(sweepc->vals->ray[currIndex], i);
@@ -832,7 +845,7 @@ static void second_pass(
                             direction=1;
                         }
                     }
-                    if (diff < COMPTHRESH2 * sweepc->NyqVelocity && 
+                    if (diff < dp->compthresh2 * sweepc->NyqVelocity && 
                             fabs(valcheck) > dp->ckval) {
                         /* Return the good value. */
                         ray_set(sweepc->rv->ray[currIndex], i, val); 
@@ -906,6 +919,10 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     dp.maxcount = 10;
     dp.pass2 = 1;
     dp.rm = 0;
+    dp.proximity = 5;
+    dp.compthresh2 = 0.49;
+    dp.mingood = 5;
+    dp.stdthresh = 0.8;
 
     /* Either a sounding or last volume must be provided */
     if (soundVolume==NULL && lastVolume==NULL) {
