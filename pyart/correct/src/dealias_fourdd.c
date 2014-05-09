@@ -48,6 +48,7 @@
 /******************************
  * Private data and functions *
  ******************************/
+
 typedef struct DealiasParams {
     float missingVal;  
     float compthresh;   /* The threshold for performing initial dealiasing 
@@ -70,7 +71,6 @@ typedef struct DealiasParams {
                          *  deviation threshold when windowing. */
 } DealiasParams;
 
-
 /* Structure for storing data on sweeps being examined for unfolding */
 typedef struct SweepCollection {
     Sweep *vals;
@@ -84,6 +84,35 @@ typedef struct SweepCollection {
     int nbins;
 } SweepCollection;
 
+/* 
+ * Functions used by multiple other functions
+ */
+
+/* Minize the difference between val and cval by adding or substracting 
+ * the Nyquist Interval, update val. */
+static float min_diff(float *val, float cval, float NyqVelocity, int maxcount)
+{
+    int numtimes; 
+    numtimes=0;
+    while (fabs(cval-*val) > 0.99999 * NyqVelocity && numtimes <= maxcount) {
+        numtimes++;
+        if (*val > cval)
+            *val-=2 * NyqVelocity;
+        else
+            *val+=2 * NyqVelocity;
+    }
+    return fabs(cval-*val);
+}
+
+/* Set a value in GOOD and the corresponding ray value in a sweep */
+static void set_good_ray(
+    short GOOD[][MAXRAYS], Sweep *sweep, 
+    int ray_idx, int bin_idx, short good_val, float ray_val)
+{
+    ray_set(sweep->ray[ray_idx], bin_idx, ray_val);
+    GOOD[bin_idx][ray_idx] = good_val;
+    return;
+}
 
 /*
  * Berger and Albers filter functions
@@ -277,31 +306,7 @@ static int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex)
      }
 }
 
-/* Minize the difference between val and cval by adding or substracting 
- * the Nyquist Interval, update val. */
-static float min_diff(float *val, float cval, float NyqVelocity, int maxcount)
-{
-    int numtimes; 
-    numtimes=0;
-    while (fabs(cval-*val) > 0.99999 * NyqVelocity && numtimes <= maxcount) {
-        numtimes++;
-        if (*val > cval)
-            *val-=2 * NyqVelocity;
-        else
-            *val+=2 * NyqVelocity;
-    }
-    return fabs(cval-*val);
-}
 
-/* Set a value in GOOD and the corresponding ray value in a sweep */
-static void set_good_ray(
-    short GOOD[][MAXRAYS], Sweep *sweep, 
-    int ray_idx, int bin_idx, short good_val, float ray_val)
-{
-    ray_set(sweep->ray[ray_idx], bin_idx, ray_val);
-    GOOD[bin_idx][ray_idx] = good_val;
-    return;
-}
 
 /* Unfold bins where vertical and temporal continuity
  * produces the same value (i.e., bins where the radial velocity
@@ -806,50 +811,27 @@ static void unfold_remote(
 }
 
 /* Second pass dealiasing using only sounding data */
+/* This is similar to continuity_dealias */
 static void second_pass(
     SweepCollection *sweepc, DealiasParams *dp, short GOOD[MAXBINS][MAXRAYS])
 {
-    int i, direction, currIndex; 
-    unsigned short numtimes;
-    float val, diff, valcheck, soundval;
+    int i, currIndex; 
+    float val, diff, soundval;
     
     for (currIndex=0; currIndex < sweepc->nrays; currIndex++) {
         for (i=0; i < sweepc->nbins; i++) {
-            if (GOOD[i][currIndex]==0) {
+    
+            if (GOOD[i][currIndex]!=0) continue; 
+            val = ray_val(sweepc->vals->ray[currIndex], i);
+            if (val == dp->missingVal) continue; 
+            if (fabs(val) <= dp->ckval) continue;
+            
+            soundval = ray_val(sweepc->sound->ray[currIndex], i);
+            if (soundval == dp->missingVal) continue; 
 
-                val = ray_val(sweepc->vals->ray[currIndex], i);
-                valcheck=val;
-                soundval = ray_val(sweepc->sound->ray[currIndex], i);
-         
-                if (soundval != dp->missingVal && val!= dp->missingVal) {
-                    diff=soundval-val;        
-                    if (diff<0.0) {
-                        diff=-diff;
-                        direction=-1;
-                    } else {
-                        direction=1;
-                    }
-                    numtimes=0;
-                    while (diff > 0.99999 * sweepc->NyqVelocity &&
-                            numtimes<=dp->maxcount) {
-                        val = val + sweepc->NyqInterval * direction;
-                        numtimes=numtimes+1;
-                        diff=soundval-val;
-                        if (diff<0.0) {
-                            diff=-diff;
-                            direction=-1;
-                        } else {
-                            direction=1;
-                        }
-                    }
-                    if (diff < dp->compthresh2 * sweepc->NyqVelocity && 
-                            fabs(valcheck) > dp->ckval) {
-                        /* Return the good value. */
-                        ray_set(sweepc->rv->ray[currIndex], i, val); 
-		                GOOD[i][currIndex]=1;
-                    }
-                }
-            }
+            diff = min_diff(&val, soundval, sweepc->NyqVelocity, dp->maxcount); 
+            if (diff < dp->compthresh2 * sweepc->NyqVelocity)
+                set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
         }
     }
 }
