@@ -84,6 +84,35 @@ typedef struct SweepCollection {
     int nbins;
 } SweepCollection;
 
+/*
+ * GOOD getters and setters, in preperation for dynamically allocated 
+ * GOOD array.  All interactions with GOOD should be done through these
+ * functions.
+ */
+
+/* set GOOD */
+static void set_good(short GOOD[][MAXRAYS], int r_idx, int b_idx, short val)
+{
+    GOOD[b_idx][r_idx] = val;
+    return;
+}
+
+/* get GOOD value*/
+static short get_good(short GOOD[][MAXRAYS], int r_idx, int b_idx)
+{
+    return GOOD[b_idx][r_idx];
+}
+
+/* Set a value in GOOD and the corresponding ray value in a sweep */
+static void set_good_ray(
+    short GOOD[][MAXRAYS], Sweep *sweep, 
+    int ray_idx, int bin_idx, short good_val, float ray_val)
+{
+    ray_set(sweep->ray[ray_idx], bin_idx, ray_val);
+    set_good(GOOD, ray_idx, bin_idx, good_val);
+    return;
+}
+
 /* 
  * Functions used by multiple other functions
  */
@@ -102,16 +131,6 @@ static float min_diff(float *val, float cval, float NyqVelocity, int maxcount)
             *val+=2 * NyqVelocity;
     }
     return fabs(cval-*val);
-}
-
-/* Set a value in GOOD and the corresponding ray value in a sweep */
-static void set_good_ray(
-    short GOOD[][MAXRAYS], Sweep *sweep, 
-    int ray_idx, int bin_idx, short good_val, float ray_val)
-{
-    ray_set(sweep->ray[ray_idx], bin_idx, ray_val);
-    GOOD[bin_idx][ray_idx] = good_val;
-    return;
 }
 
 /*
@@ -164,22 +183,22 @@ static int count_nonmissing_neighbors(
 static void berger_albers_filter(
     Sweep *sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS])
 {
-    int currIndex, i, count;
+    int ray_index, i, count;
     float val;
-    for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
-        for (i=0; i<sweep->ray[0]->h.nbins; i++) {
-            val = ray_val(sweep->ray[currIndex], i); 
+    for (ray_index=0; ray_index < sweep->h.nrays; ray_index++) {
+        for (i=0; i < sweep->ray[0]->h.nbins; i++) {
+            val = ray_val(sweep->ray[ray_index], i); 
             if (val==missingVal) {
-                GOOD[i][currIndex]=-1;
+                set_good(GOOD, ray_index, i, -1);
             } else {
                 count = count_nonmissing_neighbors(
-                    sweep, currIndex, i, missingVal);
+                    sweep, ray_index, i, missingVal);
                 if (count >= 5)
-                    GOOD[i][currIndex] = 0;  
+                    set_good(GOOD, ray_index, i, 0);
                 else if (i == (sweep->ray[0]->h.nbins - 1) && count >= 3)
-                    GOOD[i][currIndex] = 0;  
+                    set_good(GOOD, ray_index, i, 0);
                 else
-                    GOOD[i][currIndex] = -1; 
+                    set_good(GOOD, ray_index, i, -1);
             }
         }
     }
@@ -194,15 +213,15 @@ static void berger_albers_filter(
 static void zero_good(
     Sweep *sweep, float missingVal, short GOOD[MAXBINS][MAXRAYS])
 {
-    int currIndex, i;
+    int ray_index, i;
     float val;
-    for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
+    for (ray_index=0; ray_index < sweep->h.nrays; ray_index++) {
         for (i=0; i<sweep->ray[0]->h.nbins; i++) {
-            val = ray_val(sweep->ray[currIndex], i); 
+            val = ray_val(sweep->ray[ray_index], i); 
             if (val==missingVal)
-                GOOD[i][currIndex]=-1;
+                set_good(GOOD, ray_index, i, -1);
             else
-                GOOD[i][currIndex]=0;
+                set_good(GOOD, ray_index, i, 0);
         }
     }
 }
@@ -318,24 +337,24 @@ static void continuity_dealias(
     SweepCollection *sweepc, DealiasParams *dp, 
     short GOOD[MAXBINS][MAXRAYS])
 {
-    int currIndex;
+    int ray_index;
     int i, prevIndex = 0, abIndex = 0; 
     float val;
     float prevval, soundval, abval, diff, thresh;
 
     thresh = dp->compthresh * sweepc->NyqVelocity;
 
-    for (currIndex=0; currIndex < sweepc->nrays; currIndex++) { 
+    for (ray_index=0; ray_index < sweepc->nrays; ray_index++) { 
         
         if (sweepc->last != NULL)
-           prevIndex = findRay(sweepc->rv, sweepc->last, currIndex);
+           prevIndex = findRay(sweepc->rv, sweepc->last, ray_index);
         if (sweepc->above != NULL)
-            abIndex = findRay(sweepc->rv, sweepc->above, currIndex);
+            abIndex = findRay(sweepc->rv, sweepc->above, ray_index);
         
         for (i=0; i < sweepc->nbins; i++) { 
            
-            if (GOOD[i][currIndex]!=0) continue;
-            val = ray_val(sweepc->vals->ray[currIndex], i);
+            if (get_good(GOOD, ray_index, i) != 0) continue;
+            val = ray_val(sweepc->vals->ray[ray_index], i);
             if (val == dp->missingVal) continue;
             if (fabs(val) <= dp->ckval) continue;
             
@@ -344,7 +363,7 @@ static void continuity_dealias(
             if (sweepc->last!=NULL)
                 prevval=ray_val(sweepc->last->ray[prevIndex], i);
             if (sweepc->sound != NULL && sweepc->last == NULL)
-                soundval=ray_val(sweepc->sound->ray[currIndex], i);
+                soundval=ray_val(sweepc->sound->ray[ray_index], i);
             if (sweepc->above != NULL)
                 abval=ray_val(sweepc->above->ray[abIndex], i);
             
@@ -354,19 +373,19 @@ static void continuity_dealias(
                     diff = min_diff(&val, soundval, sweepc->NyqVelocity, 
                                     dp->maxcount);
                     if (diff < thresh)
-                        set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
+                        set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val);
                 } else {
                     diff = min_diff(&val, abval, sweepc->NyqVelocity,
                                     dp->maxcount);
                     if (diff < thresh && fabs(soundval-val) < thresh)
-                        set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
+                        set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val);
                 }
             } else {
                 if (prevval != dp->missingVal && abval != dp->missingVal) {
                     diff = min_diff(&val, prevval, sweepc->NyqVelocity,
                                     dp->maxcount);
                     if (diff < thresh && fabs(abval-val) < thresh)
-                        set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val); 
+                        set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val); 
                 }
             }
         }
@@ -376,39 +395,39 @@ static void continuity_dealias(
 
 /* Mark gates where all neighbors are GOOD == 0 with GOOD == -1 */
 static void mark_neighborless(
-    short GOOD[MAXBINS][MAXRAYS], int currIndex, int i, int nrays, int nbins)
+    short GOOD[MAXBINS][MAXRAYS], int ray_index, int i, int nrays, int nbins)
 {
     int next, prev, left, right;
     int countbins = 0;
-    if (currIndex==0) left=nrays-1;
-    else left=currIndex-1;
-    if (currIndex==nrays-1) right=0;
-    else right=currIndex+1;
+    if (ray_index == 0) left = nrays-1;
+    else left = ray_index-1;
+    if (ray_index == nrays-1) right = 0;
+    else right = ray_index+1;
     next = i+1;
     prev = i-1;
  
     if (i != 0) {
-        if (GOOD[prev][left]==0)
+        if (get_good(GOOD, left, prev) == 0)
             countbins++;
-        if (GOOD[prev][currIndex]==0)
+        if (get_good(GOOD, ray_index, prev) == 0)
             countbins++;
-        if (GOOD[prev][right]==0)
+        if (get_good(GOOD, right, prev) == 0)
             countbins++;
     }
-    if (GOOD[i][left]==0)
+    if (get_good(GOOD, left, i) == 0)
         countbins++;
-    if (GOOD[i][right]==0)
+    if (get_good(GOOD, right, i) == 0)
         countbins++;
-    if (i<nbins-1) {
-        if (GOOD[next][left]==0)
+    if (i < nbins-1) {
+        if (get_good(GOOD, left, next) == 0)
             countbins++;
-        if (GOOD[next][currIndex]==0)
+        if (get_good(GOOD, ray_index, next) == 0)
             countbins++;
-        if (GOOD[next][right]==0)
+        if (get_good(GOOD, right, next) == 0)
             countbins++;
     }
     if (countbins == 0)
-        GOOD[i][currIndex]=-1;  
+        set_good(GOOD, ray_index, i, -1);
     return;
 }
 
@@ -423,38 +442,38 @@ static void record_gate(int idx, int b_idx, int r_idx, int b[8], int r[8])
 /* Count the number of GOOD == 1 neighbors */
 static int count_neighbors(
     SweepCollection *sweepc, short GOOD[MAXBINS][MAXRAYS],
-    int currIndex, int i, int binindex[8], int rayindex[8]
+    int ray_index, int i, int binindex[8], int rayindex[8]
     )
 {
     int next, prev, left, right;
     int countindex = 0;
     
-    if (currIndex == 0) left = sweepc->nrays - 1;
-    else left = currIndex - 1;
-    if (currIndex == sweepc->nrays - 1) right=0;
-    else right = currIndex + 1;
+    if (ray_index == 0) left = sweepc->nrays - 1;
+    else left = ray_index - 1;
+    if (ray_index == sweepc->nrays - 1) right=0;
+    else right = ray_index + 1;
     next = i + 1;
     prev = i - 1;
  
     /* Look at all 8 bins adjacent to current bin in question: */
     if (i!=0) { 
-        if (GOOD[prev][left]==1)
+        if (get_good(GOOD, left, prev) == 1)
             record_gate(countindex++, prev, left, binindex, rayindex);
-        if (GOOD[prev][currIndex]==1)
-            record_gate(countindex++, prev, currIndex, binindex, rayindex);
-        if (GOOD[prev][right]==1)
+        if (get_good(GOOD, ray_index, prev) == 1)
+            record_gate(countindex++, prev, ray_index, binindex, rayindex);
+        if (get_good(GOOD, right, prev) == 1)
             record_gate(countindex++, prev, right, binindex, rayindex);
     }
-    if (GOOD[i][left]==1)
+    if (get_good(GOOD, left, i) == 1)
         record_gate(countindex++, i, left, binindex, rayindex);
-    if (GOOD[i][right]==1)
+    if (get_good(GOOD, right, i) == 1)
         record_gate(countindex++, i, right, binindex, rayindex);
-    if (i < sweepc->nbins - 1) {  
-        if (GOOD[next][left]==1)
+    if (i < sweepc->nbins-1) {  
+        if (get_good(GOOD, left, next) == 1)
             record_gate(countindex++, next, left, binindex, rayindex);
-        if (GOOD[next][currIndex]==1)
-            record_gate(countindex++, next, currIndex, binindex, rayindex);
-        if (GOOD[next][right]==1)
+        if (get_good(GOOD, ray_index, next) == 1)
+            record_gate(countindex++, next, ray_index, binindex, rayindex);
+        if (get_good(GOOD, right, next) == 1)
             record_gate(countindex++, next, right, binindex, rayindex);
     }
     return countindex;
@@ -464,14 +483,14 @@ static int count_neighbors(
 /* Unfold against all adjacent values where GOOD==1 */
 static void unfold_adjacent(SweepCollection *sweepc, DealiasParams *dp,
     short GOOD[MAXBINS][MAXRAYS],
-    int i, int currIndex, int countindex, int loopcount,
+    int i, int ray_index, int countindex, int loopcount,
     int binindex[8], int rayindex[8])
 {
     int in, out, numneg, numpos, l, numtimes;
     float diff, val;
-    val = ray_val(sweepc->vals->ray[currIndex], i); 
+    val = ray_val(sweepc->vals->ray[ray_index], i); 
     numtimes=0;
-    while(val != dp->missingVal && GOOD[i][currIndex] == 0) {
+    while(val != dp->missingVal && get_good(GOOD, ray_index, i) == 0) {
         numtimes++;
         in = out = numneg = numpos = 0;
         for (l=0; l<countindex; l++) {
@@ -486,28 +505,27 @@ static void unfold_adjacent(SweepCollection *sweepc, DealiasParams *dp,
                 numneg++; 
         }
         if (in>0 && out==0) {
-            ray_set(sweepc->rv->ray[currIndex], i, val);
-            GOOD[i][currIndex]=1;
+            set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val);
         } else {
             if (numtimes <= dp->maxcount) {
                 if ((numpos+numneg)<(in+out-(numpos+numneg))) {
                     if (loopcount>2) {
                         /* Keep the value after two passes through data. */
-                        ray_set(sweepc->rv->ray[currIndex], i, val);
-                        GOOD[i][currIndex]=1;
+                        set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val);
                     }
                 } else if (numpos>numneg) {
                     val = val + sweepc->NyqInterval;
                 } else if (numneg>numpos) {
-                    val=val-sweepc->NyqInterval;
+                    val = val - sweepc->NyqInterval;
                 } else {
                     /* Save bin for windowing if unsuccessful after
                     ** four passes: */
-                    if (loopcount>4) GOOD[i][currIndex]=-2;
+                    if (loopcount>4) 
+                        set_good(GOOD, ray_index, i, -2);
                 }
             } else {
                 /* Remove bin: */
-                GOOD[i][currIndex]=-2;
+                set_good(GOOD, ray_index, i, -2);
             }
         }
     }
@@ -516,15 +534,15 @@ static void unfold_adjacent(SweepCollection *sweepc, DealiasParams *dp,
 /* XXX similar to unfold_adjacent but slighly different XXX */
 static void unfold_adjacent2(SweepCollection *sweepc, DealiasParams *dp,
     short GOOD[MAXBINS][MAXRAYS],
-    int i, int currIndex, int countindex, int loopcount,
+    int i, int ray_index, int countindex, int loopcount,
     int binindex[8], int rayindex[8]
     )
 {
     int in, out, numneg, numpos, l, numtimes;
     float diff, val;
-    val = ray_val(sweepc->vals->ray[currIndex], i); 
+    val = ray_val(sweepc->vals->ray[ray_index], i); 
     numtimes=0;
-    while(val != dp->missingVal && GOOD[i][currIndex]==0) {
+    while(val != dp->missingVal && get_good(GOOD, ray_index, i) == 0) {
         numtimes++;
         in = out = numneg = numpos = 0;
         for (l=0; l<countindex; l++) {
@@ -541,19 +559,15 @@ static void unfold_adjacent2(SweepCollection *sweepc, DealiasParams *dp,
             }
         }
         if (in>out) {
-            ray_set(sweepc->rv->ray[currIndex], i, val);
-            GOOD[i][currIndex]=1;
+            set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val);
         } else {
             if (numtimes <= dp->maxcount) {
                 if (numpos+numneg<(in+out-(numpos+numneg))) {
                     if (loopcount<=2) {
                         val = dp->missingVal; /* Try later */
                     } else {
-                        /* Keep the value after two passes through
-                        ** data */
-                        ray_set(sweepc->rv->ray[currIndex], i, val);
-                        GOOD[i][currIndex]=1;
-                        
+                        /* Keep the value after two passes */
+                        set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val); 
                     }
                 } else if (numpos>numneg) {
                     val = val + sweepc->NyqInterval;
@@ -561,11 +575,12 @@ static void unfold_adjacent2(SweepCollection *sweepc, DealiasParams *dp,
                     val = val - sweepc->NyqInterval;
                 } else {
                     /* Remove bin after four passes through data: */
-                    if (loopcount>4) GOOD[i][currIndex]=-1;
+                    if (loopcount>4) 
+                        set_good(GOOD, ray_index, i, -1);
                 }
             } else {
                 /* Remove bin: */
-                GOOD[i][currIndex]=-1;
+                set_good(GOOD, ray_index, i, -1);
             }
         }
     }
@@ -577,7 +592,7 @@ static void spatial_dealias(
     short GOOD[MAXBINS][MAXRAYS],
     int *pstep, int pass)
 {
-    int loopcount, start, end, i, countindex, currIndex;
+    int loopcount, start, end, i, countindex, ray_index;
     int binindex[8], rayindex[8];
     unsigned short flag;
 
@@ -597,41 +612,41 @@ static void spatial_dealias(
         }
         if (pass == 1) {
             for (i=0; i < sweepc->nbins; i++) {
-                for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
-                    if (GOOD[i][currIndex] != 0)
+                for (ray_index=start; ray_index != end; ray_index=ray_index+*pstep) {
+                    if (get_good(GOOD, ray_index, i) != 0)
                         continue;
                 
-                    countindex = count_neighbors(sweepc, GOOD, currIndex, i,
+                    countindex = count_neighbors(sweepc, GOOD, ray_index, i,
                                                  binindex, rayindex); 
                     if (countindex>=1) {
                         flag=1;
                         unfold_adjacent(sweepc, dp, GOOD,
-                            i, currIndex, countindex, loopcount,
+                            i, ray_index, countindex, loopcount,
                             binindex, rayindex);
                     }
                 
                     /* This only needs to be performed on the first pass of the spatial
                     dealiasing */
                     if (loopcount==1 && countindex<1) {
-                    mark_neighborless(GOOD, currIndex, i, 
+                    mark_neighborless(GOOD, ray_index, i, 
                                       sweepc->nrays, sweepc->nbins);
                     }
                 }
             }
         } else {  /* 2nd pass, reverse ray/bin loop order, different unfold 
                      and no marking of neighborless gates */
-            for (currIndex=start;currIndex!=end;currIndex=currIndex+*pstep) {
+            for (ray_index=start;ray_index!=end;ray_index=ray_index+*pstep) {
                 for (i=0; i < sweepc->nbins; i++) {
-                    if (GOOD[i][currIndex] != 0)
+                    if (get_good(GOOD, ray_index, i) != 0)
                         continue;
                 
                     countindex = count_neighbors(sweepc,
-                        GOOD, currIndex, i, binindex, rayindex);
+                        GOOD, ray_index, i, binindex, rayindex);
                 
                     if (countindex>=1) {
                         flag=1;
                         unfold_adjacent2(sweepc, dp, GOOD,
-                            i, currIndex, countindex, loopcount,
+                            i, ray_index, countindex, loopcount,
                             binindex, rayindex);
                     }
                 }
@@ -645,7 +660,7 @@ static float window(DealiasParams *dp,
     Sweep *rv_sweep, int startray, int endray, int firstbin, int lastbin, 
     unsigned short* success) 
 {
-    int num, currIndex, rangeIndex, numRays, numBins;
+    int num, ray_index, rangeIndex, numRays, numBins;
     float val, sum, sumsq, ave, NyqVelocity, std;
      
     *success=0;
@@ -663,16 +678,16 @@ static float window(DealiasParams *dp,
         return dp->missingVal;
 	for (rangeIndex=firstbin; rangeIndex<=lastbin; rangeIndex++) {
         if (startray>endray){
-            for (currIndex=startray; currIndex<numRays; currIndex++) {
-	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
+            for (ray_index=startray; ray_index<numRays; ray_index++) {
+	            val = ray_val(rv_sweep->ray[ray_index], rangeIndex);
 	            if (val != dp->missingVal) {
 	                num++;
 	                sum+=val;
 	                sumsq+=(val*val);
 	            }
 	        }
-            for (currIndex=0; currIndex<=endray; currIndex++) {
-	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
+            for (ray_index=0; ray_index<=endray; ray_index++) {
+	            val = ray_val(rv_sweep->ray[ray_index], rangeIndex);
 	            if (val != dp->missingVal) {
 	                num++;
 	                sum+=val;
@@ -680,8 +695,8 @@ static float window(DealiasParams *dp,
 	            }
 	        }
         } else {
-            for (currIndex=startray; currIndex<=endray; currIndex++) { 
-	            val = ray_val(rv_sweep->ray[currIndex], rangeIndex);
+            for (ray_index=startray; ray_index<=endray; ray_index++) { 
+	            val = ray_val(rv_sweep->ray[ray_index], rangeIndex);
 	            if (val != dp->missingVal) {
 	                num++;
 	                sum+=val;
@@ -704,15 +719,15 @@ static float window(DealiasParams *dp,
 
 /* Detemine the window mean and if windowing is succeeded */
 static float find_window(DealiasParams *dp,
-    Sweep *rv_sweep, int currIndex, int i, unsigned short *wsuccess)
+    Sweep *rv_sweep, int ray_index, int i, unsigned short *wsuccess)
 {
     int startray, endray, firstbin, lastbin;
     float winval;
     int numRays = rv_sweep->h.nrays;
     int numBins = rv_sweep->ray[0]->h.nbins;
 
-    startray = currIndex - dp->proximity;
-    endray = currIndex + dp->proximity;
+    startray = ray_index - dp->proximity;
+    endray = ray_index + dp->proximity;
     firstbin = i - dp->proximity;
     lastbin = i + dp->proximity;
     if (startray < 0) startray = numRays + startray;
@@ -723,8 +738,8 @@ static float find_window(DealiasParams *dp,
                    firstbin, lastbin, wsuccess);
     if (winval == dp->missingVal && *wsuccess == 1) {     
         /* Expand the window: */
-        startray = currIndex - 2 * dp->proximity;
-        endray = currIndex + 2 * dp->proximity;
+        startray = ray_index - 2 * dp->proximity;
+        endray = ray_index + 2 * dp->proximity;
         firstbin = i - 2 * dp->proximity;
         lastbin = i + 2 * dp->proximity;
         if (startray < 0) startray = numRays + startray;
@@ -743,17 +758,17 @@ static float find_window(DealiasParams *dp,
 static void unfold_remote(
     SweepCollection *sweepc, DealiasParams *dp, short GOOD[MAXBINS][MAXRAYS])
 {
-    int i, j, currIndex; 
+    int i, j, ray_index; 
     unsigned short wsuccess;
     float val, diff, winval;
     
     for (i=0; i < sweepc->nbins; i++) {
-        for (currIndex=0; currIndex < sweepc->nrays; currIndex++) { 
+        for (ray_index=0; ray_index < sweepc->nrays; ray_index++) { 
             
-            if (GOOD[i][currIndex]!=0 && GOOD[i][currIndex]!=-2)
+            if (get_good(GOOD, ray_index, i) !=0 && get_good(GOOD, ray_index, i) != -2)
                 continue;
-            val = ray_val(sweepc->vals->ray[currIndex], i); 
-            winval = find_window(dp, sweepc->rv, currIndex, i, &wsuccess);
+            val = ray_val(sweepc->vals->ray[ray_index], i); 
+            winval = find_window(dp, sweepc->rv, ray_index, i, &wsuccess);
             if (winval != dp->missingVal) {
                 
                 /* Add or subtract Nyquist intervals until within range */
@@ -769,41 +784,39 @@ static void unfold_remote(
                 
                 if (diff < dp->thresh * sweepc->NyqVelocity) {
                     /* Return the value. */
-                    ray_set(sweepc->rv->ray[currIndex], i, val);
-                    GOOD[i][currIndex]=1;
+                    set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val);
                 } else if (diff<(1.0 - (1.0 - dp->thresh)/2.0)*sweepc->NyqVelocity) {
                     /* If within relaxed threshold, then return value, but
                     **   do not use to dealias other bins. */
-                    ray_set(sweepc->rv->ray[currIndex], i, val);
-                    GOOD[i][currIndex]=-1;
+                    set_good_ray(GOOD, sweepc->rv, ray_index, i, -1, val);
                 } else {
                     /* Remove bin */
-                    GOOD[i][currIndex]=-1;
+                    set_good(GOOD, ray_index, i, -1);
                 }
             } else {
                 if (wsuccess==0) {
                     /* Remove bin */
-                    GOOD[i][currIndex]=-1; 
+                    set_good(GOOD, ray_index, i, -1);
                     /* I don't think this ever happens -jjh */
                 } else if (sweepc->sound==NULL || sweepc->last==NULL) {
-                    if (GOOD[i][currIndex]==0 && dp->rm != 1) {
+                    if (get_good(GOOD, ray_index, i) == 0 && dp->rm != 1) {
                         /* Leave bin untouched. */
-                        val = ray_val(sweepc->vals->ray[currIndex], i);
-                        ray_set(sweepc->rv->ray[currIndex], i, val);
-                        GOOD[i][currIndex]=-1; /* Don't use to unfold other bins*/
+                        /* Don't use to unfold other bins*/
+                        val = ray_val(sweepc->vals->ray[ray_index], i);
+                        set_good_ray(GOOD, sweepc->rv, ray_index, i, -1, val);
                     } else {
                         /* Remove bin */
-                        GOOD[i][currIndex]=-1;
+                        set_good(GOOD, ray_index, i, -1);
                     }
-                } else if (GOOD[i][currIndex]==0 && dp->pass2 &&
+                } else if (get_good(GOOD, ray_index, i) == 0 && dp->pass2 &&
                            sweepc->sound != NULL && sweepc->last != NULL) {
-                    /* Leave GOOD[i][currIndex]=0 bins for a second pass.
+                    /* Leave GOOD[i][ray_index]=0 bins for a second pass.
                     ** In the second pass, we repeat unfolding, except this
                     ** time we use soundVolume for comparison instead of
                     ** lastVolume. */
                 } else {
                     /* Remove bin */
-                    GOOD[i][currIndex]=-1;
+                    set_good(GOOD, ray_index, i, -1);
                 }
             }
         }
@@ -815,23 +828,23 @@ static void unfold_remote(
 static void second_pass(
     SweepCollection *sweepc, DealiasParams *dp, short GOOD[MAXBINS][MAXRAYS])
 {
-    int i, currIndex; 
+    int i, ray_index; 
     float val, diff, soundval;
     
-    for (currIndex=0; currIndex < sweepc->nrays; currIndex++) {
+    for (ray_index=0; ray_index < sweepc->nrays; ray_index++) {
         for (i=0; i < sweepc->nbins; i++) {
     
-            if (GOOD[i][currIndex]!=0) continue; 
-            val = ray_val(sweepc->vals->ray[currIndex], i);
+            if (get_good(GOOD, ray_index, i) != 0) continue;
+            val = ray_val(sweepc->vals->ray[ray_index], i);
             if (val == dp->missingVal) continue; 
             if (fabs(val) <= dp->ckval) continue;
             
-            soundval = ray_val(sweepc->sound->ray[currIndex], i);
+            soundval = ray_val(sweepc->sound->ray[ray_index], i);
             if (soundval == dp->missingVal) continue; 
 
             diff = min_diff(&val, soundval, sweepc->NyqVelocity, dp->maxcount); 
             if (diff < dp->compthresh2 * sweepc->NyqVelocity)
-                set_good_ray(GOOD, sweepc->rv, currIndex, i, 1, val);
+                set_good_ray(GOOD, sweepc->rv, ray_index, i, 1, val);
         }
     }
 }
@@ -915,7 +928,7 @@ int dealias_fourdd(
     
     for (sweepIndex=numSweeps-1; sweepIndex>=0; sweepIndex--) {
         
-        /* load sweeps and structure information into sweep collection */
+        /* load sweeps and sweep structure information */
         sweepc.last = sweepc.sound = sweepc.above = NULL;
         if (lastVolume!=NULL) 
             sweepc.last = lastVolume->sweep[sweepIndex];
