@@ -27,7 +27,7 @@ def dealias_fourdd(radar, last_radar=None, sounding_heights=None,
                    sounding_wind_speeds=None, sounding_wind_direction=None,
                    prep=1, filt=1, rsl_badval=131072.0, keep_original=False,
                    refl_field=None, vel_field=None, corr_vel_field=None,
-                   last_vel_field=None, debug=False):
+                   last_vel_field=None, debug=False, **kwargs):
     """
     Dealias Doppler velocities using the 4DD algorithm.
 
@@ -37,6 +37,11 @@ def dealias_fourdd(radar, last_radar=None, sounding_heights=None,
     sounding_wind_speeds and sounding_wind_direction must be provided.
     For best results provide both a previous volume scan and sounding data.
     Radar and last_radar must contain the same number of rays per sweep.
+
+    Additional arguments are passed to
+    :py:func:`_fourdd_interface.fourdd_dealias`.
+    These can be used to fine tune the behavior of the FourDD algorithm.
+    See the documentation of Other Parameters for details.
 
     Parameters
     ----------
@@ -188,11 +193,11 @@ def dealias_fourdd(radar, last_radar=None, sounding_heights=None,
     if debug:
         return _fourdd_interface.fourdd_dealias(
             vel_volume, last_vel_volume, sound_volume, refl_volume,
-            prep, filt, False)
+            prep, filt, debug=True, **kwargs)
 
     flag, data = _fourdd_interface.fourdd_dealias(
         vel_volume, last_vel_volume, sound_volume, refl_volume, prep, filt,
-        False)
+        debug=False, **kwargs)
 
     # prepare data for output, which includes reshaping, setting bad values,
     # and masking data

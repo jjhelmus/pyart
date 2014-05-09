@@ -67,14 +67,19 @@ cpdef create_soundvolume(radialVelVolume,
     return success, soundVolume
 
 
-cpdef fourdd_dealias(_RslVolume radialVelVolume,
-                     _RslVolume lastVelVolume,
-                     _RslVolume soundVolume,
-                     _RslVolume DZvolume,
-                     prep, filt, debug):
+cpdef fourdd_dealias(
+    _RslVolume radialVelVolume, _RslVolume lastVelVolume,
+    _RslVolume soundVolume,_RslVolume DZvolume,
+    prep, filt, 
+    lowdbz=0.0, highdbz=80.0, rm_missing=0, compthresh=0.25, compthresh2=0.49,
+    thresh=0.4, ckval=1.0, stdthresh=0.8, maxcount=10, pass2=1, rm=0,
+    proximity=5, mingood=5, debug=False):
     """
-    fourdd_dealias(DZvolume, radialVelVolume, lastVelVolume hc, sc, dc,
-                   vad_time, prep, filt)
+    fourdd_dealias(
+        radialVelVolume, lastVelVolume, soundVolume, DZvolume, prep, filt, 
+        lowdbz=0.0, highdbz=80.0, rm_missing=0, compthresh=0.25,
+        compthresh2=0.49, thresh=0.4, ckval=1.0, stdthresh=0.8, maxcount=10,
+        pass2=1, rm=0, proximity=5, mingood=5, debug=False)
 
     Dealias using the FourDD algorithm.
 
@@ -96,6 +101,59 @@ cpdef fourdd_dealias(_RslVolume radialVelVolume,
         Flag controlling thresholding of DZvolume, 1 = yes, 0 = no.
     filt : int
         Flag controlling Bergen and Albers filter, 1 = yes, 0 = no.
+    
+    Other Parameter
+    ---------------
+    lowdbz : float
+        Lowest allowed reflectivity.  Gates with reflectivities below this
+        value are filtered and not included in the dealiasing.
+    highdbz : float 
+        Highest allowed reflectivity.  Gates with reflectivities above this
+        value are filtered and not included in the dealiasing.
+    rm_missing : int
+        Flag to remove gates where the reflectivity is missing.  A value of 1
+        will remove the gates, a value of 0 will retain them.
+    compthresh : float
+        Fraction of the Nyquist velocity to use as a threshold when performing
+        continity (initial) dealiasing.  Velocities differences above this
+        threshold will not be marked as gate from which to begin unfolding 
+        during spatial dealiasing.
+    compthresh2 : float
+        The same as compthresh but the value used during the second pass of 
+        dealasing.  This second pass is only performed in both a sounding
+        and last volume are provided.
+    thresh : float
+        Fraction of the Nyquist velocity to use as a threshold when performing
+        spatial dealiasing.  Horizontally adjacent gates with velocities above
+        this theshold will count against assigning the gate in question the
+        velocity value being tested.
+    ckval : float
+        When the absolute value of the velocities are below this value they
+        will not be marked as gates from which to begin unfolding during
+        spatial dealiasing.
+    stdthresh : float
+       Fraction of the Nyquist velocity to use as a standard deviation
+       threshold in the window dealiasing portion of the algorithm.
+    maxcount : int
+        Maximum allowed number of fold allowed when unfolding velocities.
+    pass2 : int
+        Controls weather unfolded gates should be removed (a value of 0)
+        or retained for unfolding during the second pass (a value of 1) when
+        both a sounding volume and last volume are provided.
+    rm : int
+        Determines what should be done with gates that are left unfolded 
+        after the first pass of dealiasing.  A value of 1 will remove these
+        gates, a value of 0 sets these gates to their initial velocity.  If
+        both a sounding volume and last volume are provided this parameter is
+        ignored.
+    proximity : int
+        Number of gates and rays to include of either side of the current gate
+        during window dealiasing.  This value may be doubled in cases where
+        a standard sized window does not capture a sufficient number of 
+        good valued gates.
+    mingood : int
+        Number of good valued gates required within the window before the
+        current gate will be unfolded.
     debug : bool
         True to return RSL Volume objects for debugging:
         usuccess, radialVelVolume, lastVelVolume, soundVolume, DZvolume,
@@ -117,10 +175,6 @@ cpdef fourdd_dealias(_RslVolume radialVelVolume,
     """
     cdef _RslVolume unfoldedVolume
     cdef float MISSINGVEL = 131072.0
-    cdef float LOWDBZ = 0.0
-    cdef float HIGHDBZ = 80.0
-    cdef int RM_MISSING = 0 
-    cdef unsigned short usuccess = 0
 
     if lastVelVolume is None and soundVolume is None:
         raise ValueError('lastVelVolume or soundVolume must be defined')
@@ -137,24 +191,32 @@ cpdef fourdd_dealias(_RslVolume radialVelVolume,
         # the accepted interval.
         flag = _fourdd_h.filter_by_reflectivity(
             DZvolume._Volume, unfoldedVolume._Volume, MISSINGVEL, 
-            LOWDBZ, HIGHDBZ, RM_MISSING)
+            lowdbz, highdbz, rm_missing)
         if flag == 0:
             raise ValueError('Reflectivity filtering failed')
 
     # unfold the velocity fields in unfoldedVolume
     if lastVelVolume is None:   # only soundVolume
-        _fourdd_h.unfoldVolume(unfoldedVolume._Volume, soundVolume._Volume,
-                               NULL,
-                               MISSINGVEL, filt, &usuccess)
+        usuccess  = _fourdd_h.dealias_fourdd(
+            unfoldedVolume._Volume, soundVolume._Volume, NULL, 
+            MISSINGVEL, compthresh, compthresh2, thresh,
+            ckval, stdthresh,
+            maxcount, pass2, rm, proximity, mingood,
+            filt)
     elif soundVolume is None:   # only lastVelVolume
-        _fourdd_h.unfoldVolume(unfoldedVolume._Volume, NULL,
-                               lastVelVolume._Volume,
-                               MISSINGVEL, filt, &usuccess)
+        usuccess = _fourdd_h.dealias_fourdd(
+            unfoldedVolume._Volume, NULL, lastVelVolume._Volume,
+            MISSINGVEL, compthresh, compthresh2, thresh,
+            ckval, stdthresh, 
+            maxcount, pass2, rm, proximity, mingood, 
+            filt)
     else:   # both soundVolume and lastVelVolume
-        _fourdd_h.unfoldVolume(unfoldedVolume._Volume, soundVolume._Volume,
-                               lastVelVolume._Volume,
-                               MISSINGVEL, filt, &usuccess)
-
+        usuccess = _fourdd_h.dealias_fourdd(
+            unfoldedVolume._Volume, soundVolume._Volume, lastVelVolume._Volume,
+            MISSINGVEL, compthresh, compthresh2, thresh,
+            ckval, stdthresh,
+            maxcount, pass2, rm, proximity, mingood,  
+            filt)
     if debug:
         return (usuccess, radialVelVolume, lastVelVolume, soundVolume,
                 DZvolume, unfoldedVolume)

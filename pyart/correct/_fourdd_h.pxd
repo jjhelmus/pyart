@@ -4,11 +4,13 @@ Cython wrapper around University of Washington 4DD code.
 
 cimport pyart.io._rsl_h as _rsl_h
 
-cdef extern from "fourdd_jjh.h":
+cdef extern from "dealias_fourdd.h":
 
-    void unfoldVolume(_rsl_h.Volume* rvVolume, _rsl_h.Volume* soundVolume,
-                      _rsl_h.Volume* lastVolume, float missingVal,
-                      unsigned short rm, unsigned short* success)
+    int dealias_fourdd(_rsl_h.Volume* rvVolume, _rsl_h.Volume* soundVolume,
+                       _rsl_h.Volume* lastVolume, float missingVal,
+                       float compthresh, float compthresh2, float thresh,
+                       float ckval, float stdthresh, int maxcount, int pass2,
+                       int rm, int proximity, int mingood, int filt)
 
 
 cdef extern from "filter_by_reflectivity.h":
@@ -23,5 +25,3 @@ cdef extern from "sounding_to_volume.h":
                            float *height_array, float *speed_array,
                            float *direction_array, int nlevels, 
                            float maxshear, int sign)
-
-

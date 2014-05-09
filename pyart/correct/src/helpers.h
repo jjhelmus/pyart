@@ -17,8 +17,6 @@
 
 #ifndef FDD_H
 #define FDD_H
-#define MAXRAYS   500      /* added by SRB 980310 */
-#define MAXBINS 2048
 
 #include <rsl.h> /* Sweep */ 
 

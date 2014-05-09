@@ -29,10 +29,8 @@
 */
 
 /* TODO
- * 
- * - Remove use of constants, add these to structure and make arguments to
- *   unfoldVolume function.
- * - Refactor and clean.
+ * - Allocated GOOD array with no preset size
+ * - Additional Refactoring
  * - change == and != missingVal to better floating point comparisons
  */
 
@@ -51,10 +49,9 @@
  * Private data and functions *
  ******************************/
 typedef struct DealiasParams {
-    float missingVal;   /* The threshold for performing initial dealiasing 
-                         * using a previously unfolded volume. */
+    float missingVal;  
     float compthresh;   /* The threshold for performing initial dealiasing 
-                         * using sounding (or VAD). */
+                         * using a previously unfolded volume. */ 
     float ckval;        /* If absolute value of the radial velocity gate is less 
                          * than this value, it will not be used as a PRELIM gate. */
     float thresh;       /* The unfolding threshold for unfolding using horizontal
@@ -63,7 +60,7 @@ typedef struct DealiasParams {
     int pass2;          /* Flag specifying the use of a second pass using only the
                          *  sounding (or VAD).*/
     int rm;             /* If soundvolume is not available, remove cells left
-                           over after first pass. */
+                         * over after first pass. */
     int proximity;      /* For unfolding using windowing.*/
     float compthresh2;  /* The threshold for performing initial dealiasing 
                          * using sounding (or VAD). */
@@ -899,10 +896,12 @@ static void second_pass(
 ** filt: A flag that specifies whether or not to use Bergen/Albers filter.
 ** success: flag indicating whether or not unfolding is possible.
 */
-void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
-      float missingVal, unsigned short filt, unsigned short* success) 
+int dealias_fourdd(
+    Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
+    float missingVal, float compthresh, float compthresh2, float thresh,
+    float ckval, float stdthresh,
+    int maxcount, int pass2, int rm, int proximity, int mingood, int filt)
 {
-
     int sweepIndex, numSweeps;
     int step = -1;
     short GOOD[MAXBINS][MAXRAYS]; 
@@ -912,23 +911,21 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
 
     /* Fill in Dealiasing parameters from arguments */
     dp.missingVal = missingVal;
-    /* XXX make these all function arguments */
-    dp.compthresh = 0.25;
-    dp.ckval = 1.0;
-    dp.thresh = 0.4;
-    dp.maxcount = 10;
-    dp.pass2 = 1;
-    dp.rm = 0;
-    dp.proximity = 5;
-    dp.compthresh2 = 0.49;
-    dp.mingood = 5;
-    dp.stdthresh = 0.8;
+    dp.compthresh = compthresh;
+    dp.compthresh2 = compthresh2;
+    dp.thresh = thresh;
+    dp.ckval = ckval;
+    dp.stdthresh = stdthresh;
+    dp.maxcount = maxcount;
+    dp.pass2 = pass2;
+    dp.rm = rm;
+    dp.proximity = proximity;
+    dp.mingood = mingood;
 
     /* Either a sounding or last volume must be provided */
     if (soundVolume==NULL && lastVolume==NULL) {
         printf("First guess not available.\n");
-        *success=0;
-        return;
+        return 0;
     }
     
     numSweeps = rvVolume->h.nsweeps;
@@ -976,6 +973,5 @@ void unfoldVolume(Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
             spatial_dealias(&sweepc, &dp, GOOD, &step, 2);
         }
     } // end of loop over sweeps
-    *success=1;
-    return;
+    return 1;
 }
