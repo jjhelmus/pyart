@@ -2,8 +2,7 @@
  * Unfold the doppler velocity data for a single radar volume using 
  * sounding data and/or a priviously unfolded volume.
  *  
- * Adapted from routines from:
- * 
+ * Adapted from routines f* 
  * UW Radial Velocity Dealiasing Algorithm
  * Four-Dimensional Dealiasing (4DD)
  * 
@@ -29,8 +28,8 @@
 */
 
 /* TODO
- * - Additional Refactoring
- * - change == and != missingVal to better floating point comparisons
+ * - Remove requirement on RSL??
+ * - Check/fix XXX and TODO in code  
  */
 
 #include "helpers.h"
@@ -45,6 +44,7 @@
 
 typedef struct DealiasParams {
     float missingVal;  
+    float epsilon;  
     float compthresh;   /* The threshold for performing initial dealiasing 
                          * using a previously unfolded volume. */ 
     float ckval;        /* If absolute value of the radial velocity gate is less 
@@ -112,6 +112,27 @@ static void set_mark_ray(Marks *marks, Sweep *sweep,
     return;
 }
 
+
+/* Check a value against missing value */
+/* XXX instead of == check that less than epsilon */
+static int is_missing(float val, DealiasParams *dp)
+{
+    if (val == dp->missingVal)
+    /* XXX if ((val - dp->missingVal) <= dp->epsilon) */
+        return 1;
+    else
+        return 0;
+}
+
+static int not_missing(float val, DealiasParams *dp)
+{
+    if (val == dp->missingVal)
+    /* XXX if ((val - dp->missingVal) <= dp->epsilon) */
+        return 0;
+    else
+        return 1;
+}
+
 /* 
  * Functions used by multiple other functions
  */
@@ -138,40 +159,40 @@ static float min_diff(float *val, float cval, float NyqVelocity, int maxcount)
 
 /* Count the number of neighbors which are not missing value */
 static int count_nonmissing_neighbors(
-    Sweep *sweep, int currIndex, int i, float missingVal)
+    Sweep *sweep, int ray_index, int i, DealiasParams *dp)
 {
     int countindex = 0;
     int left, right, next, prev;
 
-    if (currIndex == 0) 
+    if (ray_index == 0) 
         left = sweep->h.nrays-1;
     else 
-        left = currIndex - 1;
-    if (currIndex == sweep->h.nrays-1) 
+        left = ray_index - 1;
+    if (ray_index == sweep->h.nrays-1) 
         right = 0;
     else 
-        right = currIndex+1;
+        right = ray_index+1;
     next = i+1;
     prev = i-1;
     /* Look at all bins adjacent to current bin in question: */
     if (i != 0) {
-    if (ray_val(sweep->ray[left], prev) != missingVal)
-        countindex++;
-    if (ray_val(sweep->ray[currIndex], prev) != missingVal)
-        countindex++;
-    if (ray_val(sweep->ray[right], prev) != missingVal)
-        countindex++;
+        if (not_missing(ray_val(sweep->ray[left], prev), dp))
+            countindex++;
+        if (not_missing(ray_val(sweep->ray[ray_index], prev), dp))
+            countindex++;
+        if (not_missing(ray_val(sweep->ray[right], prev), dp))
+            countindex++;
     }
-    if (ray_val(sweep->ray[left], i) != missingVal)
+    if (not_missing(ray_val(sweep->ray[left], i), dp))
         countindex++;
-    if (ray_val(sweep->ray[right], i) != missingVal)
+    if (not_missing(ray_val(sweep->ray[right], i), dp))
         countindex++;
     if (i < sweep->ray[0]->h.nbins-1) {  
-        if (ray_val(sweep->ray[left], next) != missingVal)
+        if (not_missing(ray_val(sweep->ray[left], next), dp))
             countindex++;
-        if (ray_val(sweep->ray[currIndex], next)!= missingVal)
+        if (not_missing(ray_val(sweep->ray[ray_index], next), dp))
             countindex++;
-        if (ray_val(sweep->ray[right], next) != missingVal)
+        if (not_missing(ray_val(sweep->ray[right], next), dp))
             countindex++;
     }
     return countindex;
@@ -179,18 +200,19 @@ static int count_nonmissing_neighbors(
 
 /* Perform a 3x3 missing value Berger and Albers filter */
 /* TODO remove use of 5 and 3 magic values */
-static void berger_albers_filter(Sweep *sweep, float missingVal, Marks *marks)
+static void berger_albers_filter(
+    Sweep *sweep, DealiasParams *dp, Marks *marks)
 {
     int ray_index, i, count;
     float val;
     for (ray_index=0; ray_index < sweep->h.nrays; ray_index++) {
         for (i=0; i < sweep->ray[0]->h.nbins; i++) {
             val = ray_val(sweep->ray[ray_index], i); 
-            if (val==missingVal) {
+            if (is_missing(val, dp)) {
                 set_mark(marks, ray_index, i, -1);
             } else {
                 count = count_nonmissing_neighbors(
-                    sweep, ray_index, i, missingVal);
+                    sweep, ray_index, i, dp);
                 if (count >= 5)
                     set_mark(marks, ray_index, i, 0);
                 else if (i == (sweep->ray[0]->h.nbins - 1) && count >= 3)
@@ -208,14 +230,14 @@ static void berger_albers_filter(Sweep *sweep, float missingVal, Marks *marks)
 
 /* Mark with zeros all location where the value in sweep is not missing, mark
  * with zero if missing */
-static void init_marks(Sweep *sweep, float missingVal, Marks *marks)
+static void init_marks(Sweep *sweep, DealiasParams *dp, Marks *marks)
 {
     int ray_index, i;
     float val;
     for (ray_index=0; ray_index < sweep->h.nrays; ray_index++) {
-        for (i=0; i<sweep->ray[0]->h.nbins; i++) {
+        for (i=0; i < sweep->ray[0]->h.nbins; i++) {
             val = ray_val(sweep->ray[ray_index], i); 
-            if (val==missingVal)
+            if (is_missing(val, dp))
                 set_mark(marks, ray_index, i, -1);
             else
                 set_mark(marks, ray_index, i, 0);
@@ -230,10 +252,10 @@ static void init_marks(Sweep *sweep, float missingVal, Marks *marks)
 /* Initalize (fill) a sweep with a given value */
 static void init_sweep(Sweep *sweep, float val)
 {
-    int currIndex, i;
-    for (currIndex=0; currIndex<sweep->h.nrays; currIndex++) {
+    int ray_index, i;
+    for (ray_index=0; ray_index < sweep->h.nrays; ray_index++) {
         for (i=0; i<sweep->ray[0]->h.nbins; i++) {
-            ray_set(sweep->ray[currIndex], i, val);
+            ray_set(sweep->ray[ray_index], i, val);
         }
     }
 }
@@ -242,9 +264,8 @@ static void init_sweep(Sweep *sweep, float val)
  * Continuity Dealising (initial dealias) functions 
  */
 
-/* Finds the rayindex of the nearest ray in sweep2 to
- * the currIndex ray in sweep1. */
-static int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex) 
+/* Finds the rayindex of the nearest ray in sweep2 to a ray in sweep1. */
+static int findRay(Sweep *sweep1, Sweep *sweep2, int ray_index) 
 {
     int numRays, rayIndex1;
     float az0, az1, diffaz;
@@ -253,12 +274,12 @@ static int findRay(Sweep *sweep1, Sweep *sweep2, int currIndex)
     
     numRays = sweep2->h.nrays;
 
-    if (currIndex<numRays) 
-        rayIndex1=currIndex;
+    if (ray_index < numRays) 
+        rayIndex1=ray_index;
     else 
         rayIndex1=numRays-1;
     
-    az0 = sweep1->ray[currIndex]->h.azimuth;
+    az0 = sweep1->ray[ray_index]->h.azimuth;
     az1 = sweep2->ray[rayIndex1]->h.azimuth;
     if (az0 == az1) {
         return rayIndex1;
@@ -351,7 +372,7 @@ static void continuity_dealias(
            
             if (get_mark(marks, ray_index, i) != 0) continue;
             val = ray_val(sweepc->vals->ray[ray_index], i);
-            if (val == dp->missingVal) continue;
+            if (is_missing(val, dp)) continue;
             if (fabs(val) <= dp->ckval) continue;
             
             /* find velocities in related sweeps */
@@ -364,8 +385,8 @@ static void continuity_dealias(
                 abval=ray_val(sweepc->above->ray[abIndex], i);
             
             if (sweepc->last == NULL) {
-                if (soundval == dp->missingVal) continue;
-                if (abval == dp->missingVal) {
+                if (is_missing(soundval, dp)) continue;
+                if (is_missing(abval, dp)) {
                     diff = min_diff(&val, soundval, sweepc->NyqVelocity, 
                                     dp->maxcount);
                     if (diff < thresh)
@@ -377,7 +398,7 @@ static void continuity_dealias(
                         set_mark_ray(marks, sweepc->rv, ray_index, i, 1, val);
                 }
             } else {
-                if (prevval != dp->missingVal && abval != dp->missingVal) {
+                if (not_missing(prevval, dp) && not_missing(abval, dp)) {
                     diff = min_diff(&val, prevval, sweepc->NyqVelocity,
                                     dp->maxcount);
                     if (diff < thresh && fabs(abval-val) < thresh)
@@ -387,7 +408,6 @@ static void continuity_dealias(
         }
     }
 }
-
 
 /* Mark gates where all neighbors are marked with a 0 as -1 */
 static void mark_neighborless(
@@ -485,7 +505,7 @@ static void unfold_adjacent(SweepCollection *sweepc, DealiasParams *dp,
     float diff, val;
     val = ray_val(sweepc->vals->ray[ray_index], i); 
     numtimes=0;
-    while(val != dp->missingVal && get_mark(marks, ray_index, i) == 0) {
+    while(not_missing(val, dp) && get_mark(marks, ray_index, i) == 0) {
         numtimes++;
         in = out = numneg = numpos = 0;
         for (l=0; l<countindex; l++) {
@@ -536,7 +556,7 @@ static void unfold_adjacent2(SweepCollection *sweepc, DealiasParams *dp,
     float diff, val;
     val = ray_val(sweepc->vals->ray[ray_index], i); 
     numtimes=0;
-    while(val != dp->missingVal && get_mark(marks, ray_index, i) == 0) {
+    while(not_missing(val, dp) && get_mark(marks, ray_index, i) == 0) {
         numtimes++;
         in = out = numneg = numpos = 0;
         for (l=0; l<countindex; l++) {
@@ -618,8 +638,8 @@ static void spatial_dealias(
                             binindex, rayindex);
                     }
                 
-                    /* This only needs to be performed on the first pass of the spatial
-                    dealiasing */
+                    /* only performed on the first pass of the spatial
+                     * dealiasing */
                     if (loopcount==1 && countindex<1) {
                     mark_neighborless(marks, ray_index, i, 
                                       sweepc->nrays, sweepc->nbins);
@@ -673,7 +693,7 @@ static float window(
         if (startray>endray){
             for (ray_index=startray; ray_index<numRays; ray_index++) {
 	            val = ray_val(rv_sweep->ray[ray_index], rangeIndex);
-	            if (val != dp->missingVal) {
+	            if (not_missing(val, dp)) {
 	                num++;
 	                sum+=val;
 	                sumsq+=(val*val);
@@ -681,7 +701,7 @@ static float window(
 	        }
             for (ray_index=0; ray_index<=endray; ray_index++) {
 	            val = ray_val(rv_sweep->ray[ray_index], rangeIndex);
-	            if (val != dp->missingVal) {
+	            if (not_missing(val, dp)) {
 	                num++;
 	                sum+=val;
 	                sumsq+=(val*val);
@@ -690,7 +710,7 @@ static float window(
         } else {
             for (ray_index=startray; ray_index<=endray; ray_index++) { 
 	            val = ray_val(rv_sweep->ray[ray_index], rangeIndex);
-	            if (val != dp->missingVal) {
+                if (not_missing(val, dp)) {
 	                num++;
 	                sum+=val;
 	                sumsq+=(val*val);
@@ -730,7 +750,7 @@ static float find_window(
     if (lastbin > numBins-1) lastbin = numBins - 1;
     winval=window(dp, rv_sweep, startray, endray, 
                    firstbin, lastbin, wsuccess);
-    if (winval == dp->missingVal && *wsuccess == 1) {     
+    if (is_missing(winval, dp) && *wsuccess == 1) {     
         /* Expand the window: */
         startray = ray_index - 2 * dp->proximity;
         endray = ray_index + 2 * dp->proximity;
@@ -763,7 +783,7 @@ static void unfold_remote(
                 continue;
             val = ray_val(sweepc->vals->ray[ray_index], i); 
             winval = find_window(dp, sweepc->rv, ray_index, i, &wsuccess);
-            if (winval != dp->missingVal) {
+            if (not_missing(winval, dp)) {
                 
                 /* Add or subtract Nyquist intervals until within range */
                 for (j=0; j < dp->maxcount; j++) {
@@ -827,11 +847,11 @@ static void second_pass(
     
             if (get_mark(marks, ray_index, i) != 0) continue;
             val = ray_val(sweepc->vals->ray[ray_index], i);
-            if (val == dp->missingVal) continue; 
+            if (is_missing(val, dp)) continue; 
             if (fabs(val) <= dp->ckval) continue;
             
             soundval = ray_val(sweepc->sound->ray[ray_index], i);
-            if (soundval == dp->missingVal) continue; 
+            if (is_missing(soundval, dp)) continue; 
 
             diff = min_diff(&val, soundval, sweepc->NyqVelocity, dp->maxcount); 
             if (diff < dp->compthresh2 * sweepc->NyqVelocity)
@@ -839,8 +859,6 @@ static void second_pass(
         }
     }
 }
-
-
 
 /********************
  * Public functions *
@@ -923,6 +941,7 @@ int dealias_fourdd(
 
     /* Fill in Dealiasing parameters from arguments */
     dp.missingVal = missingVal;
+    dp.epsilon = 0.00001;           /* XXX set-able from function */
     dp.compthresh = compthresh;
     dp.compthresh2 = compthresh2;
     dp.thresh = thresh;
@@ -956,9 +975,9 @@ int dealias_fourdd(
         /* Mark gates with -1 missing value or 0 where not missing.
          * If requested the Berger Albers 3x3 filter is applied. */
         if (filt == 1)
-            berger_albers_filter(sweepc.vals, dp.missingVal, &marks);
+            berger_albers_filter(sweepc.vals, &dp, &marks);
         else
-            init_marks(sweepc.vals, dp.missingVal, &marks);
+            init_marks(sweepc.vals, &dp, &marks);
     
         /* Initialize the output sweep with missingVal */
         init_sweep(sweepc.rv, dp.missingVal);
