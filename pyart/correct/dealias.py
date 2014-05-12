@@ -9,7 +9,7 @@ Front end to the University of Washington 4DD code for Doppler dealiasing.
 
     dealias_fourdd
     find_time_in_interp_sonde
-
+    _create_rsl_volume
 
 """
 # Nothing from this module is imported to pyart.correct if RSL is not
@@ -102,8 +102,8 @@ def dealias_fourdd(radar, last_radar=None, sounding_heights=None,
 
     Notes
     -----
-    Due to limitations in the C code do not call with numpy arrays over 900
-    elements long
+    Due to limitations in the C code do not call with sounding arrays over
+    999 elements long.
 
     References
     ----------
@@ -134,44 +134,14 @@ def dealias_fourdd(radar, last_radar=None, sounding_heights=None,
     # get fill value
     fill_value = get_fillvalue()
 
-    # transform the dimension of the field arrays from the CF/Radial standard
-    # of (ns*nr, ng) to the RSL standard of (ns, nr, ng) where
-    #
-    # ns = number of sweeps
-    # nr = number of rays per sweep
-    # ng = number of range gates
-    nshape = (radar.nsweeps, -1, radar.ngates)
+    # create RSL volumes containing the reflectivity, doppler velocity, and
+    # doppler velocity in the last radar (if provided)
+    refl_volume = _create_rsl_volume(radar, refl_field, 0, rsl_badval)
+    vel_volume = _create_rsl_volume(radar, vel_field, 1, rsl_badval)
 
-    # extract the reflectivity and create a RslVolume containing it
-    refl_array = np.copy(radar.fields[refl_field]['data'])
-    refl_array = refl_array.reshape(nshape).astype(np.float32)
-    refl_array = np.ma.filled(refl_array, fill_value)
-    is_bad_refl = np.logical_or(refl_array == fill_value, np.isnan(refl_array))
-    refl_array[is_bad_refl] = rsl_badval
-    refl_volume = _rsl_interface.create_volume(refl_array, 0)
-    _rsl_interface._label_volume(refl_volume, radar)
-
-    # extract the Doppler velocity and create a RslVolume containing it
-    vel_array = np.copy(radar.fields[vel_field]['data'])
-    vel_array = vel_array.reshape(nshape).astype(np.float32)
-    vel_array = np.ma.filled(vel_array, fill_value)
-    is_bad_vel = np.logical_or(vel_array == fill_value, np.isnan(vel_array))
-    vel_array[is_bad_vel] = rsl_badval
-    vel_volume = _rsl_interface.create_volume(vel_array, 1)
-    _rsl_interface._label_volume(vel_volume, radar)
-
-    # extract the Doppler velocity from the previous volume scan and create a
-    # RslVolume containing it
     if last_radar is not None:
-        nshape_last = (last_radar.nsweeps, -1, last_radar.ngates)
-        last_vel_array = np.copy(last_radar.fields[last_vel_field]['data'])
-        last_vel_array = last_vel_array.reshape(nshape_last).astype(np.float32)
-        last_vel_array = np.ma.filled(last_vel_array, fill_value)
-        is_bad_last = np.logical_or(last_vel_array == fill_value,
-                                    np.isnan(last_vel_array))
-        last_vel_array[is_bad_last] = rsl_badval
-        last_vel_volume = _rsl_interface.create_volume(last_vel_array, 1)
-        _rsl_interface._label_volume(last_vel_volume, last_radar)
+        last_vel_volume = _create_rsl_volume(
+            last_radar, last_vel_field, 1, rsl_badval)
     else:
         last_vel_volume = None
 
@@ -199,27 +169,37 @@ def dealias_fourdd(radar, last_radar=None, sounding_heights=None,
         vel_volume, last_vel_volume, sound_volume, refl_volume, prep, filt,
         debug=False, **kwargs)
 
-    # prepare data for output, which includes reshaping, setting bad values,
-    # and masking data
-    data.shape = (-1, radar.ngates)
+    # prepare data for output, set bad values and mask data
     is_bad_data = np.logical_or(np.isnan(data), data == rsl_badval)
-
     if keep_original:
-        vel_array.shape = (-1, radar.ngates)
-        vel_array[vel_array == rsl_badval] = fill_value
+        vel_array = radar.fields[vel_field]['data']
         data = np.where(is_bad_data, vel_array, data)
     else:
         data[is_bad_data] = fill_value
-
     data = np.ma.masked_equal(data, fill_value)
 
-    # create and return field dictionary containing dealiased Doppler
-    # velocities
+    # return field dictionary containing dealiased Doppler velocities
     vr_corr = get_metadata(corr_vel_field)
     vr_corr['data'] = data
     vr_corr['_FillValue'] = data.fill_value
-
     return vr_corr
+
+
+def _create_rsl_volume(radar, field_name, vol_num, rsl_badval):
+    """
+    Create a RSLVolume containing data from a field in radar.
+    """
+    fill_value = get_fillvalue()
+    fdata = np.copy(radar.fields[field_name]['data']).astype(np.float32)
+    fdata = np.ma.filled(fdata, fill_value)
+    is_bad = np.logical_or(fdata == fill_value, np.isnan(fdata))
+    fdata[is_bad] = rsl_badval
+    rays_per_sweep = (radar.sweep_end_ray_index['data'] -
+                      radar.sweep_start_ray_index['data'] + 1)
+    rays_per_sweep = rays_per_sweep.astype(np.int32)
+    rsl_volume = _rsl_interface.create_volume(fdata, rays_per_sweep, vol_num)
+    _rsl_interface._label_volume(rsl_volume, radar)
+    return rsl_volume
 
 
 def find_time_in_interp_sonde(interp_sonde, target, debug=False):
