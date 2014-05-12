@@ -72,14 +72,16 @@ cpdef fourdd_dealias(
     _RslVolume soundVolume,_RslVolume DZvolume,
     prep, filt, 
     lowdbz=0.0, highdbz=80.0, rm_missing=0, compthresh=0.25, compthresh2=0.49,
-    thresh=0.4, ckval=1.0, stdthresh=0.8, maxcount=10, pass2=1, rm=0,
-    proximity=5, mingood=5, debug=False):
+    thresh=0.4, ckval=1.0, stdthresh=0.8, epsilon=0.00001, maxcount=10,
+    pass2=1, rm=0, proximity=5, mingood=5, ba_mincount=5, ba_edgecount=3, 
+    debug=False):
     """
     fourdd_dealias(
         radialVelVolume, lastVelVolume, soundVolume, DZvolume, prep, filt, 
         lowdbz=0.0, highdbz=80.0, rm_missing=0, compthresh=0.25,
-        compthresh2=0.49, thresh=0.4, ckval=1.0, stdthresh=0.8, maxcount=10,
-        pass2=1, rm=0, proximity=5, mingood=5, debug=False)
+        compthresh2=0.49, thresh=0.4, epsilon=0.00001, ckval=1.0,
+        stdthresh=0.8, maxcount=10, pass2=1, rm=0, proximity=5, mingood=5,
+        ba_mincount=5, ba_edgecount=3, debug=False)
 
     Dealias using the FourDD algorithm.
 
@@ -134,6 +136,9 @@ cpdef fourdd_dealias(
     stdthresh : float
        Fraction of the Nyquist velocity to use as a standard deviation
        threshold in the window dealiasing portion of the algorithm.
+    epsilon : float
+        Difference used when comparing a value to missing value, changing this
+        from the default is not recommended.
     maxcount : int
         Maximum allowed number of fold allowed when unfolding velocities.
     pass2 : int
@@ -154,6 +159,12 @@ cpdef fourdd_dealias(
     mingood : int
         Number of good valued gates required within the window before the
         current gate will be unfolded.
+    ba_mincount : int
+        Number of neighbors required during Bergen and Albers filter for
+        a given gate to be included, must be between 1 and 8, 5 recommended.
+    ba_edgecount : int
+        Same as ba_mincount but used at ray edges, must be between 1 and 5, 
+        3 recommended.
     debug : bool
         True to return RSL Volume objects for debugging:
         usuccess, radialVelVolume, lastVelVolume, soundVolume, DZvolume,
@@ -200,23 +211,23 @@ cpdef fourdd_dealias(
         usuccess  = _fourdd_h.dealias_fourdd(
             unfoldedVolume._Volume, soundVolume._Volume, NULL, 
             MISSINGVEL, compthresh, compthresh2, thresh,
-            ckval, stdthresh,
+            ckval, stdthresh, epsilon,
             maxcount, pass2, rm, proximity, mingood,
-            filt)
+            filt, ba_mincount, ba_edgecount)
     elif soundVolume is None:   # only lastVelVolume
         usuccess = _fourdd_h.dealias_fourdd(
             unfoldedVolume._Volume, NULL, lastVelVolume._Volume,
             MISSINGVEL, compthresh, compthresh2, thresh,
-            ckval, stdthresh, 
+            ckval, stdthresh, epsilon,
             maxcount, pass2, rm, proximity, mingood, 
-            filt)
+            filt, ba_mincount, ba_edgecount)
     else:   # both soundVolume and lastVelVolume
         usuccess = _fourdd_h.dealias_fourdd(
             unfoldedVolume._Volume, soundVolume._Volume, lastVelVolume._Volume,
             MISSINGVEL, compthresh, compthresh2, thresh,
-            ckval, stdthresh,
+            ckval, stdthresh, epsilon, 
             maxcount, pass2, rm, proximity, mingood,  
-            filt)
+            filt, ba_mincount, ba_edgecount)
     if debug:
         return (usuccess, radialVelVolume, lastVelVolume, soundVolume,
                 DZvolume, unfoldedVolume)

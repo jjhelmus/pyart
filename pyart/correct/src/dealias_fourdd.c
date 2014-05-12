@@ -27,11 +27,6 @@
 **
 */
 
-/* TODO
- * - Remove requirement on RSL??
- * - Check/fix XXX and TODO in code  
- */
-
 #include "helpers.h"
 #include <stdio.h>
 #include <math.h>
@@ -43,8 +38,8 @@
  ******************************/
 
 typedef struct DealiasParams {
-    float missingVal;  
-    float epsilon;  
+    float missingVal;   /* value used to mark missing values in sweeps */ 
+    float epsilon;      /* minimum distance to use when checking for missingVal */
     float compthresh;   /* The threshold for performing initial dealiasing 
                          * using a previously unfolded volume. */ 
     float ckval;        /* If absolute value of the radial velocity gate is less 
@@ -63,6 +58,14 @@ typedef struct DealiasParams {
                          *  to unfold the current bin. */
     float stdthresh;    /* Fraction of the Nyquist velocity to use as a standard
                          *  deviation threshold when windowing. */
+    int ba_mincount;    /* Minimum number of non-missing neighbors to require
+                         * during Berger and Albers 3x3 filter, a value of
+                         * 5 will include points where a majority of neighbors
+                         * are non-missing (MUST be between 1 and 8). */
+    int ba_edgecount;   /* Same as ba_mincount except used at ray edges
+                         * which have only 5 neightbors, a value of 3 will 
+                         * keep those gates where a majority of neightbors
+                         * are non-missing (MUST be between 1 and 5). */
 } DealiasParams;
 
 /* Structure for storing data on sweeps being examined for unfolding */
@@ -114,11 +117,10 @@ static void set_mark_ray(Marks *marks, Sweep *sweep,
 
 
 /* Check a value against missing value */
-/* XXX instead of == check that less than epsilon */
 static int is_missing(float val, DealiasParams *dp)
 {
-    if (val == dp->missingVal)
-    /* XXX if ((val - dp->missingVal) <= dp->epsilon) */
+    //if (val == dp->missingVal)
+    if (fabs(val - dp->missingVal) < dp->epsilon)
         return 1;
     else
         return 0;
@@ -126,8 +128,8 @@ static int is_missing(float val, DealiasParams *dp)
 
 static int not_missing(float val, DealiasParams *dp)
 {
-    if (val == dp->missingVal)
-    /* XXX if ((val - dp->missingVal) <= dp->epsilon) */
+    //if (val == dp->missingVal)
+    if (fabs(val - dp->missingVal) < dp->epsilon)
         return 0;
     else
         return 1;
@@ -199,7 +201,6 @@ static int count_nonmissing_neighbors(
 }
 
 /* Perform a 3x3 missing value Berger and Albers filter */
-/* TODO remove use of 5 and 3 magic values */
 static void berger_albers_filter(
     Sweep *sweep, DealiasParams *dp, Marks *marks)
 {
@@ -213,9 +214,10 @@ static void berger_albers_filter(
             } else {
                 count = count_nonmissing_neighbors(
                     sweep, ray_index, i, dp);
-                if (count >= 5)
+                if (count >= dp->ba_mincount)
                     set_mark(marks, ray_index, i, 0);
-                else if (i == (sweep->ray[0]->h.nbins - 1) && count >= 3)
+                else if (i == (sweep->ray[0]->h.nbins - 1) && 
+                         count >= dp->ba_edgecount)
                     set_mark(marks, ray_index, i, 0);
                 else
                     set_mark(marks, ray_index, i, -1);
@@ -546,7 +548,8 @@ static void unfold_adjacent(SweepCollection *sweepc, DealiasParams *dp,
     }
 }
 
-/* XXX similar to unfold_adjacent but slighly different XXX */
+/* similar to unfold_adjacent but slighly different, used 
+ * during second pass of dealiasing */
 static void unfold_adjacent2(SweepCollection *sweepc, DealiasParams *dp,
     Marks *marks, int i, int ray_index, int countindex, int loopcount,
     int binindex[8], int rayindex[8]
@@ -903,8 +906,9 @@ static void second_pass(
 int dealias_fourdd(
     Volume* rvVolume, Volume* soundVolume, Volume* lastVolume,
     float missingVal, float compthresh, float compthresh2, float thresh,
-    float ckval, float stdthresh,
-    int maxcount, int pass2, int rm, int proximity, int mingood, int filt)
+    float ckval, float stdthresh, float epsilon,
+    int maxcount, int pass2, int rm, int proximity, int mingood, int filt,
+    int ba_mincount, int ba_edgecount)
 {
     int sweepIndex, numSweeps, maxrays, maxbins;
     int step = -1;
@@ -941,7 +945,7 @@ int dealias_fourdd(
 
     /* Fill in Dealiasing parameters from arguments */
     dp.missingVal = missingVal;
-    dp.epsilon = 0.00001;           /* XXX set-able from function */
+    dp.epsilon = epsilon;
     dp.compthresh = compthresh;
     dp.compthresh2 = compthresh2;
     dp.thresh = thresh;
@@ -952,6 +956,8 @@ int dealias_fourdd(
     dp.rm = rm;
     dp.proximity = proximity;
     dp.mingood = mingood;
+    dp.ba_mincount = ba_mincount;
+    dp.ba_edgecount = ba_edgecount;
 
     /* Loop over sweeps, unfolding each one */
     VALS=RSL_copy_volume(rvVolume); 
