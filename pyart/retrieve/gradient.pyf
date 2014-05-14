@@ -1,14 +1,18 @@
 !    -*- f90 -*-
 ! Note: the context of this file is case sensitive.
 
-subroutine density1d(rho,z,finite_scheme,fill_value,nz,drho) ! in gradient.f90
-    real(kind=8) dimension(nz),intent(in) :: rho
-    real(kind=8) dimension(nz),intent(in),depend(nz) :: z
-    character*16 intent(in) :: finite_scheme
-    real(kind=8) intent(in) :: fill_value
-    integer(kind=4), optional,intent(in),check(len(rho)>=nz),depend(rho) :: nz=len(rho)
-    real(kind=8) dimension(nz),intent(out),depend(nz) :: drho
-end subroutine density1d
+python module gradient ! in 
+    interface  ! in :gradient
+        subroutine density1d(rho,z,finite_scheme,fill_value,nz,drho) ! in :gradient:gradient.f90
+            real(kind=8) dimension(nz),intent(in) :: rho
+            real(kind=8) dimension(nz),intent(in),depend(nz) :: z
+            character*16 intent(in) :: finite_scheme
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4), optional,intent(in),check(len(rho)>=nz),depend(rho) :: nz=len(rho)
+            real(kind=8) dimension(nz),intent(out),depend(nz) :: drho
+        end subroutine density1d
+    end interface 
+end python module gradient
 
 ! This file was auto-generated with f2py (version:2).
 ! See http://cens.ioc.ee/projects/f2py2e/
