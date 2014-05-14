@@ -35,7 +35,6 @@ subroutine density1d(rho, z, finite_scheme, fill_value, nz, drho)
 
 !  ===========================================================================
 
-
    drho = fill_value
 
    !$omp parallel if(nz > 1000)
@@ -47,16 +46,15 @@ subroutine density1d(rho, z, finite_scheme, fill_value, nz, drho)
       !$omp do
       do k = 1, nz
 
-!        When in the interior of the grid,
+!        For interior grid points,
 !
 !        k = [2, nz-1]
 !
-!        use a centered difference scheme with p = 2. When at the boundaries
-!        of the grid,
+!        use a centered difference scheme. When at the boundaries of the grid,
 !
 !        k = 1, nz
 !
-!        use either a forward or backward difference scheme, both with p = 1
+!        use either a forward or backward difference scheme
 
          if (k > 1 .and. k < nz) then
             drho(k) = (rho(k+1) - rho(k-1)) / (z(k+1) - z(k-1))
@@ -78,52 +76,12 @@ subroutine density1d(rho, z, finite_scheme, fill_value, nz, drho)
       !$omp do
       do k = 1, nz
 
-!        When in the interior of the grid,
-!
-!        k = [4, nz-2]
-!
-!        use a centered difference scheme with p = 6. When near the
-!        boundaries of the grid,
-!
-!        k = 2, 3
-!
-!        still use centered difference schemes, but of lower accuracy, i.e.
-!        p = 2 or p = 4. When at the boundaries of the grid,
-!
-!        k = 1, nz
-!
-!        use either a forward or backward difference scheme, both with p = 6
-
-         if (k > 3 .and. k < nz - 2) then
-            drho(k) = (b3 * rho(k-3) + b2 * rho(k-2) - &
-                       b1 * rho(k-1) + b1 * rho(k+1) - &
-                       b2 * rho(k+2) - b3 * rho(k+3))
-
-         elseif (k > 2 .and. k < nz - 1) then
-            drho(k) = (a2 * rho(k-2) - a1 * rho(k-1) + &
-                       a1 * rho(k+1) - a2 * rho(k+2))
-
-         elseif (k > 1 .and. k < nz) then
-            drho(k) = (rho(k+1) - rho(k-1))
-
-         elseif (k == 1) then
-            drho(k) = (c0 * rho(k) + c1 * rho(k+1) + &
-                       c2 * rho(k+2) + c3 * rho(k+3) + &
-                       c4 * rho(k+4) + c5 * rho(k+5) + &
-                       c6 * rho(k+6))
-
-         else
-            drho(k) = (-c0 * rho(k) - c1 * rho(k-1) - &
-                        c2 * rho(k-2) - c3 * rho(k-3) - &
-                        c4 * rho(k-4) - c5 * rho(k-5) - &
-                        c6 * rho(k-6))
-         endif
+!     TODO: add the capabilities to perform higher-order schemes
 
       enddo
       !$omp end do
 
    else
-
       stop
 
    endif
