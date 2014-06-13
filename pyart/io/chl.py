@@ -35,8 +35,87 @@ def read_chl(filename):
 
     """
 
+    # create metadata retrival object
+    filemetadata = FileMetadata('chill')    # XXX additional parameters
+
+    # read data
     chl_file = CHLfile(filename)
-    return chl_file.return_pyart_radar()
+
+    # time
+    time = filemetadata('time')
+    time['data'] = chl_file.time
+    time['units'] = 'seconds since 1970-01-01 00:00 UTC'    # XXX
+
+    # range
+    _range = filemetadata('range')
+    _range['data'] = chl_file._range
+    _range['meters_between_gates'] = np.array(chl_file.dr)
+    _range['meters_to_center_of_first_gate'] = 0.0
+
+    chl_file._sweep_number = {
+        'data': range(chl_file.sweep_num), 'long_name': 'Sweep_number',
+        'standard_name': 'sweep_number', 'units': 'count'}
+
+    # scan_type
+    scan_type = {'data': chl_file.scan_mode}    # XXX
+
+    # fields XXX
+
+    # metadata
+    metadata = filemetadata('metadata')
+    metadata.update(chl_file.metadata)
+
+    # longitude, latitude, altitude
+    latitude = filemetadata('latitude')
+    longitude = filemetadata('longitude')
+    altitude = filemetadata('altitude')
+    latitude['data'] = chl_file._radar_info['latitude']
+    longitude['data'] = chl_file._radar_info['longitude']
+    altitude['data'] = chl_file._radar_info['altitude']
+
+    # sweep_number, sweep_mode, fixed_angle, sweep_start_ray_index,
+    # sweep_end_ray_index
+    sweep_number = filemetadata('sweep_number')
+    sweep_mode = filemetadata('sweep_mode')
+    fixed_angle = filemetadata('fixed_angle')
+    sweep_start_ray_index = filemetadata('sweep_start_ray_index')
+    sweep_end_ray_index = filemetadata('sweep_end_ray_index')
+    sweep_number['data'] = chl_file._sweep_number
+    sweep_mode['data'] = chl_file.scan_mode
+    fixed_angle['data'] = chl_file.fixed_angle
+    sweep_start_ray_index['data'] = chl_file.sweep_start
+    sweep_end_ray_index['data'] = chl_file.sweep_end
+
+    # azimuth, elevation
+    azimuth = filemetadata('azimuth')
+    elevation = filemetadata('elevation')
+    azimuth['data'] = chl_file.azimuth
+    elevation['data'] = chl_file.elevation
+
+    # instrument parameters
+    instrument_parameters = None
+
+    # XXX old code
+    # field processing, we place them into pyart style field dicts
+    fields = {}
+    for i in range(0, len(chl_file.field_scale_list)):
+        chl_field_name = chl_file.field_scale_list[i]['name']
+
+        if(chl_field_name not in chl_file.fields.keys()):
+            continue
+
+        field_name = chl_file._variable_name_lookup[chl_field_name][0]
+        field_dic = chl_file._field_to_pyart_field(
+            chl_file.fields[chl_field_name], chl_file.field_scale_list[i])
+        fields[field_name] = field_dic
+
+    return Radar(
+        time, _range, fields, metadata, scan_type,
+        latitude, longitude, altitude,
+        sweep_number, sweep_mode, fixed_angle, sweep_start_ray_index,
+        sweep_end_ray_index,
+        azimuth, elevation,
+        instrument_parameters=instrument_parameters)
 
 
 class CHLfile(object):
@@ -81,40 +160,6 @@ class CHLfile(object):
 
         self.sweep_start = [0, ]
         self.sweep_start.extend([idx + 1 for idx in self.sweep_end[0:-1]])
-
-    def return_pyart_radar(self):
-        self._range_dict['data'] = self._range
-        self._range_dict['meters_between_gates'] = np.array(self.dr),
-
-        self._time_dict['data'] = self.time
-        self._sweep_number = {
-            'data': range(self.sweep_num), 'long_name': 'Sweep_number',
-            'standard_name': 'sweep_number', 'units': 'count'}
-
-        # field processing, we place them into pyart style field dicts
-        for i in range(0, len(self.field_scale_list)):
-            if(self.field_scale_list[i]['name'] in self.fields.keys()):
-                self._pyart_fields[self._variable_name_lookup[
-                    self.field_scale_list[i]['name']][0]] = (
-                    self._field_to_pyart_field(
-                        self.fields[self.field_scale_list[i]['name']],
-                        self.field_scale_list[i]))
-
-        return Radar(
-            self._time_dict,
-            self._range_dict,
-            self._pyart_fields,
-            self.metadata, {'data': self.scan_mode},
-            {'data': self._radar_info['latitude']},
-            {'data': self._radar_info['longitude']},
-            {'data': self._radar_info['altitude']},
-            {'data': self._sweep_number},
-            {'data': self.scan_mode},
-            self._pack_fixed_angle(self.fixed_angle),
-            {'data': self.sweep_start},
-            {'data': self.sweep_end},
-            self._pack_azimuth(self.azimuth),
-            self._pack_elevation(self.elevation))
 
     def _chl_arch_open_archive(self):
         self.f = open(self.filename, "rb")
