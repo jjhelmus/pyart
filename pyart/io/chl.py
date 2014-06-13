@@ -149,7 +149,6 @@ class CHLfile(object):
         self.fixed_angle = []
         self.sweep_end = []
         self.data_array = []
-        self._pyart_fields = {}
         self.time = []
         self.fields = {}
         self._current_ray_num = 0
@@ -177,8 +176,9 @@ class CHLfile(object):
 
     # I need to extract this to several shorter funcs
     def _chl_arch_read_block(self):
+
         pld = self.f.read(8)
-        if(pld == ''):
+        if pld == '':
             return None
         id, length = struct.unpack("<2i", pld)
         payload = self.f.read(length - 8)
@@ -188,20 +188,15 @@ class CHLfile(object):
 
         packet = {}
         if hex(id) == '0x5aa80004':  # arch_file_hdr_t
-            packet = dict(
-                zip(self.arch_file_hdr_t,
-                    struct.unpack(self.arch_file_hdr_fstring, payload)))
+            packet = _unpack_structure(payload, ARCH_FILE_HDR_T)
 
         elif hex(id) == '0x5aa80002':  # field_scale_t
-            packet = dict(
-                zip(self.field_scale_t,
-                    struct.unpack(self.field_scale_fstring, payload)))
+            packet = _unpack_structure(payload, FIELD_SCALE_T)
             self._parse_field_struct_packet(packet)
 
         elif hex(id) == '0x5aa80003':  # arch_ray_header
-            packet = dict(
-                zip(self.arch_ray_header,
-                    struct.unpack(self.arch_ray_fstring, payload)))
+            packet = _unpack_structure(payload, ARCH_RAY_HEADER)
+
             self._current_ray_num = packet['ray_number']
             fmat_string = self._format_string_from_bitmask(packet['bit_mask'])
             data_packet = self.f.read(
@@ -220,24 +215,18 @@ class CHLfile(object):
             self.num_gates = packet['gates']
 
         elif hex(id) == '0x5aa50001':  # radar_info_t
-            packet = dict(
-                zip(self.radar_info_t,
-                    struct.unpack(self.radar_info_fstring, payload)))
+            packet = _unpack_structure(payload, RADAR_INFO_T)
             self._radar_info = packet.copy()
             self.metadata['instrument_name'] = packet[
                 'radar_name'].rstrip('\x00')
             self.metadata['original_container'] = 'CHL'
 
         elif hex(id) == '0x5aa50003':  # processor_info
-            packet = dict(
-                zip(self.processor_info_t,
-                    struct.unpack(self.processor_info_fstring, payload)))
+            packet = _unpack_structure(payload, PROCESSOR_INFO)
             self.dr = packet['gate_spacing']
 
         elif hex(id) == '0x5aa50002':  # scan_seg
-            packet = dict(
-                zip(self.scan_seg,
-                    struct.unpack(self.scan_seg_fstring, payload)))
+            packet = _unpack_structure(payload, SCAN_SEG)
             self.sweep_num = packet['sweep_num']
             self.sweep_end.append(self._current_ray_num)
             self.fixed_angle.append(packet['current_fixed_angle'])
@@ -300,37 +289,12 @@ class CHLfile(object):
         'H'
     ]
 
-    arch_file_hdr_t = (
-        "version",
-        "creator_version",
-        "creator_id",
-        "sweep_table_offset"
-    )
-
-    arch_file_hdr_fstring = "2I32sQ"
-
-    arch_housekeeping_t = (
+    arch_housekeeping_t = (     # XXX not used XXX
         "id",
         "length",
         "rest_of_packet",
         # Need to finish this
     )
-
-    arch_ray_header = (
-        'azimuth',
-        'elevation',
-        'azimuth_width',
-        'elevation_width',
-        'gates',
-        'beam_index',
-        'ns_time',
-        'time',
-        'bit_mask',
-        'ray_number',
-        'num_pulses'
-    )
-
-    arch_ray_fstring = '4f2HI2Q2I'
 
     packet_type = {
         '0x00010000': 'ARCH_FORMAT_VERSION',
@@ -344,96 +308,133 @@ class CHLfile(object):
         '0x5aa50002': 'HSK_ID_SCAN_SEG'
     }
 
-    field_scale_t = (
-        'format',
-        'min_val',
-        'max_val',
-        'bit_mask_pos',
-        'type_hint',
-        'fld_factor',
-        'dat_factor',
-        'dat_bias',
-        'name',
-        'units',
-        'descr'
-    )
-    field_scale_fstring = 'i2f5i32s32s128s'
-
-    radar_info_t = (
-        'radar_name',
-        'latitude',
-        'longitude',
-        'altitude',
-        'beamwidth',
-        'wavelength_cm',
-        'gain_ant_h',
-        'gain_ant_v',
-        'zdr_cal_base',
-        'phidp_rot',
-        'base_radar_constant',
-        'power_measurement_loss_h',
-        'power_measurement_loss_v',
-        'zdr_cal_base_vhs',
-        'test_power_h',
-        'test_power_v',
-        'dc_loss_h',
-        'dc_loss_v'
-    )
-    radar_info_fstring = '32s22f'
-
-    processor_info_t = (
-        'polarization_mode',
-        'processing_mode',
-        'pulse_type',
-        'test_type',
-        'integration_cycle_pulses',
-        'clutter_filter_number',
-        'range_gate_averaging',
-        'indexed_beam_width',
-        'gate_spacing',
-        'prt_usec',
-        'range_start',
-        'range_stop',
-        'max_gate',
-        'test_power',
-        'test_pulse_range',
-        'test_pulse_length',
-        'prt2',
-        'range_offset'
-    )
-    processor_info_fstring = '4i3I5fI7f'
-
-    scan_seg = (
-        'az_manual',
-        'el_manual',
-        'az_start',
-        'el_start',
-        'scan_rate',
-        'segname',
-        'opt',
-        'follow_mode',
-        'scan_type',
-        'scan_flags',
-        'volume_num',
-        'sweep_num',
-        'time_limit',
-        'webtilt',
-        'left_limit',
-        'right_limit',
-        'up_limit',
-        'down_limit',
-        'step',
-        'max_sweeps',
-        'filter_break_sweep',
-        'clutter_filter1',
-        'clutter_filter2',
-        'project',
-        'current_fixed_angle'
-    )
-    scan_seg_fstring = '5f24s3i5I5f4I16sf'
-
     _scan_mode_names = ['ppi', 'rhi', 'fixed',
                         'manual ppi', 'manual rhi', 'idle']
+
+##############
+# Structures #
+##############
+
+
+def _unpack_structure(string, structure):
+    """ Unpack a structure """
+    fmt = ''.join([i[1] for i in structure])
+    l = struct.unpack(fmt, string)
+    return dict(zip([i[0] for i in structure], l))
+
+ARCH_FILE_HDR_T = (
+    ('version', 'I'),
+    ('creation_version', 'I'),
+    ('creator_id', '32s'),
+    ('sweep_table_offset', 'Q'),
+)
+
+ARCH_RAY_HEADER = (
+    ('azimuth', 'f'),
+    ('elevation', 'f'),
+    ('azimuth_width', 'f'),
+    ('elevation_width', 'f'),
+    ('gates', 'H'),
+    ('beam_index', 'H'),
+    ('ns_time', 'I'),
+    ('time', 'Q'),
+    ('bit_mask', 'Q'),
+    ('ray_number', 'I'),
+    ('num_pulses', 'I'),
+)
+
+FIELD_SCALE_T = (
+    ('format', 'i'),
+    ('min_val', 'f'),
+    ('max_val', 'f'),
+    ('bit_mask_pos', 'i'),
+    ('type_hint', 'i'),
+    ('fld_factor', 'i'),
+    ('dat_factor', 'i'),
+    ('dat_bias', 'i'),
+    ('name', '32s'),
+    ('units', '32s'),
+    ('descr', '128s')
+)
+
+RADAR_INFO_T = (
+    ('radar_name', '32s'),
+    ('latitude', 'f'),
+    ('longitude', 'f'),
+    ('altitude', 'f'),
+    ('beamwidth', 'f'),
+    ('wavelength_cm', 'f'),
+    ('gain_ant_h', 'f'),
+    ('gain_ant_v', 'f'),
+    ('zdr_cal_base', 'f'),
+    ('phidp_rot', 'f'),
+    ('base_radar_constant', 'f'),
+    ('power_measurement_loss_h', 'f'),
+    ('power_measurement_loss_v', 'f'),
+    ('zdr_cal_base_vhs', 'f'),
+    ('test_power_h', 'f'),
+    ('test_power_v', 'f'),
+    ('dc_loss_h', 'f'),
+    ('dc_loss_v', 'f'),
+    ('unknown_0', 'f'),
+    ('unknown_1', 'f'),
+    ('unknown_2', 'f'),
+    ('unknown_3', 'f'),
+    ('unknown_4', 'f'),
+)
+
+PROCESSOR_INFO = (
+    ('polarization_mode', 'i'),
+    ('processing_mode', 'i'),
+    ('pulse_type', 'i'),
+    ('test_type', 'i'),
+    ('integration_cycle_pulses', 'I'),
+    ('clutter_filter_number', 'I'),
+    ('range_gate_averaging', 'I'),
+    ('indexed_beam_width', 'f'),
+    ('gate_spacing', 'f'),
+    ('prt_usec', 'f'),
+    ('range_start', 'f'),
+    ('range_stop', 'f'),
+    ('max_gate', 'I'),
+    ('test_power', 'f'),
+    ('test_pulse_range', 'f'),
+    ('test_pulse_length', 'f'),
+    ('prt2', 'f'),
+    ('range_offset', 'f'),
+    ('unknown_0', 'f'),
+    ('unknown_1', 'f'),
+)
+
+SCAN_SEG = (
+    ('az_manual', 'f'),
+    ('el_manual', 'f'),
+    ('az_start', 'f'),
+    ('el_start', 'f'),
+    ('scan_rate', 'f'),
+    ('segname', '24s'),
+    ('opt', 'i'),
+    ('follow_mode', 'i'),
+    ('scan_type', 'i'),
+    ('scan_flags', 'I'),
+    ('volume_num', 'I'),
+    ('sweep_num', 'I'),
+    ('time_limit', 'I'),
+    ('webtilt', 'I'),
+    ('left_limit', 'f'),
+    ('right_limit', 'f'),
+    ('up_limit', 'f'),
+    ('down_limit', 'f'),
+    ('step', 'f'),
+    ('max_sweeps', 'I'),
+    ('filter_break_sweep', 'I'),
+    ('clutter_filter1', 'I'),
+    ('clutter_filter2', 'I'),
+    ('project', '16s'),
+    ('current_fixed_angle', 'f'),
+)
+
+# XXX
 
 _FIELD_TABLE = {
     # Chill field name : (Py-ART field name, field long_name attribute)
