@@ -60,6 +60,25 @@ def read_chl(filename):
     scan_type = {'data': chl_file.scan_mode}    # XXX
 
     # fields XXX
+    fields = {}
+    for i in range(0, len(chl_file.field_scale_list)):
+
+        chl_field_name = chl_file.field_scale_list[i]['name']
+        if(chl_field_name not in chl_file.fields.keys()):
+            continue
+
+        field_name = CHILL_FIELD_MAPPING[chl_field_name]
+        field_scale = chl_file.field_scale_list[i]
+        field_dic = {
+            'coordinates': 'elevation azimuth range',
+            'data': np.ma.masked_array(chl_file.fields[chl_field_name]),
+            'long_name': CHILL_FIELD_LONG_NAME[chl_field_name],
+            'standard_name': field_name,
+            'units': field_scale['units'],
+            'valid_max': field_scale['max_val'],
+            'valid_min': field_scale['min_val']
+        }
+        fields[field_name] = field_dic
 
     # metadata
     metadata = filemetadata('metadata')
@@ -94,20 +113,6 @@ def read_chl(filename):
 
     # instrument parameters
     instrument_parameters = None
-
-    # XXX old code
-    # field processing, we place them into pyart style field dicts
-    fields = {}
-    for i in range(0, len(chl_file.field_scale_list)):
-        chl_field_name = chl_file.field_scale_list[i]['name']
-
-        if(chl_field_name not in chl_file.fields.keys()):
-            continue
-
-        field_name = chl_file._variable_name_lookup[chl_field_name][0]
-        field_dic = chl_file._field_to_pyart_field(
-            chl_file.fields[chl_field_name], chl_file.field_scale_list[i])
-        fields[field_name] = field_dic
 
     return Radar(
         time, _range, fields, metadata, scan_type,
@@ -247,21 +252,6 @@ class CHLfile(object):
         packet['id'] = hex(id)
         packet['length'] = length
         return packet
-
-    def _field_to_pyart_field(self, field, field_scale):
-        pyart_field = {
-            'coordinates': 'elevation azimuth range',
-            'data': np.ma.masked_array(field),
-            'long_name': self._variable_name_lookup[field_scale['name']][1],
-            # This needs to be fixed eventually
-            'standard_name':
-            self._variable_name_lookup[field_scale['name']][0],
-            'units': field_scale['units'],
-            'valid_max': field_scale['max_val'],
-            'valid_min': field_scale['min_val']
-        }
-
-        return pyart_field
 
     def _process_data_blocks(self):
         darray = np.array(self.data_array)
@@ -445,92 +435,46 @@ class CHLfile(object):
     _scan_mode_names = ['ppi', 'rhi', 'fixed',
                         'manual ppi', 'manual rhi', 'idle']
 
-    _range_dict = {
-        'axis': 'radial_range_coordinate',
-        'comment':
-        'Coordinate variable for range. Range to center of each bin.',
-        'long_name': 'range_to_measurement_volume',
-        'meters_to_center_of_first_gate': 0.0,
-        'spacing_is_constant': 'true',
-        'standard_name': 'projection_range_coordinate',
-        'units': 'meters'}
-
-    _time_dict = {
-        'calendar': 'gregorian',
-        'comment':
-        ('Coordinate variable for time. ' +
-         'Time at the center of each ray, in fractional seconds ' +
-         'since the global variable time_coverage_start'),
-        'long_name': 'time_in_seconds_since_volume_start',
-        'standard_name': 'time',
-        'units': 'seconds since 1970-01-01 00:00 UTC'}
-
-    def _pack_azimuth(self, azimuth):
-        return {
-            'data': self.azimuth,
-            'axis': 'radial_azimuth_coordinate',
-            'comment': 'Azimuth of antenna relative to true north',
-            'long_name': 'azimuth_angle_from_true_north',
-            'standard_name': 'beam_azimuth_angle',
-            'units': 'degrees'
-        }
-
-    def _pack_elevation(self, elevation):
-        return {
-            'data': self.elevation,
-            'axis': 'radial_elevation_coordinate',
-            'comment':
-            'Elevation of antenna relative to the horizontal palne',
-            'long_name': 'elevation_angle_from_horizontal_plane',
-            'standard_name': 'beam_elevation_angle',
-            'units': 'degrees'
-        }
-
-    def _pack_fixed_angle(self, fixed_angle):
-        return {
-            'data': self.fixed_angle,
-            'long_name': 'Target angle for sweep',
-            'standard_name': 'target_fixed_angle',
-            'units': 'degrees'
-        }
-
-    _variable_name_lookup = {
-        'Z': ('DBZ', 'equivalent_reflectivity_factor'),
-        'V': ('VEL', 'radial_velocity_of_scatterers_away_from_instrument'),
-        'W': ('WIDTH', 'doppler_spectrum_width'),
-        'ZDR': ('ZDR', 'log_differential_reflectivity_hv'),
-        'LDRH': ('LDRH', 'log_linear_depolarization_ratio_h'),
-        'LDRV': ('LDRV', 'log_linear_depolarization_artio_v'),
-        '\xce\xa8 DP': ('PHIDP', 'differential_phase_hv'),
-        'KDP': ('KDP', 'specific_differential_phase_hv'),
-        '\xcf\x81 HV': ('RHOHV', 'cross_correlation_ratio_hv'),
-        'NCP': ('NCP', 'normalized_coherent_power'),
-        'H Re(lag 1)': ('H Re(lag 1)', 'real_part_of_lag_1_correlation_h'),
-        'V Re(lag 2)': ('V Re(lag 2)', 'real_part_of_lag_2_correlation_v'),
-        'VAvgQ': ('VAvgQ', 'v_average_quadrature'),
-        'V Im(lag 1)': ('V Im(lag 1)', 'imaginary_part_of_v_at_lag_1'),
-        'HAvgQ': ('HAvgQ', 'h_average_quadrature'),
-        'H Im(lag 2)': ('H Im(lag 2)', 'imaginary_part_lag_2_correlation_h'),
-        'V lag 0': ('V lag 0', 'absolute_value_of_lag_0_correlation_v'),
-        'H lag 0': ('H lag 0', 'absolute_value_of_lag_0_correlation_h'),
-        'H lag 0 cx':
-        ('H lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_h'),
-        'H Im(lag 1)':
-        ('H Im(lag 1)', 'imaginary_part_of_lag_1_correlation_h'),
-        'H Re(lag 2)':
-        ('H Re(lag 2)', 'real_part_of_lag_2_correlation_h'),
-        'V lag 0 cx':
-        ('V lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_v'),
-        'V Re(lag 1)': ('V Re(lag 1)', 'real_part_of_lag_1_correlation_v'),
-        'V Im(lag 2)':
-        ('V Im(lag 2)', 'imaginary_part_of_lag_2_correlation_v'),
-        'HV lag 0 I':
-        ('HV lag 0 I', 'real_part_of_cross_channel_correlation_at_lag_0'),
-        'HV lag 0 Q':
-        ('HV lag 0 Q',
-         'imaginary_part_of_cross_channel_correlation_at_lag_0'),
-        'VAvgI': ('VAvgI', 'v_average_inphase'),
-        'HAvgI': ('HAvgI', 'h_average_inphase'),
-        '\xcf\x81 HCX': ('RHOHCX', 'lag_0_h_co_to_cross_correlation'),
-        '\xcf\x81 VCX': ('RHOVCX', 'lag_0_v_co_to_cross_correlation'),
-    }
+_FIELD_TABLE = {
+    # Chill field name : (Py-ART field name, field long_name attribute)
+    'Z': ('DBZ', 'equivalent_reflectivity_factor'),
+    'V': ('VEL', 'radial_velocity_of_scatterers_away_from_instrument'),
+    'W': ('WIDTH', 'doppler_spectrum_width'),
+    'ZDR': ('ZDR', 'log_differential_reflectivity_hv'),
+    'LDRH': ('LDRH', 'log_linear_depolarization_ratio_h'),
+    'LDRV': ('LDRV', 'log_linear_depolarization_artio_v'),
+    '\xce\xa8 DP': ('PHIDP', 'differential_phase_hv'),
+    'KDP': ('KDP', 'specific_differential_phase_hv'),
+    '\xcf\x81 HV': ('RHOHV', 'cross_correlation_ratio_hv'),
+    'NCP': ('NCP', 'normalized_coherent_power'),
+    'H Re(lag 1)': ('H Re(lag 1)', 'real_part_of_lag_1_correlation_h'),
+    'V Re(lag 2)': ('V Re(lag 2)', 'real_part_of_lag_2_correlation_v'),
+    'VAvgQ': ('VAvgQ', 'v_average_quadrature'),
+    'V Im(lag 1)': ('V Im(lag 1)', 'imaginary_part_of_v_at_lag_1'),
+    'HAvgQ': ('HAvgQ', 'h_average_quadrature'),
+    'H Im(lag 2)': ('H Im(lag 2)', 'imaginary_part_lag_2_correlation_h'),
+    'V lag 0': ('V lag 0', 'absolute_value_of_lag_0_correlation_v'),
+    'H lag 0': ('H lag 0', 'absolute_value_of_lag_0_correlation_h'),
+    'H lag 0 cx':
+    ('H lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_h'),
+    'H Im(lag 1)':
+    ('H Im(lag 1)', 'imaginary_part_of_lag_1_correlation_h'),
+    'H Re(lag 2)':
+    ('H Re(lag 2)', 'real_part_of_lag_2_correlation_h'),
+    'V lag 0 cx':
+    ('V lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_v'),
+    'V Re(lag 1)': ('V Re(lag 1)', 'real_part_of_lag_1_correlation_v'),
+    'V Im(lag 2)':
+    ('V Im(lag 2)', 'imaginary_part_of_lag_2_correlation_v'),
+    'HV lag 0 I':
+    ('HV lag 0 I', 'real_part_of_cross_channel_correlation_at_lag_0'),
+    'HV lag 0 Q':
+    ('HV lag 0 Q',
+     'imaginary_part_of_cross_channel_correlation_at_lag_0'),
+    'VAvgI': ('VAvgI', 'v_average_inphase'),
+    'HAvgI': ('HAvgI', 'h_average_inphase'),
+    '\xcf\x81 HCX': ('RHOHCX', 'lag_0_h_co_to_cross_correlation'),
+    '\xcf\x81 VCX': ('RHOVCX', 'lag_0_v_co_to_cross_correlation'),
+}
+CHILL_FIELD_MAPPING = dict((k, v[0]) for k, v in _FIELD_TABLE.items())
+CHILL_FIELD_LONG_NAME = dict((k, v[1]) for k, v in _FIELD_TABLE.items())
