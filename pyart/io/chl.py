@@ -61,24 +61,21 @@ def read_chl(filename):
 
     # fields XXX
     fields = {}
-    for i in range(0, len(chl_file.field_scale_list)):
+    for i in range(0, len(chl_file.field_info)):
 
-        chl_field_name = chl_file.field_scale_list[i]['name']
-        if(chl_field_name not in chl_file.fields.keys()):
+        field_info = chl_file.field_info[i]
+        if(field_info['name'] not in chl_file.fields.keys()):
             continue
-
-        field_name = CHILL_FIELD_MAPPING[chl_field_name]
-        field_scale = chl_file.field_scale_list[i]
-        field_dic = {
+        field_name = CHILL_FIELD_MAPPING[field_info['name']]
+        fields[field_name] = {
             'coordinates': 'elevation azimuth range',
-            'data': np.ma.masked_array(chl_file.fields[chl_field_name]),
-            'long_name': CHILL_FIELD_LONG_NAME[chl_field_name],
-            'standard_name': field_name,
-            'units': field_scale['units'],
-            'valid_max': field_scale['max_val'],
-            'valid_min': field_scale['min_val']
+            'data': np.ma.masked_array(chl_file.fields[field_info['name']]),
+            'long_name': field_info['descr'],
+            'standard_name': field_info['name'],
+            'units': field_info['units'],
+            'valid_max': field_info['max_val'],
+            'valid_min': field_info['min_val']
         }
-        fields[field_name] = field_dic
 
     # metadata
     metadata = filemetadata('metadata')
@@ -140,7 +137,7 @@ class CHLfile(object):
     def __init__(self, filename):
         self.filename = filename
 
-        self.field_scale_list = {}
+        self.field_info = {}    # field information (limits, name, etc.)
         self.num_sweeps = 0
         self.radar_info = []
         self.processor_info = []
@@ -154,8 +151,12 @@ class CHLfile(object):
         self._current_ray_num = 0
         self.metadata = {}
 
-        self._chl_arch_open_archive()
-        self._chl_close_archive()
+        # read all blocks from the file
+        self.f = open(self.filename, "rb")
+        packet = 1
+        while packet is not None:
+            packet = self._read_block()
+        self.f.close()
 
         self.sweep_end.append(self._current_ray_num)
         del(self.sweep_end[0])
@@ -165,91 +166,117 @@ class CHLfile(object):
         self.sweep_start = [0, ]
         self.sweep_start.extend([idx + 1 for idx in self.sweep_end[0:-1]])
 
-    def _chl_arch_open_archive(self):
-        self.f = open(self.filename, "rb")
-        packet = 1
-        while packet is not None:
-            packet = self._chl_arch_read_block()
-
-    def _chl_close_archive(self):
-        self.f.close()
-
-    # I need to extract this to several shorter funcs
-    def _chl_arch_read_block(self):
-
+    def _read_block(self):
+        """ Read a block from an open CHL file """
         pld = self.f.read(8)
         if pld == '':
             return None
-        id, length = struct.unpack("<2i", pld)
+        block_id, length = struct.unpack("<2i", pld)
         payload = self.f.read(length - 8)
 
-        if id is None:  # redundant sanity check
+        if block_id is None:  # redundant sanity check
             return None
 
-        packet = {}
-        if hex(id) == '0x5aa80004':  # arch_file_hdr_t
-            packet = _unpack_structure(payload, ARCH_FILE_HDR_T)
-
-        elif hex(id) == '0x5aa80002':  # field_scale_t
-            packet = _unpack_structure(payload, FIELD_SCALE_T)
-            self._parse_field_struct_packet(packet)
-
-        elif hex(id) == '0x5aa80003':  # arch_ray_header
-            packet = _unpack_structure(payload, ARCH_RAY_HEADER)
-
-            self._current_ray_num = packet['ray_number']
-            fmat_string = self._format_string_from_bitmask(packet['bit_mask'])
-            data_packet = self.f.read(
-                struct.calcsize(fmat_string) * packet['gates'])
-            self.data_array.append(
-                struct.unpack(fmat_string * packet['gates'], data_packet))
-            # We should only do this once, but this will work for now.
-            self.field_count = self._num_fields_from_bitmask(
-                packet['bit_mask'])
-            self.bit_mask = packet['bit_mask']
-            self.time.append(packet['time'])
-            self.azimuth.append(packet['azimuth'])
-            self.elevation.append(packet['elevation'])
-            # This assumes number of gates is constant. Not the best assumption
-            # however.
-            self.num_gates = packet['gates']
-
-        elif hex(id) == '0x5aa50001':  # radar_info_t
-            packet = _unpack_structure(payload, RADAR_INFO_T)
-            self._radar_info = packet.copy()
-            self.metadata['instrument_name'] = packet[
-                'radar_name'].rstrip('\x00')
-            self.metadata['original_container'] = 'CHL'
-
-        elif hex(id) == '0x5aa50003':  # processor_info
-            packet = _unpack_structure(payload, PROCESSOR_INFO)
-            self.dr = packet['gate_spacing']
-
-        elif hex(id) == '0x5aa50002':  # scan_seg
-            packet = _unpack_structure(payload, SCAN_SEG)
-            self.sweep_num = packet['sweep_num']
-            self.sweep_end.append(self._current_ray_num)
-            self.fixed_angle.append(packet['current_fixed_angle'])
-            self.scan_mode = self._scan_mode_names[packet['scan_type']]
-
-        elif hex(id) == '0x5aa80005':
-            packet['num_sweeps'] = struct.unpack('I', payload[0:4])[0]
-            packet['swp_offsets'] = struct.unpack(
-                str(packet['num_sweeps']) + 'Q', payload[4:])
-            self.num_sweeps = packet['num_sweeps']
-
-        packet['id'] = hex(id)
+        # parse the block
+        if block_id == ARCH_ID_FILE_HDR:
+            packet = self._parse_file_hdr_block(payload)
+        elif block_id == ARCH_ID_FIELD_SCALE:
+            packet = self._parse_field_scale_block(payload)
+        elif block_id == ARCH_ID_RAY_HDR:
+            packet = self._parse_ray_hdr_block(payload)
+        elif block_id == HSK_ID_RADAR_INFO:
+            packet = self._parse_radar_info_block(payload)
+        elif block_id == HSK_ID_PROCESSOR_INFO:
+            packet = self._parse_processor_info_block(payload)
+        elif block_id == HSK_ID_SCAN_SEG:
+            packet = self._parse_scan_seg_block(payload)
+        elif block_id == ARCH_ID_SWEEP_BLOCK:
+            packet = self._parse_sweep_block(payload)
+        else:
+            packet = {}
+        packet['block_id'] = block_id
         packet['length'] = length
         return packet
 
+    # Block parsers
+    def _parse_file_hdr_block(self, payload):
+        """ Parse a field_hdr block. """
+        return _unpack_structure(payload, ARCH_FILE_HDR_T)
+
+    def _parse_field_scale_block(self, payload):
+        """ Parse a field_scale block. Add scale to field_info attr. """
+        packet = _unpack_structure(payload, FIELD_SCALE_T)
+        packet['name'] = packet['name'].rstrip('\x00')
+        packet['units'] = packet['units'].rstrip('\x00')
+        packet['descr'] = packet['descr'].rstrip('\x00')
+        packet['data_size'] = FORMAT_LENGTH[packet['format']]
+        self.field_info[packet['bit_mask_pos']] = packet
+        return packet
+
+    # XXX Jonathan stopped refactoring here...
+    # before mucking with this add tests to check that field data
+    # doesn't change
+    def _parse_ray_hdr_block(self, payload):
+        """ Parse a ray_hdr block. Update associated attributes. """
+        packet = _unpack_structure(payload, ARCH_RAY_HEADER)
+        self._current_ray_num = packet['ray_number']
+        fmat_string = self._format_string_from_bitmask(packet['bit_mask'])
+        data_packet = self.f.read(
+            struct.calcsize(fmat_string) * packet['gates'])
+        self.data_array.append(
+            struct.unpack(fmat_string * packet['gates'], data_packet))
+        # We should only do this once, but this will work for now.
+        self.field_count = self._num_fields_from_bitmask(packet['bit_mask'])
+        self.bit_mask = packet['bit_mask']
+        self.time.append(packet['time'])
+        self.azimuth.append(packet['azimuth'])
+        self.elevation.append(packet['elevation'])
+        # This assumes number of gates is constant. Not the best assumption
+        # however.
+        self.num_gates = packet['gates']
+        return packet
+
+    def _parse_radar_info_block(self, payload):
+        """ Parse a radar_info block. Update metadata attribute. """
+        packet = _unpack_structure(payload, RADAR_INFO_T)
+        self._radar_info = packet.copy()
+        self.metadata['instrument_name'] = packet['radar_name'].rstrip('\x00')
+        self.metadata['original_container'] = 'CHL'
+        return packet
+
+    def _parse_processor_info_block(self, payload):
+        """ Parse a processor_info block.  Set dr attribute. """
+        packet = _unpack_structure(payload, PROCESSOR_INFO)
+        self.dr = packet['gate_spacing']
+        return packet
+
+    def _parse_scan_seg_block(self, payload):
+        """ Parse a scan_seg_block.  Update sweep attributes. """
+        packet = _unpack_structure(payload, SCAN_SEG)
+        self.sweep_num = packet['sweep_num']
+        self.sweep_end.append(self._current_ray_num)
+        self.fixed_angle.append(packet['current_fixed_angle'])
+        self.scan_mode = SCAN_MODE_NAMES[packet['scan_type']]
+        return packet
+
+    def _parse_sweep_block(self, payload):
+        """ Parse a sweep block. Set num_sweeps attribute. """
+        packet = {}
+        packet['num_sweeps'] = struct.unpack('I', payload[0:4])[0]
+        packet['swp_offsets'] = struct.unpack(
+            str(packet['num_sweeps']) + 'Q', payload[4:])
+        self.num_sweeps = packet['num_sweeps']
+        return packet
+
+    # misc methods
     def _process_data_blocks(self):
         darray = np.array(self.data_array)
         cvi = 0
-        for cv in range(0, len(self.field_scale_list)):
+        for cv in range(0, len(self.field_info)):
             if(bool(self.bit_mask & 2 ** cv)):
-                fsl = self.field_scale_list[cv]
+                fsl = self.field_info[cv]
 
-                if(self.field_scale_list[cv]['data_size'] == 'f'):
+                if(self.field_info[cv]['data_size'] == 'f'):
                     dat = darray[:, cvi::self.field_count].copy()
                     dat[dat == 0] = np.nan
                 else:
@@ -265,7 +292,7 @@ class CHLfile(object):
         format_str = ''
         for b in range(0, 38):
             if(bool(bitmask & 2 ** b)):
-                format_str += self.field_scale_list[b]['data_size']
+                format_str += self.field_info[b]['data_size']
         return format_str
 
     def _num_fields_from_bitmask(self, bitmask):
@@ -275,20 +302,6 @@ class CHLfile(object):
                 count += 1
         return count
 
-    def _parse_field_struct_packet(self, packet):
-        packet['name'] = packet['name'].rstrip('\x00')
-        packet['units'] = packet['units'].rstrip('\x00')
-        packet['descr'] = packet['descr'].rstrip('\x00')
-        packet['data_size'] = self.format_length_lookup_list[packet['format']]
-        self.field_scale_list[packet['bit_mask_pos']] = packet
-
-    format_length_lookup_list = [
-        'c',
-        'Q',
-        'f',
-        'H'
-    ]
-
     arch_housekeeping_t = (     # XXX not used XXX
         "id",
         "length",
@@ -296,20 +309,20 @@ class CHLfile(object):
         # Need to finish this
     )
 
-    packet_type = {
-        '0x00010000': 'ARCH_FORMAT_VERSION',
-        '0x5aa80001': 'ARCH_ID_CONTROL',
-        '0x5aa80002': 'ARCH_ID_FIELD_SCALE',
-        '0x5aa80003': 'ARCH_ID_RAY_HDR',
-        '0x5aa80004': 'ARCH_ID_FILE_HDR',
-        '0x5aa80005': 'ARCH_ID_SWEEP_BLOCK',
-        '0x5aa50003': 'HSK_ID_PROCESSOR_INFO',
-        '0x5aa50001': 'HSK_ID_RADAR_INFO',
-        '0x5aa50002': 'HSK_ID_SCAN_SEG'
-    }
+# CHL packet types
+ARCH_FORMAT_VERSION = 0x00010000
+ARCH_ID_CONTROL = 0x5aa80001
+ARCH_ID_FIELD_SCALE = 0x5aa80002
+ARCH_ID_RAY_HDR = 0x5aa80003
+ARCH_ID_FILE_HDR = 0x5aa80004
+ARCH_ID_SWEEP_BLOCK = 0x5aa80005
+HSK_ID_PROCESSOR_INFO = 0x5aa50003
+HSK_ID_RADAR_INFO = 0x5aa50001
+HSK_ID_SCAN_SEG = 0x5aa50002
 
-    _scan_mode_names = ['ppi', 'rhi', 'fixed',
-                        'manual ppi', 'manual rhi', 'idle']
+# Additional constants
+SCAN_MODE_NAMES = ['ppi', 'rhi', 'fixed', 'manual ppi', 'manual rhi', 'idle']
+FORMAT_LENGTH = ['c', 'Q', 'f', 'H']
 
 ##############
 # Structures #
