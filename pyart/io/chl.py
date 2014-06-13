@@ -3,6 +3,7 @@ pyart.io.chl
 ============
 
 Utilities for reading CSU-CHILL CHL files.
+
 """
 
 import struct
@@ -12,7 +13,6 @@ from ..config import FileMetadata, get_fillvalue
 from .radar import Radar
 from .common import make_time_unit_str
 from .common import radar_coords_to_cart
-
 
 
 def read_chl(filename):
@@ -38,7 +38,6 @@ def read_chl(filename):
     chl_file = CHLfile(filename)
     return chl_file.return_pyart_radar()
 
-    
 
 class CHLfile(object):
     """
@@ -58,7 +57,7 @@ class CHLfile(object):
         self.filename = filename
 
         self.field_scale_list = {}
-        self.num_sweeps=0
+        self.num_sweeps = 0
         self.radar_info = []
         self.processor_info = []
         self.azimuth = []
@@ -95,17 +94,27 @@ class CHLfile(object):
         # field processing, we place them into pyart style field dicts
         for i in range(0, len(self.field_scale_list)):
             if(self.field_scale_list[i]['name'] in self.fields.keys()):
-                self._pyart_fields[self._variable_name_lookup[self.field_scale_list[i]['name']][0]] = self._field_to_pyart_field(
-                    self.fields[self.field_scale_list[i]['name']], self.field_scale_list[i])
+                self._pyart_fields[self._variable_name_lookup[
+                    self.field_scale_list[i]['name']][0]] = (
+                    self._field_to_pyart_field(
+                        self.fields[self.field_scale_list[i]['name']],
+                        self.field_scale_list[i]))
 
         return Radar(
-            self._time_dict, self._range_dict, self._pyart_fields, self.metadata, {'data':
-                                                                                   self.scan_mode},
-            {'data': self._radar_info['latitude']}, {'data': self._radar_info[
-                'longitude']}, {'data': self._radar_info['altitude']},
-            {'data': self._sweep_number}, {'data': self.scan_mode}, self._pack_fixed_angle(
-                self.fixed_angle), {'data': self.sweep_start},
-            {'data': self.sweep_end}, self._pack_azimuth(self.azimuth), self._pack_elevation(self.elevation))
+            self._time_dict,
+            self._range_dict,
+            self._pyart_fields,
+            self.metadata, {'data': self.scan_mode},
+            {'data': self._radar_info['latitude']},
+            {'data': self._radar_info['longitude']},
+            {'data': self._radar_info['altitude']},
+            {'data': self._sweep_number},
+            {'data': self.scan_mode},
+            self._pack_fixed_angle(self.fixed_angle),
+            {'data': self.sweep_start},
+            {'data': self.sweep_end},
+            self._pack_azimuth(self.azimuth),
+            self._pack_elevation(self.elevation))
 
     def _chl_arch_open_archive(self):
         self.f = open(self.filename, "rb")
@@ -130,16 +139,19 @@ class CHLfile(object):
         packet = {}
         if hex(id) == '0x5aa80004':  # arch_file_hdr_t
             packet = dict(
-                zip(self.arch_file_hdr_t, struct.unpack(self.arch_file_hdr_fstring, payload)))
+                zip(self.arch_file_hdr_t,
+                    struct.unpack(self.arch_file_hdr_fstring, payload)))
 
         elif hex(id) == '0x5aa80002':  # field_scale_t
             packet = dict(
-                zip(self.field_scale_t, struct.unpack(self.field_scale_fstring, payload)))
+                zip(self.field_scale_t,
+                    struct.unpack(self.field_scale_fstring, payload)))
             self._parse_field_struct_packet(packet)
 
         elif hex(id) == '0x5aa80003':  # arch_ray_header
             packet = dict(
-                zip(self.arch_ray_header, struct.unpack(self.arch_ray_fstring, payload)))
+                zip(self.arch_ray_header,
+                    struct.unpack(self.arch_ray_fstring, payload)))
             self._current_ray_num = packet['ray_number']
             fmat_string = self._format_string_from_bitmask(packet['bit_mask'])
             data_packet = self.f.read(
@@ -159,7 +171,8 @@ class CHLfile(object):
 
         elif hex(id) == '0x5aa50001':  # radar_info_t
             packet = dict(
-                zip(self.radar_info_t, struct.unpack(self.radar_info_fstring, payload)))
+                zip(self.radar_info_t,
+                    struct.unpack(self.radar_info_fstring, payload)))
             self._radar_info = packet.copy()
             self.metadata['instrument_name'] = packet[
                 'radar_name'].rstrip('\x00')
@@ -167,12 +180,14 @@ class CHLfile(object):
 
         elif hex(id) == '0x5aa50003':  # processor_info
             packet = dict(
-                zip(self.processor_info_t, struct.unpack(self.processor_info_fstring, payload)))
+                zip(self.processor_info_t,
+                    struct.unpack(self.processor_info_fstring, payload)))
             self.dr = packet['gate_spacing']
 
         elif hex(id) == '0x5aa50002':  # scan_seg
             packet = dict(
-                zip(self.scan_seg, struct.unpack(self.scan_seg_fstring, payload)))
+                zip(self.scan_seg,
+                    struct.unpack(self.scan_seg_fstring, payload)))
             self.sweep_num = packet['sweep_num']
             self.sweep_end.append(self._current_ray_num)
             self.fixed_angle.append(packet['current_fixed_angle'])
@@ -194,7 +209,8 @@ class CHLfile(object):
             'data': np.ma.masked_array(field),
             'long_name': self._variable_name_lookup[field_scale['name']][1],
             # This needs to be fixed eventually
-            'standard_name': self._variable_name_lookup[field_scale['name']][0],
+            'standard_name':
+            self._variable_name_lookup[field_scale['name']][0],
             'units': field_scale['units'],
             'valid_max': field_scale['max_val'],
             'valid_min': field_scale['min_val']
@@ -384,19 +400,25 @@ class CHLfile(object):
     _scan_mode_names = ['ppi', 'rhi', 'fixed',
                         'manual ppi', 'manual rhi', 'idle']
 
-    _range_dict = {'axis': 'radial_range_coordinate',
-                   'comment': 'Coordinate variable for range. Range to center of each bin.',
-                   'long_name': 'range_to_measurement_volume',
-                   'meters_to_center_of_first_gate': 0.0,
-                   'spacing_is_constant': 'true',
-                   'standard_name': 'projection_range_coordinate',
-                   'units': 'meters'}
+    _range_dict = {
+        'axis': 'radial_range_coordinate',
+        'comment':
+        'Coordinate variable for range. Range to center of each bin.',
+        'long_name': 'range_to_measurement_volume',
+        'meters_to_center_of_first_gate': 0.0,
+        'spacing_is_constant': 'true',
+        'standard_name': 'projection_range_coordinate',
+        'units': 'meters'}
 
-    _time_dict = {'calendar': 'gregorian',
-                  'comment': 'Coordinate variable for time. Time at the center of each ray, in fractional seconds since the global variable time_coverage_start',
-                  'long_name': 'time_in_seconds_since_volume_start',
-                  'standard_name': 'time',
-                  'units': 'seconds since 1970-01-01 00:00 UTC'}
+    _time_dict = {
+        'calendar': 'gregorian',
+        'comment':
+        ('Coordinate variable for time. ' +
+         'Time at the center of each ray, in fractional seconds ' +
+         'since the global variable time_coverage_start'),
+        'long_name': 'time_in_seconds_since_volume_start',
+        'standard_name': 'time',
+        'units': 'seconds since 1970-01-01 00:00 UTC'}
 
     def _pack_azimuth(self, azimuth):
         return {
@@ -412,7 +434,8 @@ class CHLfile(object):
         return {
             'data': self.elevation,
             'axis': 'radial_elevation_coordinate',
-            'comment': 'Elevation of antenna relative to the horizontal palne',
+            'comment':
+            'Elevation of antenna relative to the horizontal palne',
             'long_name': 'elevation_angle_from_horizontal_plane',
             'standard_name': 'beam_elevation_angle',
             'units': 'degrees'
@@ -445,14 +468,22 @@ class CHLfile(object):
         'H Im(lag 2)': ('H Im(lag 2)', 'imaginary_part_lag_2_correlation_h'),
         'V lag 0': ('V lag 0', 'absolute_value_of_lag_0_correlation_v'),
         'H lag 0': ('H lag 0', 'absolute_value_of_lag_0_correlation_h'),
-        'H lag 0 cx': ('H lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_h'),
-        'H Im(lag 1)': ('H Im(lag 1)', 'imaginary_part_of_lag_1_correlation_h'),
-        'H Re(lag 2)': ('H Re(lag 2)', 'real_part_of_lag_2_correlation_h'),
-        'V lag 0 cx': ('V lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_v'),
+        'H lag 0 cx':
+        ('H lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_h'),
+        'H Im(lag 1)':
+        ('H Im(lag 1)', 'imaginary_part_of_lag_1_correlation_h'),
+        'H Re(lag 2)':
+        ('H Re(lag 2)', 'real_part_of_lag_2_correlation_h'),
+        'V lag 0 cx':
+        ('V lag 0 cx', 'absolute_value_of_lag_0_cross_correlation_v'),
         'V Re(lag 1)': ('V Re(lag 1)', 'real_part_of_lag_1_correlation_v'),
-        'V Im(lag 2)': ('V Im(lag 2)', 'imaginary_part_of_lag_2_correlation_v'),
-        'HV lag 0 I': ('HV lag 0 I', 'real_part_of_cross_channel_correlation_at_lag_0'),
-        'HV lag 0 Q': ('HV lag 0 Q', 'imaginary_part_of_cross_channel_correlation_at_lag_0'),
+        'V Im(lag 2)':
+        ('V Im(lag 2)', 'imaginary_part_of_lag_2_correlation_v'),
+        'HV lag 0 I':
+        ('HV lag 0 I', 'real_part_of_cross_channel_correlation_at_lag_0'),
+        'HV lag 0 Q':
+        ('HV lag 0 Q',
+         'imaginary_part_of_cross_channel_correlation_at_lag_0'),
         'VAvgI': ('VAvgI', 'v_average_inphase'),
         'HAvgI': ('HAvgI', 'h_average_inphase'),
         '\xcf\x81 HCX': ('RHOHCX', 'lag_0_h_co_to_cross_correlation'),
