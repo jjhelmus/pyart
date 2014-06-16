@@ -14,6 +14,8 @@ from .radar import Radar
 from .common import make_time_unit_str
 from .common import radar_coords_to_cart
 
+# XXX first gate offset
+
 
 def read_chl(filename):
     """
@@ -48,30 +50,23 @@ def read_chl(filename):
 
     # range
     _range = filemetadata('range')
-    _range['data'] = chl_file._range
-    _range['meters_between_gates'] = np.array(chl_file.dr)
-    _range['meters_to_center_of_first_gate'] = 0.0
-
-    chl_file._sweep_number = {
-        'data': range(chl_file.sweep_num), 'long_name': 'Sweep_number',
-        'standard_name': 'sweep_number', 'units': 'count'}
+    _range['data'] = np.array(range(chl_file.ngates)) * chl_file.gate_spacing
+    _range['meters_between_gates'] = np.array(chl_file.gate_spacing)
+    _range['meters_to_center_of_first_gate'] = 0.0      # XXX
 
     # scan_type
-    scan_type = {'data': chl_file.scan_mode}    # XXX
+    scan_type = {'data': SCAN_MODE_NAMES[chl_file.scan_types[-1]]}    # XXX
 
     # fields XXX
     fields = {}
-    for i in range(0, len(chl_file.field_info)):
-
+    for i, fdata in chl_file.fields.items():
         field_info = chl_file.field_info[i]
-        if(field_info['name'] not in chl_file.fields.keys()):
-            continue
         field_name = CHILL_FIELD_MAPPING[field_info['name']]
         fields[field_name] = {
             'coordinates': 'elevation azimuth range',
-            'data': np.ma.masked_array(chl_file.fields[field_info['name']]),
+            'data': np.ma.masked_array(fdata),
             'long_name': field_info['descr'],
-            'standard_name': field_info['name'],
+            'standard_name': CHILL_FIELD_STANDARD_NAME[field_info['name']],
             'units': field_info['units'],
             'valid_max': field_info['max_val'],
             'valid_min': field_info['min_val']
@@ -79,15 +74,16 @@ def read_chl(filename):
 
     # metadata
     metadata = filemetadata('metadata')
-    metadata.update(chl_file.metadata)
+    metadata['instrument_name'] = chl_file.radar_info['radar_name']
+    metadata['original_container'] = 'CHL'
 
     # longitude, latitude, altitude
     latitude = filemetadata('latitude')
     longitude = filemetadata('longitude')
     altitude = filemetadata('altitude')
-    latitude['data'] = chl_file._radar_info['latitude']
-    longitude['data'] = chl_file._radar_info['longitude']
-    altitude['data'] = chl_file._radar_info['altitude']
+    latitude['data'] = chl_file.radar_info['latitude']
+    longitude['data'] = chl_file.radar_info['longitude']
+    altitude['data'] = chl_file.radar_info['altitude']
 
     # sweep_number, sweep_mode, fixed_angle, sweep_start_ray_index,
     # sweep_end_ray_index
@@ -96,11 +92,17 @@ def read_chl(filename):
     fixed_angle = filemetadata('fixed_angle')
     sweep_start_ray_index = filemetadata('sweep_start_ray_index')
     sweep_end_ray_index = filemetadata('sweep_end_ray_index')
-    sweep_number['data'] = chl_file._sweep_number
-    sweep_mode['data'] = chl_file.scan_mode
+    sweep_number['data'] = {  # XXX
+        'data': range(chl_file.num_sweeps), 'long_name': 'Sweep_number',
+        'standard_name': 'sweep_number', 'units': 'count'}
+    sweep_mode['data'] = SCAN_MODE_NAMES[chl_file.scan_types[-1]]
     fixed_angle['data'] = chl_file.fixed_angle
-    sweep_start_ray_index['data'] = chl_file.sweep_start
-    sweep_end_ray_index['data'] = chl_file.sweep_end
+
+    ray_count = chl_file.rays_per_sweep
+    ssri = np.cumsum(np.append([0], ray_count[:-1])).astype('int32')
+    sweep_start_ray_index['data'] = ssri
+    # XXX
+    sweep_end_ray_index['data'] = np.cumsum(ray_count).astype('int32')  # - 1
 
     # azimuth, elevation
     azimuth = filemetadata('azimuth')
@@ -134,45 +136,60 @@ class CHLfile(object):
         Name of CHL file to read.
     """
 
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self, filename, debug=False):
 
-        self.field_info = {}    # field information (limits, name, etc.)
-        self.num_sweeps = 0
-        self.radar_info = []
-        self.processor_info = []
-        self.azimuth = []
-        self.elevation = []
-        self.fixed_angle = []
-        self.sweep_end = []
-        self.data_array = []
-        self.time = []
-        self.fields = {}
-        self._current_ray_num = 0
-        self.metadata = {}
+        # public attributes
+        self.filename = filename    # filename
+        self.ngates = None          # number of gates per ray
+        self.num_sweeps = None      # number of sweeps in the volume
+        self.gate_spacing = None    # spacing in meters between gates
+
+        self.time = []              # list of time for each ray
+        self.azimuth = []           # list of azimuth angle for each ray
+        self.elevation = []         # list of elevation angle for each ray
+
+        self.fixed_angle = []       # list of fixed angles for each sweep
+        self.sweep_number = []      # sweep numbers reported in file
+        self.scan_types = []        # scan type for each sweep
+        self.rays_per_sweep = None  # number of rays per sweep
+
+        self.fields = {}            # dictionary of field data
+
+        self.radar_info = None      # dictionary of radar information
+        self.field_info = {}        # field information (limits, name, etc.)
+        self.processor_info = None
+
+        # private attributes
+
+        self._dstring = ''      # string containing field data
+        self._bit_mask = None   # bit_mask
+        self._dtype = None      # dtype of a gate
+        self._ray_bsize = None  # size in bytes of a single ray (all fields)
+        self._packets = []      # list of packets, not set if debug is False.
+        self._field_nums = None  # field number available in file
+        self._rays_in_current_sweep = None
+
+        # unknown
 
         # read all blocks from the file
-        self.f = open(self.filename, "rb")
+        self._fh = open(self.filename, "rb")
         packet = 1
         while packet is not None:
             packet = self._read_block()
-        self.f.close()
+            if debug:
+                self._packets.append(packet)
+        self._fh.close()
 
-        self.sweep_end.append(self._current_ray_num)
-        del(self.sweep_end[0])
-        self._process_data_blocks()
-        self._range = np.array(range(self.num_gates)) * self.dr
-
-        self.sweep_start = [0, ]
-        self.sweep_start.extend([idx + 1 for idx in self.sweep_end[0:-1]])
+        self._extract_fields()
+        self.rays_per_sweep.append(self._rays_in_current_sweep)
 
     def _read_block(self):
         """ Read a block from an open CHL file """
-        pld = self.f.read(8)
+        pld = self._fh.read(8)
         if pld == '':
             return None
         block_id, length = struct.unpack("<2i", pld)
-        payload = self.f.read(length - 8)
+        payload = self._fh.read(length - 8)
 
         if block_id is None:  # redundant sanity check
             return None
@@ -209,54 +226,35 @@ class CHLfile(object):
         packet['name'] = packet['name'].rstrip('\x00')
         packet['units'] = packet['units'].rstrip('\x00')
         packet['descr'] = packet['descr'].rstrip('\x00')
-        packet['data_size'] = FORMAT_LENGTH[packet['format']]
         self.field_info[packet['bit_mask_pos']] = packet
-        return packet
-
-    # XXX Jonathan stopped refactoring here...
-    # before mucking with this add tests to check that field data
-    # doesn't change
-    def _parse_ray_hdr_block(self, payload):
-        """ Parse a ray_hdr block. Update associated attributes. """
-        packet = _unpack_structure(payload, ARCH_RAY_HEADER)
-        self._current_ray_num = packet['ray_number']
-        fmat_string = self._format_string_from_bitmask(packet['bit_mask'])
-        data_packet = self.f.read(
-            struct.calcsize(fmat_string) * packet['gates'])
-        self.data_array.append(
-            struct.unpack(fmat_string * packet['gates'], data_packet))
-        # We should only do this once, but this will work for now.
-        self.field_count = self._num_fields_from_bitmask(packet['bit_mask'])
-        self.bit_mask = packet['bit_mask']
-        self.time.append(packet['time'])
-        self.azimuth.append(packet['azimuth'])
-        self.elevation.append(packet['elevation'])
-        # This assumes number of gates is constant. Not the best assumption
-        # however.
-        self.num_gates = packet['gates']
         return packet
 
     def _parse_radar_info_block(self, payload):
         """ Parse a radar_info block. Update metadata attribute. """
         packet = _unpack_structure(payload, RADAR_INFO_T)
-        self._radar_info = packet.copy()
-        self.metadata['instrument_name'] = packet['radar_name'].rstrip('\x00')
-        self.metadata['original_container'] = 'CHL'
+        packet['radar_name'] = packet['radar_name'].rstrip('\x00')
+        self.radar_info = packet.copy()
         return packet
 
     def _parse_processor_info_block(self, payload):
         """ Parse a processor_info block.  Set dr attribute. """
         packet = _unpack_structure(payload, PROCESSOR_INFO)
-        self.dr = packet['gate_spacing']
+        self.gate_spacing = packet['gate_spacing']
+        self.processor_info = packet.copy()
         return packet
 
     def _parse_scan_seg_block(self, payload):
         """ Parse a scan_seg_block.  Update sweep attributes. """
         packet = _unpack_structure(payload, SCAN_SEG)
-        self.sweep_num = packet['sweep_num']
-        self.sweep_end.append(self._current_ray_num)
+        self.sweep_number.append(packet['sweep_num'])
         self.fixed_angle.append(packet['current_fixed_angle'])
-        self.scan_mode = SCAN_MODE_NAMES[packet['scan_type']]
+        self.scan_types.append(packet['scan_type'])
+        if self.rays_per_sweep is None:
+            self.rays_per_sweep = []    # first sweep block
+            self._rays_in_current_sweep = 0
+        else:
+            self.rays_per_sweep.append(self._rays_in_current_sweep)
+            self._rays_in_current_sweep = 0
         return packet
 
     def _parse_sweep_block(self, payload):
@@ -268,46 +266,54 @@ class CHLfile(object):
         self.num_sweeps = packet['num_sweeps']
         return packet
 
-    # misc methods
-    def _process_data_blocks(self):
-        darray = np.array(self.data_array)
-        cvi = 0
-        for cv in range(0, len(self.field_info)):
-            if(bool(self.bit_mask & 2 ** cv)):
-                fsl = self.field_info[cv]
+    def _parse_ray_hdr_block(self, payload):
+        """ Parse a ray_hdr block. Update associated attributes. """
+        packet = _unpack_structure(payload, ARCH_RAY_HEADER)
 
-                if(self.field_info[cv]['data_size'] == 'f'):
-                    dat = darray[:, cvi::self.field_count].copy()
-                    dat[dat == 0] = np.nan
-                else:
-                    dat = darray[:, cvi::self.field_count].copy()
-                    dat[dat == 0] = np.nan
-                    # I need to come back and do whole np.ma thing
-                    dat = (dat * fsl['dat_factor'] + fsl['dat_bias']) / \
-                        float(fsl['fld_factor'])
-                self.fields[fsl['name']] = dat
-                cvi += 1
+        if self._bit_mask is None:
+            # this is the first ray_hdr block read
+            self.ngates = packet['gates']
+            self._bit_mask = packet['bit_mask']
+            self._field_nums = [b for b in range(38) if self._bit_mask & 2**b]
+            self._dtype = ','.join([DATA_FORMAT[self.field_info[i]['format']]
+                                    for i in self._field_nums])
+            self._ray_bsize = np.dtype(self._dtype).itemsize * packet['gates']
+        else:
+            # check that the bit_mask and number of gates are constant
+            if packet['bit_mask'] != self._bit_mask:
+                raise NotImplementedError('bit_mask is not consistent.')
+            if packet['gates'] != self.ngates:
+                raise NotImplementedError('number of gates vary.')
 
-    def _format_string_from_bitmask(self, bitmask):
-        format_str = ''
-        for b in range(0, 38):
-            if(bool(bitmask & 2 ** b)):
-                format_str += self.field_info[b]['data_size']
-        return format_str
+        # store ray data and pointing data
+        self._dstring += self._fh.read(self._ray_bsize)
+        self.time.append(packet['time'])
+        self.azimuth.append(packet['azimuth'])
+        self.elevation.append(packet['elevation'])
+        self._rays_in_current_sweep += 1
 
-    def _num_fields_from_bitmask(self, bitmask):
-        count = 0
-        for b in range(0, 38):
-            if(bool(bitmask & 2 ** b)):
-                count += 1
-        return count
+        return packet
 
-    arch_housekeeping_t = (     # XXX not used XXX
-        "id",
-        "length",
-        "rest_of_packet",
-        # Need to finish this
-    )
+    def _extract_fields(self):
+        """ Extract field data from _dstring attribute post read. """
+        all_data = np.fromstring(self._dstring, dtype=self._dtype)
+        all_data = all_data.reshape(-1, self.ngates)
+
+        for i, field_num in enumerate(self._field_nums):
+            fsl = self.field_info[field_num]
+            dat = all_data[all_data.dtype.names[i]].copy()
+
+            # XXX should be masked arrays
+            if not issubclass(dat.dtype.type, np.integer):
+                dat[dat == 0] = np.nan
+            else:
+                dat = dat.astype('float')
+                dat[dat == 0] = np.nan
+                dat = ((dat * fsl['dat_factor'] + fsl['dat_bias']) /
+                       float(fsl['fld_factor']))
+
+            self.fields[field_num] = dat
+        return
 
 # CHL packet types
 ARCH_FORMAT_VERSION = 0x00010000
@@ -322,7 +328,7 @@ HSK_ID_SCAN_SEG = 0x5aa50002
 
 # Additional constants
 SCAN_MODE_NAMES = ['ppi', 'rhi', 'fixed', 'manual ppi', 'manual rhi', 'idle']
-FORMAT_LENGTH = ['c', 'Q', 'f', 'H']
+DATA_FORMAT = ['uint8', 'uint64', 'float32', 'uint16']
 
 ##############
 # Structures #
@@ -332,8 +338,8 @@ FORMAT_LENGTH = ['c', 'Q', 'f', 'H']
 def _unpack_structure(string, structure):
     """ Unpack a structure """
     fmt = ''.join([i[1] for i in structure])
-    l = struct.unpack(fmt, string)
-    return dict(zip([i[0] for i in structure], l))
+    tpl = struct.unpack(fmt, string)
+    return dict(zip([i[0] for i in structure], tpl))
 
 ARCH_FILE_HDR_T = (
     ('version', 'I'),
@@ -491,4 +497,4 @@ _FIELD_TABLE = {
     '\xcf\x81 VCX': ('RHOVCX', 'lag_0_v_co_to_cross_correlation'),
 }
 CHILL_FIELD_MAPPING = dict((k, v[0]) for k, v in _FIELD_TABLE.items())
-CHILL_FIELD_LONG_NAME = dict((k, v[1]) for k, v in _FIELD_TABLE.items())
+CHILL_FIELD_STANDARD_NAME = dict((k, v[1]) for k, v in _FIELD_TABLE.items())
