@@ -12,6 +12,7 @@ set -e
 #set -x
 
 sudo apt-get update -qq
+sudo apt-get install -qq gfortran
 
 # Use Miniconda to provide a Python environment.  This allows us to perform
 # a conda based install of the SciPy stack on multiple versions of Python
