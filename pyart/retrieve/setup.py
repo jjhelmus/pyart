@@ -18,10 +18,11 @@ def configuration(parent_package='', top_path=None):
 
 def generate_source(ext, build_dir):
     print "KAHHN"
-    if config.have_f90c():
+    try:
+        config.have_f90c()
         print "HAVE"
         return ['echo_steiner.pyf', 'src/echo_steiner.f90']
-    else:
+    except:
         print "HAVE NOT"
         return None
 
