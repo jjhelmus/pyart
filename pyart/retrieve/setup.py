@@ -3,7 +3,13 @@
 def configuration(parent_package='', top_path=None):
     from numpy.distutils.misc_util import Configuration
     config = Configuration('retrieve', parent_package, top_path)
-    #config.add_data_dir('tests')
+    config.add_data_dir('tests')
+
+    # XXX make this optional
+    config.add_extension(
+        'echo_steiner',
+        sources=['echo_steiner.pyf', 'src/echo_steiner.f90'],
+    )
     return config
 
 
