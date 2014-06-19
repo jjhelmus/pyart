@@ -22,8 +22,8 @@ def steiner_echo_gen_source(ext, build_dir):
     """
     try:
         config.have_f90c()
-        return [join(build_dir, 'echo_steiner.pyf'),
-                join(build_dir, 'src', 'echo_steiner.f90')]
+        return [join(config.local_path, 'echo_steiner.pyf'),
+                join(config.local_path, 'src', 'echo_steiner.f90')]
     except:
         # TODO add printer message about missing extension and
         # instruction on how to make available
