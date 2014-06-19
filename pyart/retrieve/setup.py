@@ -6,24 +6,25 @@ def configuration(parent_package='', top_path=None):
     config = Configuration('retrieve', parent_package, top_path)
     config.add_data_dir('tests')
 
-    print "FOOOOVAR"
-    # XXX make this optional
+    # Conditionally add Steiner echo classifier extension.
     config.add_extension(
         'echo_steiner',
-        sources=[generate_source],
-        #sources=['echo_steiner.pyf', 'src/echo_steiner.f90'],
+        sources=[steiner_echo_gen_source],
     )
-    #print config.have_f90c()
     return config
 
-def generate_source(ext, build_dir):
-    print "KAHHN"
+
+def steiner_echo_gen_source(ext, build_dir):
+    """
+    Add Steiner echo classifier source if Fortran 90 compliler available,
+    if not compiler is found do not try to build the extension.
+    """
     try:
         config.have_f90c()
-        print "HAVE"
         return ['echo_steiner.pyf', 'src/echo_steiner.f90']
     except:
-        print "HAVE NOT"
+        # TODO add printer message about missing extension and
+        # instruction on how to make available
         return None
 
 if __name__ == '__main__':

@@ -12,7 +12,6 @@ set -e
 #set -x
 
 sudo apt-get update -qq
-#sudo apt-get install -qq gfortran
 
 # Use Miniconda to provide a Python environment.  This allows us to perform
 # a conda based install of the SciPy stack on multiple versions of Python
@@ -37,6 +36,7 @@ sudo apt-get install -qq libglpk-dev
 conda install --yes -c http://conda.binstar.org/jjhelmus pyglpk
 
 if [[ $PYTHON_VERSION == '2.7' ]]; then
+    sudo apt-get install -qq gfortran
     conda install --yes basemap 
     conda install --yes -c http://conda.binstar.org/jjhelmus cbc cylp
     conda install --yes -c http://conda.binstar.org/jjhelmus cvxopt_glpk
