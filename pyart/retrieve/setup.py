@@ -1,3 +1,4 @@
+from os.path import join
 
 
 def configuration(parent_package='', top_path=None):
@@ -21,7 +22,8 @@ def steiner_echo_gen_source(ext, build_dir):
     """
     try:
         config.have_f90c()
-        return ['echo_steiner.pyf', 'src/echo_steiner.f90']
+        return [join(build_dir, 'echo_steiner.pyf'),
+                join(build_dir, 'src', 'echo_steiner.f90')]
     except:
         # TODO add printer message about missing extension and
         # instruction on how to make available
