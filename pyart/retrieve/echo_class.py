@@ -2,12 +2,19 @@
 pyart.retrieve.echo_class
 =========================
 
+steiner_conv_strat
+
+.. autosummary::
+    :toctree: generated/
+
+    steiner_conv_strat
+
 """
 
 import numpy as np
 
 from ..config import get_fillvalue, get_field_name
-from ..retrieve import echo_steiner
+from . import _echo_steiner
 
 
 def steiner_conv_strat(grid, dx=500.0, dy=500.0, intense=42.0,
@@ -24,8 +31,8 @@ def steiner_conv_strat(grid, dx=500.0, dy=500.0, intense=42.0,
     grid : Grid
         Grid containing reflectivity field to partition.
 
-    Optional parameters
-    -------------------
+    Other Parameters
+    ----------------
     dx, dy : float
         The x- and y-dimension resolutions in meters, respectively.
     intense : float
@@ -51,6 +58,7 @@ def steiner_conv_strat(grid, dx=500.0, dy=500.0, intense=42.0,
     refl_field : str
          Field in grid to use as the reflectivity during partitioning. None
          will use the default field name from the Py-ART configuration file.
+
     Returns
     -------
     eclass : dict
@@ -77,16 +85,15 @@ def steiner_conv_strat(grid, dx=500.0, dy=500.0, intense=42.0,
     z = grid.axes['z_disp']['data']
 
     # Get reflectivity data
-    ze = np.copy(grid.fields[refl_field]['data'])
+    ze = np.ma.copy(grid.fields[refl_field]['data'])
     ze = np.ma.filled(ze, fill_value).astype(np.float64)
 
     # Call Fortran routine
-    eclass = echo_steiner.classify(ze, x, y, z, dx=dx, dy=dy, bkg_rad=bkg_rad,
-                                   work_level=work_level, intense=intense,
-                                   peak_relation=peak_relation,
-                                   area_relation=area_relation,
-                                   use_intense=use_intense,
-                                   fill_value=fill_value)
+    eclass = _echo_steiner.classify(
+        ze, x, y, z, dx=dx, dy=dy, bkg_rad=bkg_rad, work_level=work_level,
+        intense=intense, peak_relation=peak_relation,
+        area_relation=area_relation, use_intense=use_intense,
+        fill_value=fill_value)
 
     return {'data': eclass.astype(np.int32),
             'standard_name': 'echo_classification',
