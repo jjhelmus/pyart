@@ -704,7 +704,6 @@ def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
     res = _arm_interp_sonde(grids[0], sonde, target, fill_value,
                             standard_density=standard_density,
                             debug=False, verbose=verbose)
-    
     temp, pres, rho, drho, us, vs = res
     
     # Get wind data
@@ -712,8 +711,8 @@ def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
     v = np.ma.filled(conv.fields[v_field]['data'], fill_value)
     w = np.ma.filled(conv.fields[w_field]['data'], fill_value)
     
-    # Initialize status dictionary
-    status = {}
+    # Initialize metrics dictionary
+    metrics = collections.defaultdict(list)
     
     # Compute the RMSD of the radial velocity field for each grid (radar)
     for grid in grids:
@@ -731,46 +730,40 @@ def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
         
         # Compute radial velocity RMSD
         rmse_vr = np.sqrt(((vr - vr_obs)**2).mean())
-        
-        status['RMSD_{%s}' %radar_name] = rmse_vr
+        metrics['RMSD %s' %radar_name] = rmse_vr
         
         if verbose:
-            print ('The radial velocity RMSE for radar %s is %.3f m/s'
+            print ('The radial velocity RMSD for radar %s is %.3f m/s'
                    %(radar_name, rmse_vr))
             
     # Compute the normalized divergence profile. Here we look at the
     # residual of the anelastic continuity equation
-    norm_div = np.zeros(nz, dtype=np.float)
-    
     res = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
                     finite_scheme=finite_scheme, fill_value=fill_value)
-    
     div, du, dv, dw = res
     
     for k in xrange(nz):
-        
         num = np.sqrt(((div[k,:,:] + w[k,:,:] * drho[k] / rho[k])**2).mean())
         den = np.sqrt((du[k,:,:]**2 + dv[k,:,:]**2 + dw[k,:,:]**2 + \
                        (w[k,:,:] * drho[k] / rho[k])**2).mean())
-        
-        norm_div[k] = 100.0 * num / den
-        
-    status['ND'] = norm_div
+        normalized_div = 100.0 * num / den
+        metrics['normalized divergence'].append(normalized_div)
     
     if verbose:
-        print 'Minimum normalized divergence = %.3f%%' %norm_div.min()
-        print 'Maximum normalized divergence = %.3f%%' %norm_div.max()
+        min_nd = min(metrics['normalized divergence'])
+        max_nd = max(metrics['normalized divergence'])
+        print 'Minimum normalized divergence = %.3f%%' %min_nd
+        print 'Maximum normalized divergence = %.3f%%' %max_nd
               
     # Compute the RMSE of the impermeability condition at the surface to the
     # analysis vertical velocity at the surface
     rmsd_w0 = np.sqrt((w[0,:,:]**2).mean())
-    
-    status['RMSD_{imperm}'] = rmsd_w0
+    metrics['RMSD impermeability'] = rmsd_w0
     
     if verbose:
         print 'The impermeability condition RMSD is %.3f m/s' %rmsd_w0
     
-    return status
+    return metrics
     
 
 def solve_wind_field(grids, sonde, target=None, technique='3d-var',
