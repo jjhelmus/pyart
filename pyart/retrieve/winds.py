@@ -6,6 +6,7 @@ pyart.retrieve.winds
 
 import time
 import numpy as np
+import collections
 
 from datetime import datetime
 from copy import deepcopy
