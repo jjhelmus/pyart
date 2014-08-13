@@ -18,7 +18,15 @@ from ..io import Grid
 from ..util.datetime_utils import datetime_from_grid, datetimes_from_dataset
 from ..config import get_fillvalue, get_field_name, get_metadata
 from ..retrieve import cga, divergence, continuity, gradient
-                   
+
+class Cost(object):
+
+    __init__(self)
+
+class Jacobian(object):
+
+    __init__(self)
+
 
 def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
     """
@@ -57,7 +65,6 @@ def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
     # Loop over all grids to get the total number of observations at
     # each grid point in the analysis domain
     for grid in grids:
-        
         # Get data
         ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
         vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
@@ -67,7 +74,6 @@ def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
         is_bad_vel = vr == fill_value
         
         has_obs = ~np.logical_or(is_bad_refl, is_bad_vel)
-        
         cover = np.where(has_obs, cover + 1, cover)
         
     # Return dictionary of results
@@ -102,14 +108,13 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80'):
         List of grids with added Cartesian components fields.
     """
     
-    # Get axes
+    # Get analysis domain axes
     x = grids[0].axes['x_disp']['data']
     y = grids[0].axes['y_disp']['data']
     z = grids[0].axes['z_disp']['data']
     
     # Loop over all grids
     for i, grid in enumerate(grids):
-        
         # Get latitude and longitude of analysis domain origin and the
         # latitude and longitude of the current grid (radar)
         lat_0 = grid.axes['lat']['data'][0]
@@ -152,15 +157,15 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80'):
               'valid_max': 1.0}
               
         # Add new fields to current grid and update grids list
-        grid.add_field('x_component', ic)
-        grid.add_field('y_component', jc)
-        grid.add_field('z_component', kc)
+        grid.fields.update({'x_component': ic})
+        grid.fields.update({'y_component': jc})
+        grid.fields.update({'z_component': kc})
         
     return
 
 
 def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
-                 fill_value=None, proc=1, refl_field=None):
+                  proc=1, fill_value=None, refl_field=None):
     """
     Determine the echo base and top heights from the large-scale
     coverage of the radar network.
@@ -177,18 +182,23 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
     min_layer : float
         Minimum cloud layer allowed in meters.
     top_offset : float
-        Value in meters added to the echo top height.
+        Value in meters added to the echo top height. See Protat and Zawadzki
+        (1999) for more information.
+    proc : int
+        Number of processors requested.
     fill_value : float
         Missing value used to signify bad data points. A value of None
         will use the default fill value as defined in the Py-ART
         configuration file.
-    proc : int
-        Number of processors requested.
     refl_field : str
         Name of reflectivity field which will be used to estimate the fall
         speed. A value of None will use the default field name as defined in
         the Py-ART configuration file.
-    
+
+    References
+    ----------
+    Protat, A. and I. Zawadzki, 1999:
+
     Returns
     -------
     base, top : dict
@@ -203,16 +213,16 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
     if refl_field is None:
         refl_field = get_field_name('corrected_reflectivity')
     
-    # Get axes
+    # Get analysis domain axes
     z = grids[0].axes['z_disp']['data']
     
     # Compute the maximum reflectivity observed at each grid point
-    # from all grids (radars)
+    # using all grids (radars)
     ze = np.ma.max([grid.fields[refl_field]['data'] for
                     grid in grids], axis=0)
     ze = np.ma.filled(ze, fill_value).astype(np.float64)
         
-    # Estimate echo base and top heights. Add offset to echo top heights
+    # Estimate echo base and top heights, and add offset to echo top heights
     base, top = continuity.boundary_conditions(ze, z, mds=mds,
                                 min_layer=min_layer, proc=proc,
                                 fill_value=fill_value)
@@ -282,13 +292,12 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None,
         
     # Loop over all grids
     for grid in grids:
-        
         # Get appropriate data
         ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
         vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
         
         # Initialize observation weight array for each grid (radar)
-        lam_o = np.zeros(ze.shape, dtype=np.float64)
+        grid_weight = np.zeros_like(ze)
         
         # Create appropriate boolean arrays
         is_bad_refl = ze == fill_value
@@ -296,23 +305,23 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None,
         
         is_good = ~np.logical_or(is_bad_refl, is_bad_vel)
         
-        lam_o[is_good] = wgt_o
+        grid_weight[is_good] = wgt_o
         
         # Create dictionary of results
-        lam_o = {'data': lam_o,
-                 'standard_name': 'observation_weight',
-                 'long_name': 'Radar observation weight',
-                 'valid_min': 0.0,
-                 'valid_max': wgt_o}
+        grid_weight = {'data': grid_weight,
+                       'standard_name': 'observation_weight',
+                       'long_name': 'Radar observation weight',
+                       'valid_min': 0.0,
+                       'valid_max': wgt_o}
                  
         # Add new field to grid object
-        grid.add_field('observation_weight', lam_o)
+        grid.fields.update({'observation_weight': grid_weight})
 
     return
     
             
 def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
-              rhv_min=0.7, window_size=5, noise_ratio=85.0, fill_value=None,
+              rhv_min=0.7, window_size=5, noise_ratio=50.0, fill_value=None,
               refl_field=None, vel_field=None, ncp_field=None,
               rhv_field=None):
     """
@@ -352,19 +361,18 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
     if rhv_field is None:
         rhv_field = get_field_name('cross_correlation_ratio')
         
-    # Get grid dimensions
+    # Get analysis domain dimensions
     nz, ny, nx = grids[0].fields[refl_field]['data'].shape
     
-    # Get height axis and create its mesh
+    # Get analysis domain heights and create its mesh
     z = grids[0].axes['z_disp']['data']
     Z = np.repeat(z, ny*nx, axis=0).reshape(nz, ny, nx)
     
     # Loop over all grids
     for grid in grids:
-        
         # Compute the magnitude of the radial velocity gradient and determine
-        # where it's bad
-        vr = np.copy(grid.fields[vel_field]['data'])
+        # where it is bad
+        vr = grid.fields[vel_field]['data']
         dvrz, dvry, dvrx = np.gradient(vr)
         grad_mag = np.ma.sqrt(dvrx**2 + dvry**2 + dvrz**2)
         grad_mag = np.ma.filled(grad_mag, fill_value)
@@ -380,16 +388,16 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
         # Create appropriate boolean arrays
         is_noise = np.logical_or(ze < mds, ze == fill_value)
         is_high_vel = np.logical_or(np.abs(vr) > vel_max, vr == fill_value)
-        is_vel_art = np.logical_or(is_high_vel, is_bad_vel_grad)
+        is_vel_artifact = np.logical_or(is_high_vel, is_bad_vel_grad)
         is_bad_ncp = np.logical_or(ncp < ncp_min, ncp == fill_value)
         is_bad_rhv = np.logical_or(rhv < rhv_min, rhv == fill_value)
         is_non_meteo = np.logical_or(is_bad_ncp, is_bad_rhv)
         
         is_bad_refl = np.logical_or(is_noise, is_non_meteo)
-        is_bad_vel = np.logical_or(is_vel_art, is_non_meteo)
+        is_bad_vel = np.logical_or(is_vel_artifact, is_non_meteo)
         
         # Special attention to heights below 2000 m where velocity artifacts
-        # can be a problem
+        # can especially be a problem
         is_bad_vel[np.logical_and(np.abs(vr) > 30.0, Z < 2000.0)] = True
         
         # Update masks
@@ -446,28 +454,30 @@ def _column_types(cover, base, top, fill_value=None):
                         '5 = Discontinuous')}
 
 
-def _arm_interp_sonde(grid, sonde, target, fill_value=None,
-                      rho0=1.2, H=10000.0, standard_density=False,
-                      finite_scheme='basic', debug=False, verbose=False):
+def _arm_interp_sonde(grid, sonde, target=None, rho0=1.2, H=10000.0,
+                      standard_density=False, finite_scheme='basic',
+                      fill_value=None, debug=False, verbose=False):
     """
     Parameters
     ----------
+    grid : Grid
     
     Optional parameters
     -------------------
-    fill_value : float
-        Missing value used to signify bad data points. A value of None
-        will use the default fill value as defined in the Py-ART
-        configuration file.
+    target : datetime
+    rho0, H : float
+        Reference density in kg m^-3 and scale height in meters. Only
+        applicable if 'standard_density' is True.
     finite_scheme : 'basic' or 'high-order'
         Finite difference scheme to use when calculating density gradient.
         Only applicable if 'standard' is False.
     standard_density : bool
         If True, the returned density profile is from a standard atmosphere.
         False uses the sounding data.
-    rho0, H : float
-        Reference density in kg m^-3 and scale height in meters. Only
-        applicable if 'standard' is True.
+    fill_value : float
+        Missing value used to signify bad data points. A value of None
+        will use the default fill value as defined in the Py-ART
+        configuration file.
     debug : bool
         Print debugging information
     verbose : bool
@@ -494,14 +504,16 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
     
     # Get axes. The heights given in the interpolated or merged sounding 
     # product are given in kilometers above mean sea level
-    z_grid = grid.axes['z_disp']['data'] + grid.axes['alt']['data'] # (m)
-    z_sonde = 1000.0 * sonde.variables['height'][:] # (m)
+    z_grid = grid.axes['z_disp']['data'] + grid.axes['alt']['data'] # in (m)
+    z_sonde = 1000.0 * sonde.variables['height'][:] # in (m)
     
     # Get closest time index in sounding to the target time
+    if target is None:
+        target = datetime_from_grid(grid)
     dt_sonde = datetimes_from_dataset(sonde)
     t = np.abs(dt_sonde - target).argmin()
-    
     if verbose:
+        print 'Target time is %s' %target
         print 'Closest merged sounding time to target is %s' %dt_sonde[t]
     
     # Get data from sounding
@@ -544,6 +556,38 @@ def _arm_interp_sonde(grid, sonde, target, fill_value=None,
     
     return temp, pres, rho, drho, u, v
 
+
+def _standard_atmosphere(grid, rho0=1.2, H=10000.0):
+    """
+    Parameters
+    ----------
+    grid : Grid
+
+    Optional parameters
+    -------------------
+    rho0 : float
+        Reference density in kg m^-3.
+    H : float
+        Scale height in meters.
+
+    Returns
+    -------
+    rho : np.ndarray
+        Density profile in kg m^-3.
+    drho : np.ndarray
+        Profile of the rate of change of density with respect to height
+        in kg m^-4.
+    """
+
+    # Get analysis domain heights
+    z = grid.axes['z_disp']['data']
+    
+    # Compute the air density and its first derivative with respect to height
+    rho = rho0 * np.exp(-z / H)
+    drho = -(rho0 / H) * np.exp(-z / H)
+
+    return rho, drho
+
         
 def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
     """
@@ -576,10 +620,10 @@ def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
     if refl_field is None:
         refl_field = get_field_name('corrected_reflectivity')
     
-    # Get dimensions
+    # Get analysis domain dimensions
     nz, ny, nx = grids[0].fields[refl_field]['data'].shape
     
-    # Get height axis and create its mesh
+    # Get analysis domain heights and create its mesh
     z = grids[0].axes['z_disp']['data']
     Z = np.repeat(z, ny*nx, axis=0).reshape(nz, ny, nx)
     
@@ -587,7 +631,7 @@ def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
     T = np.repeat(temp, ny*nx, axis=0).reshape(nz, ny, nx)
     
     # Compute the maximum reflectivity observed at each grid point
-    # from all grids (radars)
+    # using all grids (radars)
     ze = np.ma.max([grid.fields[refl_field]['data'] for
                     grid in grids], axis=0)
     
@@ -613,13 +657,13 @@ def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
     
     # Loop over grids and add the hydrometeor fall velocity field
     for grid in grids:
-        grid.add_field('hydrometeor_fall_velocity', vt)
+        grid.fields.update({'hydrometeor_fall_velocity': vt})
     
     return
 
 
-def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
-                    fill_value=None, u_field=None, v_field=None):
+def _horizontal_divergence(grid, finite_scheme='basic', proc=1,
+                           fill_value=None, u_field=None, v_field=None):
     """
     """
     
@@ -640,9 +684,9 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
     v = np.ma.filled(v, fill_value).astype(np.float64)
     
     # Compute horizontal wind divergence
-    div, du, dv = divergence.horiz_wind(u, v, dx=dx, dy=dy, proc=proc,
-                                        finite_scheme=finite_scheme,
-                                        fill_value=fill_value)
+    div, du, dv = divergence.horizontal_wind(u, v, dx=dx, dy=dy, proc=proc,
+                                             finite_scheme=finite_scheme,
+                                             fill_value=fill_value)
     
     div = np.ma.masked_equal(div, fill_value)
     
@@ -654,16 +698,15 @@ def _hor_divergence(grid, dx=500.0, dy=500.0, finite_scheme='basic', proc=1,
            '_FillValue': div.fill_value,
            'units': 'per_second'}
     
-    grid.add_field('horizontal_divergence', div)
+    grid.fields.update({'horizontal_divergence': div})
     
     return
         
     
-def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
-                    target=None, fall_speed='Caya', finite_scheme='basic',
-                    proc=1, standard_density=False, fill_value=None,
-                    verbose=False, refl_field=None, vel_field=None,
-                    u_field=None, v_field=None, w_field=None):
+def _check_analysis(grids, conv, sonde, target=None, fall_speed='Caya',
+                    finite_scheme='basic', proc=1, standard_density=False,
+                    fill_value=None, refl_field=None, vel_field=None,
+                    u_field=None, v_field=None, w_field=None, verbose=False):
     """
     Parameters
     ----------
@@ -702,9 +745,10 @@ def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
     
     # Use the ARM interpolated or merged sounding product to get the
     # atmospheric thermodynamic and horizontal wind profiles
-    res = _arm_interp_sonde(grids[0], sonde, target, fill_value,
+    res = _arm_interp_sonde(grids[0], sonde, target=target,
                             standard_density=standard_density,
-                            debug=False, verbose=verbose)
+                            fill_value=fill_value, debug=False,
+                            verbose=verbose)
     temp, pres, rho, drho, us, vs = res
     
     # Get wind data
@@ -717,7 +761,6 @@ def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
     
     # Compute the RMSD of the radial velocity field for each grid (radar)
     for grid in grids:
-        
         # Get appropriate grid (radar) data
         vr_obs = grid.fields[vel_field]['data']
         vt = grid.fields['hydrometeor_fall_velocity']['data']
@@ -730,33 +773,42 @@ def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
         vr = u * ic + v * jc + (w + vt) * kc
         
         # Compute radial velocity RMSD
-        rmse_vr = np.sqrt(((vr - vr_obs)**2).mean())
+        rmse_vr = np.ma.sqrt(((vr - vr_obs)**2).mean())
         metrics['RMSD %s' %radar_name] = rmse_vr
         
         if verbose:
             print ('The radial velocity RMSD for radar %s is %.3f m/s'
                    %(radar_name, rmse_vr))
             
-    # Compute the normalized divergence profile. Here we look at the
-    # residual of the anelastic continuity equation
+    # Compute the normalized anelastic continuity residual
     res = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
-                    finite_scheme=finite_scheme, fill_value=fill_value)
+                               finite_scheme=finite_scheme,
+                               fill_value=fill_value)
     div, du, dv, dw = res
     
     for k in xrange(nz):
-        num = np.sqrt(((div[k,:,:] + w[k,:,:] * drho[k] / rho[k])**2).mean())
-        den = np.sqrt((du[k,:,:]**2 + dv[k,:,:]**2 + dw[k,:,:]**2 + \
-                       (w[k,:,:] * drho[k] / rho[k])**2).mean())
-        normalized_div = 100.0 * num / den
-        metrics['normalized divergence'].append(normalized_div)
+        # At each height compute anelastic air mass continuity (D) as well as
+        # the square of each of its individual terms
+        D = div[k,:,:] + w[k,:,:] * drho[k] / rho[k]
+        du2 = du[k,:,:]**2
+        dv2 = dv[k,:,:]**2
+        dw2 = dw[k,:,:]**2
+        compress2 = (w[k,:,:] * drho[k] / rho[k])**2
+
+        # Now compute the normalized anelastic continuity residual for the
+        # current height
+        numer = np.ma.sqrt((D**2).mean())
+        denom = np.ma.sqrt((du2 + dv2 + dw2 + compress2).mean())
+        normalized_residual = 100.0 * numer / denom
+        metrics['normalized continuity residual'].append(normalized_residual)
     
     if verbose:
-        min_nd = min(metrics['normalized divergence'])
-        max_nd = max(metrics['normalized divergence'])
-        print 'Minimum normalized divergence = %.3f%%' %min_nd
-        print 'Maximum normalized divergence = %.3f%%' %max_nd
+        min_nd = min(metrics['normalized continuity residual'])
+        max_nd = max(metrics['normalized continuity residual'])
+        print 'Minimum normalized continuity residual = %.3f%%' %min_nd
+        print 'Maximum normalized continuity residual = %.3f%%' %max_nd
               
-    # Compute the RMSE of the impermeability condition at the surface to the
+    # Compute the RMSD of the impermeability condition at the surface to the
     # analysis vertical velocity at the surface
     rmsd_w0 = np.sqrt((w[0,:,:]**2).mean())
     metrics['RMSD impermeability'] = rmsd_w0
@@ -767,25 +819,33 @@ def _check_analysis(grids, conv, sonde, dx=500.0, dy=500.0, dz=500.0,
     return metrics
     
 
-def solve_wind_field(grids, sonde, target=None, technique='3d-var',
+def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
                      solver='scipy.fmin_cg', first_guess='zero',
-                     background='sounding', fall_speed='Caya', dx=500.0,
-                     dy=500.0, dz=500.0, finite_scheme='basic', proc=1,
-                     use_qc=True, standard_density=False, save_refl=True,
-                     debug=False, verbose=False, fill_value=None,
-                     refl_field=None, vel_field=None, ncp_field=None,
-                     rhv_field=None, u_field=None, v_field=None, w_field=None,
-                     **kwargs):
+                     background='sounding', sounding='ARM interpolated',
+                     fall_speed='Caya', finite_scheme='basic',
+                     continuity='potvin', smooth='potvin',
+                     impermeability='strong', first_pass=True,
+                     sub_beam=False, gtol=1.0e-5, ftol=1.0e7, maxiter=100,
+                     maxcor=10, disp=False, length_scale=None, use_qc=True,
+                     mds=0.0, ncp_min=0.4, rhv_min=0.8, vel_max=40.0,
+                     vel_grad_max=10.0, noise_ratio=50.0,
+                     window_size=10, min_layer=1500.0, top_offset=500.0,
+                     standard_density=False, save_refl=True, proc=1,
+                     proj='lcc', datum='NAD83', ellps='GRS80',
+                     fill_value=None, refl_field=None, vel_field=None,
+                     ncp_field=None, rhv_field=None, u_field=None,
+                     v_field=None, w_field=None, debug=False,
+                     verbose=False,):
     """
     Parameters
     ----------
     grids : list
         All available radar grids to use in the wind retrieval.
-    sonde : netCDF4.Dataset
-        Sounding dataset.
         
     Optional parameters
     -------------------
+    sonde : netCDF4.Dataset
+        Radiosonde dataset.
     target : datetime
         Target date and time. If target is not provided, the earliest time
         out of all the grids will be used.
@@ -797,23 +857,36 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
         Define what to use as a first guess field.
     background : 'zero', 'sounding'
         Define what to use as a background field.
-    dx, dy, dz : float
-        Grid resolution in x-, y-, and z-dimension, respectively.
+    sounding : 'ARM interpolated'
+        Define the source for the radiosonde data.
+    continuity : 'potvin' or 'iterative'
+        Define what method to use as the anelastic air mass continuity
+        constraint. The 'iterative' method is a so-called non-simultaneaous
+        method, while the 'potvin' method is a simultaneaous method.
+    smooth : 'potvin' or 'collis'
+    impermeability : 'strong' or 'weak'
+        Determines whether surface impermeability is considered as a strong
+        or weak constraint.
     wgt_o : float
         Observation weight used at each grid point with valid observations.
         Only applicable when 'technique' is '3d-var'.
     wgt_c : float
         Weight given to the anelastic air mass continuity constraint. Only
         applicable when 'technique' is '3d-var'.
-    wgt_s : list of 5 floats
-        Weight given to the smoothness constraint. Only applicable when
-        'technique' is '3d-var'.
+    wgt_s : list
+        Weights given to the smoothness constraint. It should be a list of
+        five floats, the first only applicable when smooth is 'collis', and
+        the other four only applicable when smooth is 'potvin'. When smooth
+        is 'potvin', the four floats correspond to S1, S2, S3, and S4 from
+        Equation (6) in Potvin et al. (2012). Only applicable when 'technique'
+        is '3d-var'.
     wgt_b : list of 3 floats
         Weight given to the background field. Only applicable when
         'technique' is '3d-var'.
     wgt_w0 : float
         Weight given to satisfying the impermeability condition at the
-        surface. Only applicable when 'technique' is '3d-var'.
+        surface. Only applicable when 'technique' is '3d-var' and
+        impermeability is 'weak'.
     length_scale : float
         Only applicable when 'technique' is '3d-var'.
     first_pass : bool
@@ -845,17 +918,21 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
         Only applicable when 'solver' is 'scipy'.
     retall : bool
         Only applicable when 'solver' is 'scipy'.
+    proc : int
+        Number of processors requested.
     fill_value : float
         Missing value used to signify bad data points. A value of None
         will use the default fill value as defined in the Py-ART
         configuration file.
-    proc : int
-        Number of processors requested.
-    
+
     Returns
     -------
     conv : Grid
         A grid containing the 3-D Cartesian wind components.
+
+    References
+    ----------
+    Potvin, C., 2012:
     """
     
     # Get fill value
@@ -881,7 +958,7 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     if verbose:
         print 'Observations from %i radar(s) will be used' %len(grids)
     
-    # Get dimensions of problem. We will eventually have to permute the
+    # Get dimensions of posed problem. We will eventually have to permute the
     # problem from the initial grid space which is in (nz, ny, nx) to a vector
     # space which is 1-D
     #
@@ -890,7 +967,6 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     # Cartesian wind components
     nz, ny, nx = grids[0].fields[refl_field]['data'].shape
     N = nz * ny * nx
-    
     if verbose:
         print 'We have to minimize a function of %i variables' %(3 * N)
         
@@ -898,72 +974,65 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     # out of the list of grids (radars)
     if target is None:
         target = min([datetime_from_grid(grid) for grid in grids])
-        
-    if verbose:
-        print 'Target time is %s' %target
-    
-    # Define some variables that are not necessarily required to retrieve
-    # the wind field but will still be used in some functions. If these
-    # arguments are not specified by the user, their default values will be
-    # used instead        
-    mds = kwargs.get('mds', 0.0)
-    vel_max = kwargs.get('vel_max', 40.0)
-    vel_grad_max = kwargs.get('vel_grad_max', 10.0)
-    ncp_min = kwargs.get('ncp_min', 0.5)
-    rhv_min = kwargs.get('rhv_min', 0.8)
-    min_layer = kwargs.get('min_layer', 1500.0)
-    top_offset = kwargs.get('top_offset', 500.0)
-    window_size = kwargs.get('window_size', 10)
-    noise_ratio = kwargs.get('noise_ratio', 50.0)
+
+    # If no radiosonde data is provided, we will use a standard atmosphere
+    # profile to define the density and its derivative with respect to height
+    if sonde is None:
+        if first_guess == 'sounding':
+            raise ValueError('Radiosonde data is required for the initial '
+                             '(first) guess field but none is provided')
+        if background == 'sounding':
+            raise ValueError('Radiosonde data is required for the background '
+                             'field but none is provided')
+        temp, pres, rho, drho = _standard_atmosphere(grids[0])
     
     # Use the ARM interpolated or merged sounding product to get the
     # atmospheric thermodynamic and horizontal wind profiles
-    res = _arm_interp_sonde(grids[0], sonde, target, fill_value,
-                            standard_density=standard_density,
-                            debug=debug, verbose=verbose)
-    
-    temp, pres, rho, drho, us, vs = res
+    if sounding == 'ARM interpolated':
+        res = _arm_interp_sonde(grids[0], sonde, target=target,
+                                standard_density=standard_density,
+                                fill_value=fill_value, debug=debug,
+                                verbose=verbose)
+        temp, pres, rho, drho, us, vs = res
+    else:
+        raise ValueError('Unsupported radiosonde data source')
               
     # Get the first guess field. Here we will put the variables into their
     # vector space,
     #
-    # u0 = (u1,u2,...,uN)
-    # v0 = (v1,v2,...,vN)
-    # w0 = (w1,w2,...,wN)
+    # u0 = (u1, u2, ... , uN)
+    # v0 = (v1, v2, ... , vN)
+    # w0 = (w1, w2, ... , wN)
     if first_guess == 'zero':
         u0 = np.zeros(N, dtype=np.float64)
         v0 = np.zeros(N, dtype=np.float64)
         w0 = np.zeros(N, dtype=np.float64)
-        
     elif first_guess == 'sounding':
         u0 = np.ravel(np.repeat(us, ny*nx, axis=0).reshape(nz, ny, nx))
         v0 = np.ravel(np.repeat(vs, ny*nx, axis=0).reshape(nz, ny, nx))
         w0 = np.zeros(N, dtype=np.float64)
-        
     else:
         raise ValueError('Unsupported initial (first) guess field')
         
     # Get the background field. Here we will put the variables into their
     # grid space,
     #
-    # ub = ub(z,y,x)
-    # vb = vb(z,y,x)
-    # wb = wb(z,y,x)
+    # ub = ub(z, y, x)
+    # vb = vb(z, y, x)
+    # wb = wb(z, y, x)
     if background == 'zero':
         ub = np.zeros((nz,ny,nx), dtype=np.float64)
         vb = np.zeros((nz,ny,nx), dtype=np.float64)
         wb = np.zeros((nz,ny,nx), dtype=np.float64)
-        
     elif background == 'sounding':
         ub = np.repeat(us, ny*nx, axis=0).reshape(nz, ny, nx)
         vb = np.repeat(vs, ny*nx, axis=0).reshape(nz, ny, nx)
         wb = np.zeros((nz,ny,nx), dtype=np.float64)
-        
     else:
         raise ValueError('Unsupported background field')
     
-    # Quality control procedures. This attempts to remove noise from gridded
-    # reflectivity and non-meteorological returns using polarization data
+    # Quality control procedures. This attempts to remove noise and
+    # non-meteorological returns
     if use_qc:
         _radar_qc(grids, mds=mds, vel_max=vel_max, vel_grad_max=vel_grad_max,
                   ncp_min=ncp_min, rhv_min=rhv_min, window_size=window_size,
@@ -971,38 +1040,32 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
                   vel_field=vel_field, ncp_field=ncp_field,
                   rhv_field=rhv_field)
         
-    # Add the Cartesian components field to all the grids. We also define
-    # some arguments that may have not been passed by the user
-    proj = kwargs.get('proj', 'lcc')
-    datum = kwargs.get('datum', 'NAD83')
-    ellps = kwargs.get('ellps', 'GRS80')
-    
+    # Add the Cartesian components field to all the grids
     _radar_components(grids, proj=proj, datum=datum, ellps=ellps)
     
     # Get fall speed of hydrometeors
     if fall_speed == 'Caya':
         _fall_speed_caya(grids, temp, fill_value=fill_value,
                          refl_field=refl_field)
-        
     else:
         raise ValueError('Unsupported fall speed relation')
         
     # Get radar coverage from all grids
     cover = _radar_coverage(grids, refl_field=refl_field, vel_field=vel_field)
     
-        
-    # Get echo base and top heights
-    base, top = _echo_bounds(grids, mds=mds, min_layer=min_layer,
-                             top_offset=top_offset,
-                             fill_value=fill_value,
-                             refl_field=refl_field)
-    
-    base['data'] = np.ma.filled(base['data'], fill_value)
-    top['data'] = np.ma.filled(top['data'], fill_value)
-    
-        
-    # Get column types
-    column = _column_types(cover, base, top, fill_value=fill_value)
+    # Get echo base and top heights. This is only applicable if we are using
+    # an iterative technique since this technique has to explicitly integrate
+    # the anelastic continuity equation and therefore we require boundary
+    # conditions
+    if continuity == 'iterative':
+        base, top = _echo_bounds(grids, mds=mds, min_layer=min_layer,
+                                 top_offset=top_offset, fill_value=fill_value,
+                                 refl_field=refl_field)
+        base['data'] = np.ma.filled(base['data'], fill_value)
+        top['data'] = np.ma.filled(top['data'], fill_value)
+
+        # Get column types
+        column = _column_types(cover, base, top, fill_value=fill_value)
     
     # This is an important step. We make sure that every field for every grid
     # (radar) is a NumPy array and not a masked array. First make a copy of
@@ -1017,7 +1080,7 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     # Now the very important step of concatenating the arrays of the
     # initial guess field so that we now have,
     #
-    # xo = (u1,...,uN,v1,...,vN,w1,...,wN)
+    # xo = (u1, ... , uN, v1, ... , vN, w1, ... , wN)
     #
     # which is the space in which we solve the wind retrieval problem
     x0 = np.concatenate((u0, v0, w0), axis=0)
@@ -1026,38 +1089,19 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
     # gradient minimization from the SciPy optimization toolkit is used
     if technique == '3d-var' and 'scipy' in solver:
         
-        # Define the necessary arguments. If the user did not specifiy these
-        # as named arguments, then their default values will be used instead
-        continuity_cost = kwargs.get('continuity_cost', 'integrate')
-        smooth_cost = kwargs.get('smooth_cost', 'potvin')
-        
-        wgt_o = kwargs.get('wgt_o', 1.0)
-        wgt_c = kwargs.get('wgt_c', 1.0)
-        wgt_s = kwargs.get('wgt_s', [0.05, 1.0, 1.0, 1.0, 0.1])
-        wgt_b = kwargs.get('wgt_b', [0.01, 0.01, 0.0])
-        wgt_w0 = kwargs.get('wgt_w0', 0.0)
-        length_scale = kwargs.get('length_scale', None)
-        
-        first_pass = kwargs.get('first_pass', True)
-        sub_beam = kwargs.get('sub_beam', False)
-        
-        gtol = kwargs.get('gtol', 1.0e-5)
-        ftol = kwargs.get('ftol', 1.0e7)
-        maxiter = kwargs.get('maxiter', 200)
-        maxcor = kwargs.get('maxcor', 10)
-        disp = kwargs.get('disp', True)
-        retall = kwargs.get('retall', False)
-        
         # Multiply each weighting coefficient (tuning parameter) by the length
         # scale if necessary. The length scale is designed to make the
         # dimensionality of each cost uniform, as well as bring each cost
         # within 1-3 orders of magnitude of each other
         if length_scale is not None:
         
-            if continuity_cost == 'potvin':
+            if continuity == 'potvin':
                 wgt_c = wgt_c * length_scale**2
-            if smooth_cost == 'potvin':
-                wgt_s = [wgt * length_scale**4 for wgt in wgt_s]
+            if smooth == 'potvin':
+                wgt_s1 = wgt_s1 * length_scale**4
+                wgt_s2 = wgt_s2 * length_scale**4
+                wgt_s3 = wgt_s3 * length_scale**4
+                wgt_s4 = wgt_s4 * length_scale**4
                 
         # Add observation weight field to all grids
         _observation_weight(grids_nd, wgt_o=wgt_o, fill_value=fill_value,
@@ -1107,10 +1151,8 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
         # Check if the user wants to perform a first pass which retrieves a
         # heavily-smoothed horizontal wind field and a w field of 0 everywhere
         if first_pass:
-            
             if verbose:
                 print 'Performing heavily-smoothed first pass'
-            
             # Here we set the appropriate weights for the individual cost
             # functions. Recall that the first pass is meant to retrieve
             # the large-scale horizontal wind flow. This means that we
@@ -1142,20 +1184,11 @@ def solve_wind_field(grids, sonde, target=None, technique='3d-var',
             # first pass
             x0[2*N:3*N] = 0.0
         
-        # The debugging flag set to True will time the minimization
-        # process
-        if debug:
-            t0 = time.clock()
-        
         # Call the SciPy solver to perform the retrieval of the full 3-D
         # wind field     
         res = minimize(f, x0, args=args, method=method, jac=jac, hess=None,
                        hessp=None, bounds=None, constraints=None,
                        options=opts)
-        
-        if debug:
-            t1 = time.clock()
-            print 'The minimization took %i seconds' %(t1 - t0)
         
         # Unpack the full 3-D wind field results
         xopt = res.x
