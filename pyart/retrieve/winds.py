@@ -299,6 +299,10 @@ def _grad_wind(x, *args):
     u = np.reshape(u, (nz,ny,nx)).astype(np.float64)
     v = np.reshape(v, (nz,ny,nx)).astype(np.float64)
     w = np.reshape(w, (nz,ny,nx)).astype(np.float64)
+
+    # Check impermeability condition
+    if impermeability == 'strong':
+        w[0,:,:] = 0.0
     
     # First calculate the gradient of the observation cost Jo with respect to
     # the 3 control variables (u, v, w), which means we need to compute
