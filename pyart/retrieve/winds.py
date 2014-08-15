@@ -31,9 +31,6 @@ def _cost_wind(x, *args):
     J : float
         The value of the cost function at x.
     """
-    
-    if verbose:
-        print 'Calculating value of cost function at x'
 
     # Unpack the function arguments. This is an important step and requires
     # strict adherence to the argument positions
@@ -54,7 +51,10 @@ def _cost_wind(x, *args):
     fill_value = args[30]
     proc = args[31]
     vel_field = args[32]
-    debug, verbose = args[33,35]
+    debug, verbose = args[33:35]
+
+    if verbose:
+        print 'Calculating value of cost function at x'
     
     # This is an important step. Get the control variables from the analysis
     # vector. This requires us to keep track of how the analysis vector is
@@ -235,9 +235,6 @@ def _grad_wind(x, *args):
         Gradient of the cost function at x.
     
     """
-    
-    if verbose:
-        print 'Calculating gradient of cost function at x'
 
     # Unpack the function arguments. This is an important step and requires
     # strict adherence to the argument positions
@@ -258,7 +255,10 @@ def _grad_wind(x, *args):
     fill_value = args[30]
     proc = args[31]
     vel_field = args[32]
-    debug, verbose = args[33,35]
+    debug, verbose = args[33:35]
+
+    if verbose:
+        print 'Calculating gradient of cost function at x'
         
     if debug:
         print 'The analysis domain has %i grid points' %N
@@ -266,7 +266,6 @@ def _grad_wind(x, *args):
         print 'The y-dimension resolution is %.2f m' %dy
         print 'The z-dimension resolution is %.2f m' %dz
         print 'The number of radars used in the retrieval is %i' %len(grids)
-        print 'The observation weight is                   %1.3e' %wgt_o
         print 'The anelastic air mass continuity weight is %1.3e' %wgt_c
         print 'The smoothness weight S1 is                 %1.3e' %wgt_s1
         print 'The smoothness weight S2 is                 %1.3e' %wgt_s2
@@ -1394,12 +1393,10 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
     ftol: float
     
     maxiter : int
-    
+        Only applicable when solver is 'scipy'.
     maxcor : int
         Only applicable when solver is 'scipy'.
     disp : bool
-        Only applicable when 'solver' is 'scipy'.
-    retall : bool
         Only applicable when 'solver' is 'scipy'.
     proc : int
         Number of processors requested.
@@ -1461,7 +1458,7 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         np.unique(dz).size == 1):
         dx = dx[0]
         dy = dy[0]
-        dz = dz]0]
+        dz = dz[0]
     else:
         raise ValueError('Non-uniform grids are currently not supported')
         
@@ -1607,7 +1604,7 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
                 wgt_s4 = wgt_s4 * length_scale**4
                 
         # Add observation weight field to all grids
-        _observation_weight(grids_nd, wgt_o=wgt_o, fill_value=fill_value,
+        _observation_weight(grids_no_mask, wgt_o=wgt_o, fill_value=fill_value,
                             refl_field=refl_field, vel_field=vel_field)
         
         # SciPy nonlinear conjugate gradient method
@@ -1664,17 +1661,21 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
             # want to ignore the continuity cost, as well as set the
             # smoothness weight "very high" to produce a heavily-smoothed
             # horizontal wind field
-            continuity_cost0 = None
-            wgt_s0 = [10.0 * wgt for wgt in wgt_s]
+            continuity_cost_first = None
+            wgt_s1_first = 10.0 * wgt_s1
+            wgt_s2_first = 10.0 * wgt_s2
+            wgt_s3_first = 10.0 * wgt_s3
+            wgt_s4_first = 10.0 * wgt_s4
             
             # This is an important step. We have to change the arguments to
-            # account for different costs and weighting coefficients for the
-            # first pass
-            args0 = (nx, ny, nz, N, grids_nd, ub, vb, wb, rho, drho,
-                     base['data'], top['data'], column['data'], wgt_o,
-                     wgt_c, wgt_s0, wgt_b, wgt_w0, continuity_cost0,
-                     smooth_cost, dx, dy, dz, sub_beam, finite_scheme,
-                     fill_value, proc, vel_field, debug, verbose)
+            # account for different costs and weights for the first pass
+            args0 = (N, nx, ny, nz, dx, dy, dz, grids_no_mask, ub, vb, wb,
+                     rho, drho, wgt_c, wgt_s1_first, wgt_s2_first,
+                     wgt_s3_first, wgt_s4_first, wgt_ub, wgt_vb, wgt_wb,
+                     wgt_w0, continuity_cost_first, smooth_cost, 
+                     impermeability, finite_scheme, echo_base, echo_top,
+                     column_type, sub_beam, fill_value, proc, vel_field,
+                     debug, verbose)
             
             # Call the SciPy solver
             res = minimize(f, x0, args=args0, method=method, jac=jac,
