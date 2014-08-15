@@ -1,165 +1,6 @@
 !  Module: continuity.f90
 
 
-subroutine wind_cost_orig(w, wc, wgt_c, fill_value, nx, ny, nz, Jc)
-
-   implicit none
-
-   integer(kind=4), intent(in)                    :: nx, ny, nz
-   real(kind=8), intent(in)                       :: wgt_c, fill_value
-   real(kind=8), intent(in), dimension(nz,ny,nx)  :: w, wc
-   real(kind=8), intent(out)                      :: Jc
-
-
-!  Define local variables ====================================================
-
-   integer(kind=4) :: i, j, k
-
-!  ===========================================================================
-
-
-!  F2PY directives ===========================================================
-
-   !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
-   !f2py real(kind=8), intent(in)              :: w, wc, wgt_c, fill_value
-   !f2py real(kind=8), intent(out)             :: Jc
-
-!  ===========================================================================
-
-
-!  Recall that we are attempting to minimize a function of the form,
-!
-!  J = J(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
-!
-!  which is a function of 3N variables. Note that J is typically the sum of
-!  multiple different costs, including the anelastic air mass continuity cost
-!  Jc, which in this case is given by,
-!
-!  Jc = 0.5 * sum( wgt_c * (w - wc)**2 )
-!
-!  where the summation is over the N Cartesian grid points. Note how the
-!  continuity cost is a scalar value
-
-   Jc = 0.d0
-
-   !$omp parallel
-
-   !$omp do
-   do i = 1, nx
-      do j = 1, ny
-         do k = 1, nz
-
-!        Compute the value of the continuity cost by summing all of
-!        its values at each grid point
-
-         Jc = Jc + 0.5d0 * wgt_c * (w(k,j,i) - wc(k,j,i))**2
-
-         enddo
-      enddo
-   enddo
-   !$omp end do
-
-   !$omp end parallel
-
-   return
-
-end subroutine wind_cost_orig
-
-
-subroutine wind_grad_orig(w, wc, wgt_c, fill_value, nx, ny, nz, &
-                          dJcu, dJcv, dJcw)
-
-   implicit none
-
-   integer(kind=4), intent(in)                    :: nx, ny, nz
-   real(kind=8), intent(in)                       :: wgt_c, fill_value
-   real(kind=8), intent(in), dimension(nz,ny,nx)  :: w, wc
-   real(kind=8), intent(out), dimension(nz,ny,nx) :: dJcu, dJcv, dJcw
-
-
-!  Define local variables ====================================================
-
-   integer(kind=4) :: i, j, k
-
-!  ===========================================================================
-
-
-!  F2PY directives ===========================================================
-
-   !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
-   !f2py real(kind=8), intent(in)              :: w, wc, wgt_c, fill_value
-   !f2py real(kind=8), intent(out)             :: dJcu, dJcv, dJcw
-
-!  ===========================================================================
-
-
-!  Recall that we are attempting to minimize a function of the form,
-!
-!  J = J(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
-!
-!  which is a function of 3N variables. Note that J is typically the sum of
-!  multiple different costs, including the anelastic air mass continuity cost
-!  Jc, which in this case is given by,
-!
-!  Jc = 0.5 * sum( wgt_c * (w - wc)**2 )
-!
-!  where the summation is over the N Cartesian grid points. Note how the
-!  continuity cost is a scalar value
-!
-!  We need to compute dJ/du, dJ/dv, and dJ/dw, since a minimum in J
-!  corresponds with these 3 derivatives vanishing. Therefore, we need to
-!  compute dJc/du, dJc/dv, and dJc/dw. Each of these terms will eventually
-!  need to be vectors of length N since,
-!
-!  dJ/d(u,v,w) = (dJ/du1,...,dJ/duN,dJ/dv1,...,dJ/dvN,dJ/dw1,...dJ/dwN)
-!
-!  We minimize J in the vector space (1-D) as shown above, but we will
-!  initially compute the gradient of Jc in the so-called grid space (3-D),
-!  since this is usually the most natural way. These 3-D arrays will
-!  eventually have to be permuted to vectors outside of this subroutine
-!
-!  Now given the definition of Jc above, we quickly see that it has no
-!  dependence on u or v, which greatly simplifies the problem since dJc/du
-!  and dJc/dv will both be 0,
-!
-!  dJc/du = (0,...,0) for all (u1,u2,...,uN)
-!  dJc/dv = (0,...,0) for all (v1,v2,...,vN)
-
-  !$omp parallel
-
-   !$omp do
-   do i = 1, nx
-      do j = 1, ny
-         do k = 1, nz
-
-!        Compute the gradient of the continuity cost with respect to the
-!        3 control variables (u,v,w), which means we need to compute dJc/du,
-!        dJc/dv, and dJc/dw. However, since the continuity cost has no
-!        dependence on u or v, then we have
-!
-!        dJc/du = 0 for all N
-!        dJc/dv = 0 for all N
-!
-!        Furthemore, note how dJc/dw is easily derived from Jc,
-!
-!        dJc/dw = wgt_c * (w - wc) for all N
-
-         dJcu(k,j,i) = 0.d0
-         dJcv(k,j,i) = 0.d0
-         dJcw(k,j,i) = wgt_c * (w(k,j,i) - wc(k,j,i))
-
-         enddo
-      enddo
-   enddo
-   !$omp end do
-
-   !$omp end parallel
-
-   return
-
-end subroutine wind_grad_orig
-
-
 subroutine wind_cost_potvin(w, du, dv, dw, rho, drho, wgt_c, fill_value, &
                             nx, ny, nz, Jc)
                 
@@ -203,7 +44,6 @@ subroutine wind_cost_potvin(w, du, dv, dw, rho, drho, wgt_c, fill_value, &
 !
 !  where the summation is over the N Cartesian grid points. Note how the
 !  continuity cost is a scalar value
-
    Jc = 0.d0
 
    !$omp parallel
@@ -222,9 +62,7 @@ subroutine wind_cost_potvin(w, du, dv, dw, rho, drho, wgt_c, fill_value, &
 !
 !        which then needs to be squared and summed with the rest of the
 !        grid points
-
-         D = du(k,j,i) + dv(k,j,i) + dw(k,j,i) + w(k,j,i) * drho(k) / rho(k)
-                
+         D = du(k,j,i) + dv(k,j,i) + dw(k,j,i) + w(k,j,i) * drho(k) / rho(k) 
          Jc = Jc + 0.5d0 * wgt_c * D**2
 
          enddo
@@ -239,9 +77,9 @@ subroutine wind_cost_potvin(w, du, dv, dw, rho, drho, wgt_c, fill_value, &
 end subroutine wind_cost_potvin
 
 
-subroutine wind_grad_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
-                            finite_scheme, fill_value, nx, ny, nz, &
-                            dJcu, dJcv, dJcw)
+subroutine wind_gradient_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
+                                finite_scheme, fill_value, nx, ny, nz, &
+                                dJcu, dJcv, dJcw)
 
    implicit none
 
@@ -341,7 +179,6 @@ subroutine wind_grad_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
 
 !  First block is for when basic finite difference schemes have been used to
 !  compute the 3-D wind divergence
-
    if (finite_scheme == 'basic') then
 
       !$omp do
@@ -355,7 +192,6 @@ subroutine wind_grad_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
 !
 !           First compute dJc/du, which only depends on the du/dx term since
 !           the other terms are independent of u
-
             if (i > 2 .and. i < nx - 1) then
                dJcu(k,j,i) = wgt_c * (D(k,j,i-1) - &
                                       D(k,j,i+1)) / (2.d0 * dx)
@@ -379,7 +215,6 @@ subroutine wind_grad_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
 
 !           Now compute dJc/dv, which only depends on the dv/dy term since
 !           the other terms are independent of v
-
             if (j > 2 .and. j < ny - 1) then
                dJcv(k,j,i) = wgt_c * (D(k,j-1,i) - &
                                       D(k,j+1,i)) / (2.d0 * dy)
@@ -404,7 +239,6 @@ subroutine wind_grad_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
 !           Now compute dJc/dw, which only depends on the dw/dz term and
 !           the w / rho * drho/dz term, since the other terms are
 !           independent of w
-
             if (k > 2 .and. k < nz - 1) then
                dJcw(k,j,i) = wgt_c * ((D(k-1,j,i) - &
                                        D(k+1,j,i)) / (2.d0 * dz) + &
@@ -440,7 +274,6 @@ subroutine wind_grad_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
 
 !  The second block is for when high-order finite difference schemes have
 !  been used to compute the 3-D wind divergence
-
    elseif (finite_scheme == 'high-order') then
 
       !$omp do
@@ -466,7 +299,163 @@ subroutine wind_grad_potvin(w, du, dv, dw, rho, drho, wgt_c, dx, dy, dz, &
 
    return
 
-end subroutine wind_grad_potvin
+end subroutine wind_gradient_potvin
+
+
+subroutine wind_cost_iterative(w, wc, wgt_c, fill_value, nx, ny, nz, Jc)
+
+   implicit none
+
+   integer(kind=4), intent(in)                    :: nx, ny, nz
+   real(kind=8), intent(in)                       :: wgt_c, fill_value
+   real(kind=8), intent(in), dimension(nz,ny,nx)  :: w, wc
+   real(kind=8), intent(out)                      :: Jc
+
+
+!  Define local variables ====================================================
+
+   integer(kind=4) :: i, j, k
+
+!  ===========================================================================
+
+
+!  F2PY directives ===========================================================
+
+   !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
+   !f2py real(kind=8), intent(in)              :: w, wc, wgt_c, fill_value
+   !f2py real(kind=8), intent(out)             :: Jc
+
+!  ===========================================================================
+
+
+!  Recall that we are attempting to minimize a function of the form,
+!
+!  J = J(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
+!
+!  which is a function of 3N variables. Note that J is typically the sum of
+!  multiple different costs, including the anelastic air mass continuity cost
+!  Jc, which in this case is given by,
+!
+!  Jc = 0.5 * sum( wgt_c * (w - wc)**2 )
+!
+!  where the summation is over the N Cartesian grid points. Note how the
+!  continuity cost is a scalar value
+   Jc = 0.d0
+
+   !$omp parallel
+
+   !$omp do
+   do i = 1, nx
+      do j = 1, ny
+         do k = 1, nz
+
+!        Compute the value of the continuity cost by summing all of
+!        its values at each grid point
+         Jc = Jc + 0.5d0 * wgt_c * (w(k,j,i) - wc(k,j,i))**2
+
+         enddo
+      enddo
+   enddo
+   !$omp end do
+
+   !$omp end parallel
+
+   return
+
+end subroutine wind_cost_iterative
+
+
+subroutine wind_gradient_iterative(w, wc, wgt_c, fill_value, nx, ny, nz, &
+                                  dJcu, dJcv, dJcw)
+
+   implicit none
+
+   integer(kind=4), intent(in)                    :: nx, ny, nz
+   real(kind=8), intent(in)                       :: wgt_c, fill_value
+   real(kind=8), intent(in), dimension(nz,ny,nx)  :: w, wc
+   real(kind=8), intent(out), dimension(nz,ny,nx) :: dJcu, dJcv, dJcw
+
+
+!  Define local variables ====================================================
+
+   integer(kind=4) :: i, j, k
+
+!  ===========================================================================
+
+
+!  F2PY directives ===========================================================
+
+   !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
+   !f2py real(kind=8), intent(in)              :: w, wc, wgt_c, fill_value
+   !f2py real(kind=8), intent(out)             :: dJcu, dJcv, dJcw
+
+!  ===========================================================================
+
+
+!  Recall that we are attempting to minimize a function of the form,
+!
+!  J = J(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
+!
+!  which is a function of 3N variables. Note that J is typically the sum of
+!  multiple different costs, including the anelastic air mass continuity cost
+!  Jc, which in this case is given by,
+!
+!  Jc = 0.5 * sum( wgt_c * (w - wc)**2 )
+!
+!  where the summation is over the N Cartesian grid points. Note how the
+!  continuity cost is a scalar value
+!
+!  We need to compute dJ/du, dJ/dv, and dJ/dw, since a minimum in J
+!  corresponds with these 3 derivatives vanishing. Therefore, we need to
+!  compute dJc/du, dJc/dv, and dJc/dw. Each of these terms will eventually
+!  need to be vectors of length N since,
+!
+!  dJ/d(u,v,w) = (dJ/du1,...,dJ/duN,dJ/dv1,...,dJ/dvN,dJ/dw1,...dJ/dwN)
+!
+!  We minimize J in the vector space (1-D) as shown above, but we will
+!  initially compute the gradient of Jc in the so-called grid space (3-D),
+!  since this is usually the most natural way. These 3-D arrays will
+!  eventually have to be permuted to vectors outside of this subroutine
+!
+!  Now given the definition of Jc above, we quickly see that it has no
+!  dependence on u or v, which greatly simplifies the problem since dJc/du
+!  and dJc/dv will both be 0,
+!
+!  dJc/du = (0,...,0) for all (u1,u2,...,uN)
+!  dJc/dv = (0,...,0) for all (v1,v2,...,vN)
+
+  !$omp parallel
+
+   !$omp do
+   do i = 1, nx
+      do j = 1, ny
+         do k = 1, nz
+
+!        Compute the gradient of the continuity cost with respect to the
+!        3 control variables (u,v,w), which means we need to compute dJc/du,
+!        dJc/dv, and dJc/dw. However, since the continuity cost has no
+!        dependence on u or v, then we have
+!
+!        dJc/du = 0 for all N
+!        dJc/dv = 0 for all N
+!
+!        Furthemore, note how dJc/dw is easily derived from Jc,
+!
+!        dJc/dw = wgt_c * (w - wc) for all N
+         dJcu(k,j,i) = 0.d0
+         dJcv(k,j,i) = 0.d0
+         dJcw(k,j,i) = wgt_c * (w(k,j,i) - wc(k,j,i))
+
+         enddo
+      enddo
+   enddo
+   !$omp end do
+
+   !$omp end parallel
+
+   return
+
+end subroutine wind_gradient_iterative
 
 
 subroutine integrate_up(div, rho, drhodz, dz, fill_value, nx, ny, nz, w)
@@ -509,9 +498,7 @@ subroutine integrate_up(div, rho, drhodz, dz, fill_value, nx, ny, nz, w)
 !
 !  One method of integrating this partial differential equation is
 !  through implicit methods of finite differences
-
    drho = drhodz * dz
-
    vel = div * dz
 
    !$omp parallel
@@ -524,7 +511,6 @@ subroutine integrate_up(div, rho, drhodz, dz, fill_value, nx, ny, nz, w)
 !           When at grid points above the bottom boundary, w is related
 !           to the horizontal wind divergence, the air density and the
 !           air density lapse rate
-
             if (k > 1) then
                w(k,j,i) = rho(k) * (w(k-1,j,i) - vel(k,j,i)) / &
                                    (rho(k) + drho(k))
@@ -532,10 +518,8 @@ subroutine integrate_up(div, rho, drhodz, dz, fill_value, nx, ny, nz, w)
 !           At the bottom boundary condition, which is the surface of the
 !           Earth, we require the impermeability condition, meaning that
 !           w must vanish at the surface
-
             else
                w(k,j,i) = 0.d0
-
             endif
 
          enddo
@@ -568,7 +552,7 @@ subroutine integrate_down(div, top, rho, drhodz, z, dz, fill_value, &
 
    real(kind=8), dimension(nz,ny,nx) :: vel
 
-   logical, dimension(ny,nx)         :: m_top
+   logical, dimension(ny,nx)         :: mask_top
 
    integer(kind=4)                   :: i, j, k
 
@@ -594,11 +578,8 @@ subroutine integrate_down(div, top, rho, drhodz, z, dz, fill_value, &
 !
 !  One method of integrating this partial differential equation is
 !  through implicit methods of finite differences
-
-   m_top = top /= fill_value
-
+   mask_top = top /= fill_value
    drho = drhodz * dz
-
    vel = div * dz
 
    !$omp parallel
@@ -610,32 +591,26 @@ subroutine integrate_down(div, top, rho, drhodz, z, dz, fill_value, &
 !        If there is no valid echo top in the column, then we lack a
 !        proper boundary condition to integrate the continuity equation
 !        downwards from
-
-         if (m_top(j,i)) then
-
+         if (mask_top(j,i)) then
             do k = nz, 1, -1
 
 !           When at grid points below the top boundary, w is related
 !           to the horizontal wind divergence, and the density and its
 !           gradient
-
             if (z(k) < top(j,i)) then
                w(k,j,i) = rho(k) * (w(k+1,j,i) + vel(k,j,i)) / &
                                    (rho(k) - drho(k))
 
 !           At the top boundary condition or above, which is the echo top
 !           height, we require w to vanish
-
             else
                w(k,j,i) = 0.d0
-
             endif
 
             enddo
 
          else
             w(:,j,i) = 0.d0
-
          endif
 
       enddo
@@ -665,7 +640,7 @@ subroutine weight_protat(wu, wd, top, z, fill_value, nx, ny, nz, w)
 
    real(kind=8)                      :: f
 
-   logical(kind=8), dimension(ny,nx) :: m_top
+   logical(kind=8), dimension(ny,nx) :: mask_top
 
    integer(kind=4)                   :: i, j, k
 
@@ -691,8 +666,7 @@ subroutine weight_protat(wu, wd, top, z, fill_value, nx, ny, nz, w)
 !  to the lower boundary condition, more weight is given to the upwards
 !  integration estimate, while closer to the top boundary condition, more
 !  weight is given to the downwards integration estimate
-
-   m_top = top /= fill_value
+   mask_top = top /= fill_value
 
    !$omp parallel
 
@@ -703,31 +677,25 @@ subroutine weight_protat(wu, wd, top, z, fill_value, nx, ny, nz, w)
 !        If the column does not have a valid echo top, then it also does
 !        not have a valid echo base, and the column is therefore poorly
 !        constrained
-
-         if (m_top(j,i)) then
-
+         if (mask_top(j,i)) then
             do k = 1, nz
 
 !           At or below the echo top height, we weight the upwards and
 !           downwards integrations according to the current height
 !           in the column
-
             if (z(k) <= top(j,i)) then
                f = z(k) / top(j,i)
                w(k,j,i) = (1.d0 - f) * wu(k,j,i) + f * wd(k,j,i)
 
 !           Above the echo top height, we expect w to vanish
-
             else
                w(k,j,i) = 0.d0
-
             endif
 
             enddo
 
          else
             w(:,j,i) = 0.d0
-
          endif
 
       enddo
@@ -756,7 +724,7 @@ subroutine boundary_conditions(ze, z, mds, min_layer, fill_value, proc, &
 
 !  Define local variables ====================================================
 
-   logical, dimension(nz,ny,nx) :: m_ze
+   logical, dimension(nz,ny,nx) :: mask_ze
 
    integer(kind=4)              :: i, j, k
 
@@ -776,11 +744,9 @@ subroutine boundary_conditions(ze, z, mds, min_layer, fill_value, proc, &
 
 !  Calculate the echo base and top heights using a minimum detectable signal
 !  for reflectivity
-
    base = fill_value
    top = fill_value
-
-   m_ze = ze /= fill_value
+   mask_ze = ze /= fill_value
 
    !$omp parallel num_threads(proc)
 
@@ -791,16 +757,13 @@ subroutine boundary_conditions(ze, z, mds, min_layer, fill_value, proc, &
 !        First look for the echo base by starting from the surface and
 !        moving upwards, looking for the first grid point that equals
 !        or exceeds the minimum detectable signal
-
          do k = 1, nz
-
-            if (m_ze(k,j,i)) then
-
-            if (ze(k,j,i) >= mds) then
-               base(j,i) = z(k) ! (m)
-               exit
-            endif
-
+            
+            if (mask_ze(k,j,i)) then
+               if (ze(k,j,i) >= mds) then
+                  base(j,i) = z(k) ! (m)
+                  exit
+               endif
             endif
 
          enddo
@@ -811,14 +774,11 @@ subroutine boundary_conditions(ze, z, mds, min_layer, fill_value, proc, &
 
          do k = nz, 1, -1
 
-            if (m_ze(k,j,i)) then
-
-            if (ze(k,j,i) >= mds .and. z(k) > 2000.d0) then
-               top(j,i) = z(k) ! (m)
-               exit
-
-            endif
-
+            if (mask_ze(k,j,i)) then
+               if (ze(k,j,i) >= mds .and. z(k) > 2000.d0) then
+                  top(j,i) = z(k) ! (m)
+                  exit
+               endif
             endif
 
          enddo
@@ -827,7 +787,6 @@ subroutine boundary_conditions(ze, z, mds, min_layer, fill_value, proc, &
 !     by checking the difference between the estimated echo base and top. If
 !     the cloud is too thin, we will assume the column is contaminated by
 !     noise
-
       if (top(j,i) - base(j,i) < min_layer) then
          base(j,i) = fill_value
          top(j,i) = fill_value

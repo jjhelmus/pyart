@@ -1,8 +1,8 @@
 !  Module: divergence.f90
 
 
-subroutine horiz_wind(u, v, dx, dy, finite_scheme, fill_value, proc, &
-                      nx, ny, nz, div, du, dv)
+subroutine horizontal_wind(u, v, dx, dy, finite_scheme, fill_value, &
+                           proc, nx, ny, nz, div, du, dv)
 
    implicit none
 
@@ -75,7 +75,6 @@ subroutine horiz_wind(u, v, dx, dy, finite_scheme, fill_value, proc, &
 !           p = 1
 !
 !           First compute du/dx
-
             if (i > 1 .and. i < nx) then
                du(k,j,i) = (u(k,j,i+1) - u(k,j,i-1)) / (2.d0 * dx)
 
@@ -87,7 +86,6 @@ subroutine horiz_wind(u, v, dx, dy, finite_scheme, fill_value, proc, &
             endif
 
 !           Now compute dv/dy
-
             if (j > 1 .and. j < ny) then
                dv(k,j,i) = (v(k,j+1,i) - v(k,j-1,i)) / (2.d0 * dy)
 
@@ -138,7 +136,6 @@ subroutine horiz_wind(u, v, dx, dy, finite_scheme, fill_value, proc, &
 !           p = 6
 !
 !           First compute du/dx
-
             if (i > 3 .and. i < nx - 2) then
                du(k,j,i) = (b3 * u(k,j,i-3) + b2 * u(k,j,i-2) - &
                             b1 * u(k,j,i-1) + b1 * u(k,j,i+1) - &
@@ -165,7 +162,6 @@ subroutine horiz_wind(u, v, dx, dy, finite_scheme, fill_value, proc, &
             endif
             
 !           Now compute dv/dy
-
             if (j > 3 .and. j < ny - 2) then
                dv(k,j,i) = (b3 * v(k,j-3,i) + b2 * v(k,j-2,i) - &
                             b1 * v(k,j-1,i) + b1 * v(k,j+1,i) - &
@@ -203,14 +199,13 @@ subroutine horiz_wind(u, v, dx, dy, finite_scheme, fill_value, proc, &
    endif
    
 !  Add du/dx and dv/dy to give the horizontal wind divergence
-
    div = du + dv
 
    !$omp end parallel
 
    return
 
-end subroutine horiz_wind
+end subroutine horizontal_wind
 
 
 subroutine full_wind(u, v, w, dx, dy, dz, finite_scheme, fill_value, proc, &

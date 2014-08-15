@@ -2,14 +2,13 @@
 
 
 subroutine wind_cost(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, &
-                     wgt_w0, fill_value, proc, nx, ny, nz, Jb)
+                     fill_value, proc, nx, ny, nz, Jb)
 
    implicit none
 
    integer(kind=4), intent(in)                    :: nx, ny, nz, proc
    real(kind=8), intent(in)                       :: wgt_ub, wgt_vb, &
-                                                     wgt_wb, wgt_w0, &
-                                                     fill_value
+                                                     wgt_wb, fill_value
    real(kind=8), intent(in), dimension(nz,ny,nx)  :: u, v, w, &
                                                      ub, vb, wb
    real(kind=8), intent(out)                      :: Jb
@@ -27,7 +26,7 @@ subroutine wind_cost(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, &
    !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
    !f2py integer(kind=4), intent(in)           :: proc
    !f2py real(kind=8), intent(in)              :: wgt_ub, wgt_vb, wgt_wb
-   !f2py real(kind=8), intent(in)              :: wgt_w0, fill_value
+   !f2py real(kind=8), intent(in)              :: fill_value
    !f2py real(kind=8), intent(in)              :: u, v, w, ub, vb, wb
    !f2py real(kind=8), intent(out)             :: Jb
 
@@ -47,7 +46,6 @@ subroutine wind_cost(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, &
 !
 !  where the summations are over the N Cartesian grid points. Note how the
 !  background cost is a scalar value
-
    Jb = 0.d0
 
    !$omp parallel num_threads(proc)
@@ -59,18 +57,9 @@ subroutine wind_cost(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, &
 
 !        Compute the value of the background cost by summing all of its
 !        values at each grid point
-
-         if (k == 1) then
-            Jb = Jb + 0.5d0 * (wgt_ub * (u(k,j,i) - ub(k,j,i))**2 + &
-                               wgt_vb * (v(k,j,i) - vb(k,j,i))**2 + &
-                               wgt_wb * (w(k,j,i) - wb(k,j,i))**2 + &
-                               wgt_w0 * w(k,j,i)**2)
-
-         else
-            Jb = Jb + 0.5d0 * (wgt_ub * (u(k,j,i) - ub(k,j,i))**2 + &
-                               wgt_vb * (v(k,j,i) - vb(k,j,i))**2 + &
-                               wgt_wb * (w(k,j,i) - wb(k,j,i))**2)
-         endif
+          Jb = Jb + 0.5d0 * (wgt_ub * (u(k,j,i) - ub(k,j,i))**2 + &
+                             wgt_vb * (v(k,j,i) - vb(k,j,i))**2 + &
+                             wgt_wb * (w(k,j,i) - wb(k,j,i))**2)
 
          enddo
       enddo
@@ -84,15 +73,14 @@ subroutine wind_cost(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, &
 end subroutine wind_cost
 
 
-subroutine wind_grad(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, wgt_w0, &
-                     fill_value, proc, nx, ny, nz, dJbu, dJbv, dJbw)
+subroutine wind_gradient(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, &
+                         fill_value, proc, nx, ny, nz, dJbu, dJbv, dJbw)
 
    implicit none
 
    integer(kind=4), intent(in)                    :: nx, ny, nz, proc
    real(kind=8), intent(in)                       :: wgt_ub, wgt_vb, &
-                                                     wgt_wb, wgt_w0, &
-                                                     fill_value
+                                                     wgt_wb, fill_value
    real(kind=8), intent(in), dimension(nz,ny,nx)  :: u, v, w, &
                                                      ub, vb, wb
    real(kind=8), intent(out), dimension(nz,ny,nx) :: dJbu, dJbv, dJbw
@@ -110,7 +98,7 @@ subroutine wind_grad(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, wgt_w0, &
    !f2py integer(kind=4), optional, intent(in) :: nx, ny, nz
    !f2py integer(kind=4), intent(in)           :: proc
    !f2py real(kind=8), intent(in)              :: wgt_ub, wgt_vb, wgt_wb
-   !f2py real(kind=8), intent(in)              :: wgt_w0, fill_value
+   !f2py real(kind=8), intent(in)              :: fill_value
    !f2py real(kind=8), intent(in)              :: u, v, w, ub, vb, wb
    !f2py real(kind=8), intent(out)             :: Jb
 
@@ -157,17 +145,9 @@ subroutine wind_grad(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, wgt_w0, &
 !        dJb/du = wgt_ub * (u - ub) for all N
 !        dJb/dv = wgt_vb * (v - vb) for all N
 !        dJb/dw = wgt_wb * (w - wb) for all N
-
-         if (k == 1) then
-            dJbu(k,j,i) = wgt_ub * (u(k,j,i) - ub(k,j,i))
-            dJbv(k,j,i) = wgt_vb * (v(k,j,i) - vb(k,j,i))
-            dJbw(k,j,i) = wgt_wb * (w(k,j,i) - wb(k,j,i)) + wgt_w0 * w(k,j,i)
-
-         else
-            dJbu(k,j,i) = wgt_ub * (u(k,j,i) - ub(k,j,i))
-            dJbv(k,j,i) = wgt_vb * (v(k,j,i) - vb(k,j,i))
-            dJbw(k,j,i) = wgt_wb * (w(k,j,i) - wb(k,j,i))
-         endif
+         dJbu(k,j,i) = wgt_ub * (u(k,j,i) - ub(k,j,i))
+         dJbv(k,j,i) = wgt_vb * (v(k,j,i) - vb(k,j,i))
+         dJbw(k,j,i) = wgt_wb * (w(k,j,i) - wb(k,j,i))
 
          enddo
       enddo
@@ -178,4 +158,4 @@ subroutine wind_grad(u, v, w, ub, vb, wb, wgt_ub, wgt_vb, wgt_wb, wgt_w0, &
 
    return
 
-end subroutine wind_grad
+end subroutine wind_gradient
