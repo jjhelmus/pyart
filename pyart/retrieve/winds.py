@@ -17,15 +17,487 @@ from netCDF4 import num2date
 from ..io import Grid
 from ..util.datetime_utils import datetime_from_grid, datetimes_from_dataset
 from ..config import get_fillvalue, get_field_name, get_metadata
-from ..retrieve import cga, divergence, continuity, gradient
+from ..retrieve import laplace, divergence, continuity, smooth
+from ..retrieve import background, gradient
 
-class Cost(object):
 
-    __init__(self)
+def _cost_wind(x, *args):
+    """
+    Parameters
+    ----------
+    
+    Returns
+    -------
+    J : float
+        The value of the cost function at x.
+    """
+    
+    if verbose:
+        print 'Calculating value of cost function at x'
 
-class Jacobian(object):
+    # Unpack the function arguments. This is an important step and requires
+    # strict adherence to the argument positions
+    N, nx, ny, nz = args[0:4]
+    dx, dy, dz = args[4:7]
+    grids = args[7]
+    ub, vb, wb = args[8:11]
+    rho, drho = args[11:13]
+    wgt_c = args[13]
+    wgt_s1, wgt_s2, wgt_s3, wgt_s4 = args[14:18]
+    wgt_ub, wgt_vb, wgt_wb = args[18:21]
+    wgt_w0 = args[21]
+    continuity_cost, smooth_cost = args[22:24]
+    impermeability = args[24]
+    finite_scheme = args[25]
+    echo_base, echo_top, column_type = args[26:29]
+    sub_beam = args[29]
+    fill_value = args[30]
+    proc = args[31]
+    vel_field = args[32]
+    debug, verbose = args[33,35]
+    
+    # This is an important step. Get the control variables from the analysis
+    # vector. This requires us to keep track of how the analysis vector is
+    # ordered, since the way in which we slice it requires this knowledge. We
+    # assume the analysis vector is of the form,
+    #
+    # x = x(u1, u2, ... , uN, v1, v2, ... , vN, w1, w2, ... , wN)
+    #
+    # so u is packed first, then v, and finally w
+    u = x[0:N]
+    v = x[N:2*N]
+    w = x[2*N:3*N]
+    
+    # This is an important step. Permute the control variables back to the
+    # grid space (3-D). This brings the problem back into its more natural
+    # state where finite differences are more easily computed
+    u = np.reshape(u, (nz,ny,nx)).astype(np.float64)
+    v = np.reshape(v, (nz,ny,nx)).astype(np.float64)
+    w = np.reshape(w, (nz,ny,nx)).astype(np.float64)
 
-    __init__(self)
+    # Check impermeability condition
+    if impermeability == 'strong':
+        w[0,:,:] = 0.0
+    
+    # First calculate the observation cost Jo. We need to loop over all the
+    # grids in order to get the contribution from each radar. We define the
+    # observation cost Jo as,
+    #
+    # Jo = 0.5 * sum( wgt_o * [ vr - vr_obs ]**2 )
+    #
+    # where the summation is over all grids and the N Cartesian grid points
+    Jo = 0.0
+    for grid in grids:
+        # First get the necessary data. This includes the following fields
+        # for each grid,
+        # 1. Observed Doppler (radial) velocity
+        # 2. Hydrometeor fall velocity
+        # 3. Doppler velocity observation weights
+        # 4. Cartesian components 
+        vr_obs = grid.fields[vel_field]['data']
+        vt = grid.fields['hydrometeor_fall_velocity']['data']
+        wgt_o = grid.fields['observation_weight']['data']
+        ic = grid.fields['x_component']['data']
+        jc = grid.fields['y_component']['data']
+        kc = grid.fields['z_component']['data']
+        
+        # Calculate the radial velocity observed by the current grid (radar) 
+        # for the current analysis (u, v, w)
+        vr = u * ic + v * jc + (w + vt) * kc
+        
+        # Now compute Jo for the current grid
+        Jo = Jo + np.sum(0.5 * wgt_o * (vr - vr_obs)**2, dtype=np.float64) 
+        
+    # Now calculate the anelastic air mass continuity cost Jc. Regardless of
+    # the method selected, we need to calculate the wind field divergence,
+    # either the full 3-D divergence field or the horizontal divergence field
+    if continuity_cost is None:
+        Jc = 0.0
+
+    elif continuity_cost == 'potvin':
+        # First calculate the full 3-D wind field divergence which consists
+        # of the 3 terms du/dx, dv/dy, and dw/dz. These partial derivatives
+        # are approximated by finite differences
+        #
+        # The Fortran routine returns the 3-D wind divergence field as well
+        # as du/dx, dv/dy, and dw/dz, in that order
+        div, du, dv, dw = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
+                                               finite_scheme=finite_scheme,
+                                               fill_value=fill_value,
+                                               proc=proc)
+        
+        # Calculate the anelastic continuity cost Jc
+        Jc = continuity.wind_cost_potvin(w, du, dv, dw, rho, drho,
+                                         fill_value=fill_value,
+                                         wgt_c=wgt_c)
+        
+        
+    elif continuity_cost == 'iterative':
+        # First calculate the horizontal wind divergence which consists of
+        # the two terms du/dx and dv/dy. These partial derivatives are
+        # approximated by finite differences
+        #
+        # The Fortran routine returns the horizontal wind divergence field
+        # as well as du/dx and dv/dy, in that order
+        div, du, dv = divergence.horizontal_wind(u, v, dx=dx, dy=dy,
+                                    finite_scheme=finite_scheme,
+                                    fill_value=fill_value, proc=proc)
+
+        # Get analysis domain heights
+        z_disp = grids[0].axes['z_disp']['data']
+        
+        # Sub-beam divergence criteria
+        if sub_beam:
+            divergence.sub_beam(div, echo_base, column_type, z_disp, 
+                                proc=proc, fill_value=fill_value)
+            
+        # Explicitly integrate the anelastic air mass continuity
+        # equation both upwards and downwards. Once we have the
+        # estimation of w from both integrations, we weight the two
+        # solutions together to estimate the true w in the column
+        wu = continuity.integrate_up(div, rho, drho, dz=dz,
+                                     fill_value=fill_value)
+        wd = continuity.integrate_down(div, echo_top, rho, drho, z_disp,
+                                       dz=dz, fill_value=fill_value)
+        wc = continuity.weight_protat(wu, wd, echo_top, z_disp,
+                                      fill_value=fill_value)
+        
+        # Calculate the anelastic continuity cost Jc
+        Jc = continuity.wind_cost_iterative(w, wc, wgt_c=wgt_c,
+                                            fill_value=fill_value)
+            
+    else:
+        raise ValueError('Unsupported continuity cost')
+        
+    # Now calculate the smoothness cost Js. The smoothness cost is defined as
+    # a series of second order partial derivatives, so these will have to be
+    # calculated via finite differences first before we compute Js
+    if smooth_cost is None:
+        Js = 0.0
+
+    elif smooth_cost == 'potvin':
+        # Calculate the second order partial derivatives, in this case the
+        # vector Laplacian. The Fortran routine returns 9 terms in the
+        # following order,
+        #
+        # d2u/dx2, d2u/dy2, d2u/dz2,
+        # d2v/dx2, d2v/dy2, d2v/dz2,
+        # d2w/dx2, d2w/dy2, d2w/dz2
+        #
+        # so we will need to unpack these in the proper order after we call
+        # the Fortran routine
+        res = laplace.full_wind(u, v, w, dx=dx, dy=dy, dz=dz, proc=proc,
+                                finite_scheme=finite_scheme,
+                                fill_value=fill_value)
+        dux, duy, duz = res[0:3]
+        dvx, dvy, dvz = res[3:6]
+        dwx, dwy, dwz = res[6:9]
+        
+        # Calculate the smoothness cost Js
+        Js = smooth.wind_cost_potvin(dux, duy, duz, dvx, dvy, dvz, dwx, dwy,
+                                     dwz, wgt_s1=wgt_s1, wgt_s2=wgt_s2,
+                                     wgt_s3=wgt_s3, wgt_s4=wgt_s4,
+                                     fill_value=fill_value)
+        
+    else:
+        raise ValueError('Unsupported smoothness cost')
+    
+    # Compute the background cost Jb
+    if ub is None or vb is None or wb is None:
+        Jb = 0.0
+
+    else:
+        Jb = background.wind_cost(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
+                                  wgt_vb=wgt_vb, wgt_wb=wgt_wb,
+                                  fill_value=fill_value, proc=proc)
+    
+    if verbose:
+        print 'Observation cost at x          = %1.5e' %Jo
+        print 'Anelastic continuity cost at x = %1.5e' %Jc
+        print 'Smoothness cost at x           = %1.5e' %Js
+        print 'Background cost at x           = %1.5e' %Jb
+        print 'Total cost at x                = %1.5e' %(Jo + Jc + Js + Jb)
+        
+    return Jo + Jc + Js + Jb
+
+
+def _grad_wind(x, *args):
+    """
+    Parameters
+    ----------
+    
+    Optional parameters
+    -------------------
+    
+    Returns
+    -------
+    g : np.ndarray
+        Gradient of the cost function at x.
+    
+    """
+    
+    if verbose:
+        print 'Calculating gradient of cost function at x'
+
+    # Unpack the function arguments. This is an important step and requires
+    # strict adherence to the argument positions
+    N, nx, ny, nz = args[0:4]
+    dx, dy, dz = args[4:7]
+    grids = args[7]
+    ub, vb, wb = args[8:11]
+    rho, drho = args[11:13]
+    wgt_c = args[13]
+    wgt_s1, wgt_s2, wgt_s3, wgt_s4 = args[14:18]
+    wgt_ub, wgt_vb, wgt_wb = args[18:21]
+    wgt_w0 = args[21]
+    continuity_cost, smooth_cost = args[22:24]
+    impermeability = args[24]
+    finite_scheme = args[25]
+    echo_base, echo_top, column_type = args[26:29]
+    sub_beam = args[29]
+    fill_value = args[30]
+    proc = args[31]
+    vel_field = args[32]
+    debug, verbose = args[33,35]
+        
+    if debug:
+        print 'The analysis domain has %i grid points' %N
+        print 'The x-dimension resolution is %.2f m' %dx
+        print 'The y-dimension resolution is %.2f m' %dy
+        print 'The z-dimension resolution is %.2f m' %dz
+        print 'The number of radars used in the retrieval is %i' %len(grids)
+        print 'The observation weight is                   %1.3e' %wgt_o
+        print 'The anelastic air mass continuity weight is %1.3e' %wgt_c
+        print 'The smoothness weight S1 is                 %1.3e' %wgt_s1
+        print 'The smoothness weight S2 is                 %1.3e' %wgt_s2
+        print 'The smoothness weight S3 is                 %1.3e' %wgt_s3
+        print 'The smoothness weight S4 is                 %1.3e' %wgt_s4
+        print 'The background x-component weight is        %1.3e' %wgt_ub
+        print 'The background y-component weight is        %1.3e' %wgt_vb
+        print 'The background z-component weight is        %1.3e' %wgt_wb
+        print 'The specified continuity cost is %s' %continuity_cost
+        print 'The specified smoothness cost is %s' %smooth_cost
+        print 'The finite scheme for finite differences is %s' %finite_scheme
+        print 'The fill value is %5.1f' %fill_value
+        print 'The number of processors requested is %i' %proc
+    
+    # This is an important step. Get the control variables from the analysis
+    # vector. This requires us to keep track of how the analysis vector is
+    # ordered, since the way in which we slice it requires this knowledge. We
+    # assume the analysis vector is of the form,
+    #
+    # x = x(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
+    #
+    # so u is packed first, then v, and finally w
+    u = x[0:N]
+    v = x[N:2*N]
+    w = x[2*N:3*N]
+    
+    # This is an important step. Permute the control variables back to the
+    # grid space (3-D). This brings the problem back into its more natural
+    # state where finite differences are more easily computed
+    u = np.reshape(u, (nz,ny,nx)).astype(np.float64)
+    v = np.reshape(v, (nz,ny,nx)).astype(np.float64)
+    w = np.reshape(w, (nz,ny,nx)).astype(np.float64)
+    
+    # First calculate the gradient of the observation cost Jo with respect to
+    # the 3 control variables (u, v, w), which means we need to compute
+    # dJo/du, dJo/dv, and dJo/dw. Furthermore we need to loop over all the
+    # grids in order to get the contribution from each radar
+    #
+    # We define the observation cost Jo as,
+    #
+    # Jo = 0.5 * sum( wgt_o * [ vr - vr_obs ]**2 )
+    #
+    # where the summation is over all the grids and the N Cartesian grid
+    # points. The radial velocity of the current analysis as seen by the radar
+    # is given by,
+    #
+    # vr = u * i + v * j + (w + vt) * k
+    #
+    # From the equations of Jo and the radial velocity above, it is easy to
+    # see that,
+    #
+    # dJo/du = wgt_o * (vr - vr_obs) * i
+    # dJo/dv = wgt_o * (vr - vr_obs) * j
+    # dJo/dw = wgt_o * (vr - vr_obs) * k
+    dJou = np.zeros((nz,ny,nx), dtype=np.float64)
+    dJov = np.zeros_like(dJou)
+    dJow = np.zeros_like(dJou)
+    for grid in grids:
+        # First get the necessary data. This includes the following fields
+        # for each grid,
+        #
+        # 1. Observed Doppler (radial) velocity
+        # 2. Hydrometeor fall velocity
+        # 3. Doppler velocity observation weights
+        # 4. Cartesian components 
+        vr_obs = grid.fields[vel_field]['data']
+        vt = grid.fields['hydrometeor_fall_velocity']['data']
+        wgt_o = grid.fields['observation_weight']['data']
+        ic = grid.fields['x_component']['data']
+        jc = grid.fields['y_component']['data']
+        kc = grid.fields['z_component']['data']
+        
+        # Calculate the radial velocity observed by the radar for the
+        # current analysis
+        vr = u * ic + v * jc + (w + vt) * kc
+        
+        # Compute dJo/du, dJo/dv, and dJo/dw for the current grid
+        dJou = dJou + wgt_o * (vr - vr_obs) * ic
+        dJov = dJov + wgt_o * (vr - vr_obs) * jc
+        dJow = dJow + wgt_o * (vr - vr_obs) * kc
+    
+    # Calculate the gradient of the anelastic air mass continuity cost
+    # Jc with respect to the control variables (u, v, w), which means we need
+    # to compute dJc/du, dJc/dv, and dJc/dw
+    if continuity_cost is None:
+        dJcu = np.zeros((nz,ny,nx), dtype=np.float64)
+        dJcv = np.zeros_like(dJcu)
+        dJcw = np.zeros_like(dJcu)
+    
+    elif continuity_cost == 'potvin':
+        # First calculate the full 3-D wind field divergence which consists
+        # of the 3 terms du/dx, dv/dy, and dw/dz. These partial derivatives
+        # are approximated by finite differences
+        #
+        # The Fortran routine returns the 3-D wind divergence field as well
+        # as du/dx, dv/dy, and dw/dz, in that order
+        div, du, dv, dw = divergence.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
+                                               finite_scheme=finite_scheme,
+                                               fill_value=fill_value,
+                                               proc=proc)
+        
+        # Calculate the gradient of the continuity cost. The Fortran
+        # routine returns the 3 terms dJc/du, dJc/dv, and dJc/dw. We will
+        # unpack these after
+        res = continuity.wind_gradient_potvin(w, du, dv, dw, rho, drho,
+                        wgt_c=wgt_c, dx=dx, dy=dy, dz=dz,
+                        finite_scheme=finite_scheme,
+                        fill_value=fill_value)
+        dJcu, dJcv, dJcw = res
+        
+    elif continuity_cost == 'interative':
+        # First calculate the horizontal wind divergence which consists of
+        # the 2 terms du/dx and dv/dy. These partial derivatives are
+        # approximated by finite differences
+        #
+        # The Fortran routine returns the horizontal wind divergence field
+        # as well as du/dx and dv/dy, in that order
+        div, du, dv = divergence.horizontal_wind(u, v, dx=dx, dy=dy,
+                                                 finite_scheme=finite_scheme,
+                                                 fill_value=fill_value,
+                                                 proc=proc)
+
+        # Get analysis domain heights
+        z_disp = grids[0].axes['z_disp']['data']
+        
+        # Sub-beam divergence criteria
+        if sub_beam:
+            divergence.sub_beam(div, base, column, z_disp, proc=proc,
+                                fill_value=fill_value)
+            
+        # Now explicitly integrate the anelastic air mass continuity
+        # equation both upwards and downwards. Once we have the
+        # estimation of w from both integrations, we weight the 2
+        # solutions together to estimate the true w in the column
+        wu = continuity.integrate_up(div, rho, drho, dz=dz,
+                                     fill_value=fill_value)
+        wd = continuity.integrate_down(div, top, rho, drho, z_disp, dz=dz,
+                                       fill_value=fill_value)
+        wc = continuity.weight_protat(wu, wd, top, z_disp,
+                                      fill_value=fill_value)
+        
+        # Now calculate the gradient of the continuity cost. The Fortran
+        # routine returns the 3 terms dJc/du, dJc/dv, and dJc/dw, and so
+        # we will unpack these after
+        res = continuity.wind_gradient_iterative(
+                    w, wc, wgt_c, fill_value=fill_value)
+        dJcu, dJcv, dJcw = res
+        
+    else:
+        raise ValueError('Unsupported continuity cost')
+    
+    # Calculate the gradient of the smoothness cost Js with respect to
+    # the 3 control variables (u, v, w), which means we need to calculate
+    # dJs/du, dJs/dv, and dJs/dw. The smoothness cost is defined as a series
+    # of second order partial derivatives, so these will have to be calculated
+    # via finite differences first before we compute these terms
+    if smooth_cost is None:
+        dJsu = np.zeros((nz,ny,nx), dtype=np.float64)
+        dJsv = np.zeros_like(dJsu)
+        dJsw = np.zeros_like(dJsu)
+
+    elif smooth_cost == 'potvin':
+        # Calculate the second order partial derivatives, in this case the
+        # vector Laplacian. The Fortran routine returns 9 terms in the
+        # following order,
+        #
+        # d2u/dx2, d2u/dy2, d2u/dz2,
+        # d2v/dx2, d2v/dy2, d2v/dz2,
+        # d2w/dx2, d2w/dy2, d2w/dz2
+        #
+        # so we will need to unpack these in the proper order after we call
+        # the Fortran routine
+        res = laplace.full_wind(u, v, w, dx=dx, dy=dy, dz=dz,
+                                finite_scheme=finite_scheme,
+                                fill_value=fill_value, proc=proc)
+        dux, duy, duz = res[0:3]
+        dvx, dvy, dvz = res[3:6]
+        dwx, dwy, dwz = res[6:9]
+        
+        # Calculate the gradient of the smoothness cost Js. The Fortran
+        # routine returns the 3 terms dJs/du, dJs/dv, and dJs/dw, and so we
+        # will unpack these after
+        res = smooth.wind_gradient_potvin(dux, duy, duz, dvx, dvy, dvz, dwx,
+                    dwy, dwz, wgt_s1=wgt_s1, wgt_s2=wgt_s2, wgt_s3=wgt_s3,
+                    wgt_s4=wgt_s4, dx=dx, dy=dy, dz=dz,
+                    finite_scheme=finite_scheme, fill_value=fill_value)
+        dJsu, dJsv, dJsw = res
+        
+    else:
+        raise ValueError('Unsupported smoothness cost')
+    
+    # Calculate the gradient of the background cost Jb with respect to
+    # the 3 control variables (u, v, w), which means we need to compute
+    # dJb/du, dJb/dv, and dJb/dw
+    if ub is None or vb is None or wb is None:
+        dJbu = np.zeros((nz,ny,nx), dtype=np.float64)
+        dJbv = np.zeros_like(dJbu)
+        dJbw = np.zeros_like(dJbu)
+
+    else:
+        # Now compute the gradient of the background cost Jb. The Fortran routine
+        # returns the 3 terms dJb/du, dJb/dv, and dJb/dw, so we will unpack 
+        # these after
+        res = background.wind_gradient(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
+                                       wgt_vb=wgt_vb, wgt_wb=wgt_wb,
+                                       fill_value=fill_value, proc=proc)
+        dJbu, dJbv, dJbw = res
+    
+    # Sum all the u-derivative, v-derivative, and w-derivative terms
+    # together. We then permute these back into the vector space. Once again
+    # keep in mind that our analysis vector should be of the form,
+    #
+    # x = x(u1, ... , uN, v1, ... , vN, w1, ... , wN)
+    #
+    # which means that its gradient with respect to the 3 control variables
+    # would be,
+    #
+    # dx/d(u,v,w) = (dx/du1, ... , dx/duN, dx/dv1, ... , dx/dvN, ...
+    #                dx/dw1, ... , dx/dwN)
+    #
+    # so we must preserve this order
+    dJu = np.ravel(dJou + dJcu + dJsu + dJbu)
+    dJv = np.ravel(dJov + dJcv + dJsv + dJbv)
+    dJw = np.ravel(dJow + dJcw + dJsw + dJbw)
+    g = np.concatenate((dJu,dJv,dJw), axis=0)
+    
+    if verbose:
+        gn = np.linalg.norm(g)
+        print 'Current gradient norm at x = %1.5e' %gn
+    
+    return g
 
 
 def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
@@ -687,7 +1159,6 @@ def _horizontal_divergence(grid, finite_scheme='basic', proc=1,
     div, du, dv = divergence.horizontal_wind(u, v, dx=dx, dy=dy, proc=proc,
                                              finite_scheme=finite_scheme,
                                              fill_value=fill_value)
-    
     div = np.ma.masked_equal(div, fill_value)
     
     div = {'data': div,
@@ -703,7 +1174,7 @@ def _horizontal_divergence(grid, finite_scheme='basic', proc=1,
     return
         
     
-def _check_analysis(grids, conv, sonde, target=None, fall_speed='Caya',
+def _check_analysis(grids, conv, sonde=None, target=None, fall_speed='Caya',
                     finite_scheme='basic', proc=1, standard_density=False,
                     fill_value=None, refl_field=None, vel_field=None,
                     u_field=None, v_field=None, w_field=None, verbose=False):
@@ -823,11 +1294,14 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
                      solver='scipy.fmin_cg', first_guess='zero',
                      background='sounding', sounding='ARM interpolated',
                      fall_speed='Caya', finite_scheme='basic',
-                     continuity='potvin', smooth='potvin',
+                     continuity_cost='potvin', smooth_cost='potvin',
                      impermeability='strong', first_pass=True,
-                     sub_beam=False, gtol=1.0e-5, ftol=1.0e7, maxiter=100,
-                     maxcor=10, disp=False, length_scale=None, use_qc=True,
-                     mds=0.0, ncp_min=0.4, rhv_min=0.8, vel_max=40.0,
+                     sub_beam=False, wgt_o=1.0, wgt_c=1.0,
+                     wgt_s1=1.0, wgt_s2=1.0, wgt_s3=1.0, wgt_s4=1.0,
+                     wgt_ub=1.0, wgt_vb=1.0, wgt_wb=1.0, wgt_w0=1.0,
+                     gtol=1.0e-5, ftol=1.0e7, maxiter=100, maxcor=10,
+                     disp=False, length_scale=None, use_qc=True, mds=0.0, 
+                     ncp_min=0.4, rhv_min=0.8, vel_max=40.0,
                      vel_grad_max=10.0, noise_ratio=50.0,
                      window_size=10, min_layer=1500.0, top_offset=500.0,
                      standard_density=False, save_refl=True, proc=1,
@@ -853,35 +1327,36 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         Technique used to derive the 3-D wind field.
     solver : 'scipy.fmin_cg', 'scipy.fmin_bfgs'
         Algorithm used to solve the posed problem.
-    first_guess : 'zero', 'sounding'
+    first_guess : 'zero' or 'sounding'
         Define what to use as a first guess field.
-    background : 'zero', 'sounding'
+    background : 'zero' or 'sounding'
         Define what to use as a background field.
     sounding : 'ARM interpolated'
         Define the source for the radiosonde data.
-    continuity : 'potvin' or 'iterative'
+    continuity_cost : 'potvin' or 'iterative'
         Define what method to use as the anelastic air mass continuity
         constraint. The 'iterative' method is a so-called non-simultaneaous
         method, while the 'potvin' method is a simultaneaous method.
-    smooth : 'potvin' or 'collis'
+    smooth_cost : 'potvin' or 'collis'
+        Define what method to use as a smoothness constraint. Currently only
+        'potvin' is available.
     impermeability : 'strong' or 'weak'
         Determines whether surface impermeability is considered as a strong
-        or weak constraint.
+        or weak constraint. Currently only 'strong' is available.
     wgt_o : float
         Observation weight used at each grid point with valid observations.
         Only applicable when 'technique' is '3d-var'.
     wgt_c : float
         Weight given to the anelastic air mass continuity constraint. Only
         applicable when 'technique' is '3d-var'.
-    wgt_s : list
-        Weights given to the smoothness constraint. It should be a list of
-        five floats, the first only applicable when smooth is 'collis', and
-        the other four only applicable when smooth is 'potvin'. When smooth
-        is 'potvin', the four floats correspond to S1, S2, S3, and S4 from
-        Equation (6) in Potvin et al. (2012). Only applicable when 'technique'
-        is '3d-var'.
-    wgt_b : list of 3 floats
-        Weight given to the background field. Only applicable when
+    wgt_s1, wgt_s2, wgt_s3, wgt_s4 : float
+        Weights given to the smoothness constraint. The first (wgt_s1) is
+        only applicable when smooth is 'collis', and all four are only
+        applicable when smooth is 'potvin'. When smooth is 'potvin', the four
+        floats correspond to S1, S2, S3, and S4 from Equation (6) in Potvin
+        et al. (2012). Only applicable when 'technique' is '3d-var'.
+    wgt_ub, wgt_vb, wgt_wb : float
+        Weights given to the background field. Only applicable when
         'technique' is '3d-var'.
     wgt_w0 : float
         Weight given to satisfying the impermeability condition at the
@@ -893,6 +1368,10 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         True to perform a heavily-smoothed first pass which is designed
         to retrieve the large-scale horizontal flow. Only applicable when
         'technique' is '3d-var'.
+    sub_beam : bool
+        True to use the sub-beam criteria. This criteria forces the divergence
+        of adjacent vertical grid points to be equivalent when observations
+        are not available near the surface.
     mds : float
         Minimum detectable signal in dBZ used to define the minimum
         reflectivity value.
@@ -969,6 +1448,18 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
     N = nz * ny * nx
     if verbose:
         print 'We have to minimize a function of %i variables' %(3 * N)
+
+    # Get analysis domain resolutions
+    dx = np.diff(grids[0].axes['x_disp']['data'], n=1)
+    dy = np.diff(grids[0].axes['y_disp']['data'], n=1)
+    dz = np.diff(grids[0].axes['z_disp']['data'], n=1)
+    if (np.unique(dx).size == 1 and np.unique(dy).size == 1 and
+        np.unique(dz).size == 1):
+        dx = dx[0]
+        dy = dy[0]
+        dz = dz]0]
+    else:
+        raise ValueError('Non-uniform grids are currently not supported')
         
     # Get target time. If no target time is provided, use the earliest time
     # out of the list of grids (radars)
@@ -976,7 +1467,7 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         target = min([datetime_from_grid(grid) for grid in grids])
 
     # If no radiosonde data is provided, we will use a standard atmosphere
-    # profile to define the density and its derivative with respect to height
+    # profile
     if sonde is None:
         if first_guess == 'sounding':
             raise ValueError('Radiosonde data is required for the initial '
@@ -1020,7 +1511,11 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
     # ub = ub(z, y, x)
     # vb = vb(z, y, x)
     # wb = wb(z, y, x)
-    if background == 'zero':
+    if background is None:
+        ub = None
+        vb = None
+        wb = None
+    elif background == 'zero':
         ub = np.zeros((nz,ny,nx), dtype=np.float64)
         vb = np.zeros((nz,ny,nx), dtype=np.float64)
         wb = np.zeros((nz,ny,nx), dtype=np.float64)
@@ -1059,20 +1554,25 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
     # conditions
     if continuity == 'iterative':
         base, top = _echo_bounds(grids, mds=mds, min_layer=min_layer,
-                                 top_offset=top_offset, fill_value=fill_value,
+                                 top_offset=top_offset,
+                                 fill_value=fill_value,
                                  refl_field=refl_field)
-        base['data'] = np.ma.filled(base['data'], fill_value)
-        top['data'] = np.ma.filled(top['data'], fill_value)
+        echo_base = np.ma.filled(base['data'], fill_value)
+        echo_top = np.ma.filled(top['data'], fill_value)
 
         # Get column types
         column = _column_types(cover, base, top, fill_value=fill_value)
-    
+        column_type = column['data']
+    else:
+        echo_base = None
+        echo_top = None
+        column_type = None
+
     # This is an important step. We make sure that every field for every grid
-    # (radar) is a NumPy array and not a masked array. First make a copy of
-    # the original grids so as not to disturb their data array types
-    grids_nd = deepcopy(grids)
-    
-    for grid in grids_nd:
+    # (radar) is a NumPy array and not a masked array. This step is due to the
+    # SciPy optimization module and its incompatibility with masked arrays
+    grids_no_mask = deepcopy(grids)
+    for grid in grids_no_mask:
         for field, field_dic in grid.fields.iteritems():
             field_dic['data'] = np.ma.filled(field_dic['data'], fill_value)
             grid.fields[field]['data'] = field_dic['data'] 
@@ -1094,7 +1594,6 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         # dimensionality of each cost uniform, as well as bring each cost
         # within 1-3 orders of magnitude of each other
         if length_scale is not None:
-        
             if continuity == 'potvin':
                 wgt_c = wgt_c * length_scale**2
             if smooth == 'potvin':
@@ -1134,19 +1633,21 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         else:
             raise ValueError('Unsupported SciPy solver')
         
+        # Get the appropriate cost function and the function that computes
+        # the gradient of the cost function
+        f = _cost_wind
+        jac = _grad_wind
+
         # This is a very important step. Group the required arguments for the
         # cost function and gradient together. The order at which the
         # arguments are entered is very important, and must be adhered to by
         # the functions that use it as arguments
-        args = (nx, ny, nz, N, grids_nd, ub, vb, wb, rho, drho, base['data'],
-                top['data'], column['data'], wgt_o, wgt_c, wgt_s, wgt_b,
-                wgt_w0, continuity_cost, smooth_cost, dx, dy, dz, sub_beam,
-                finite_scheme, fill_value, proc, vel_field, debug, verbose)
-        
-        # Get the appropriate cost function and the function that computes
-        # the gradient of the cost function
-        f = cga._cost_wind
-        jac = cga._grad_wind
+        args = (N, nx, ny, nz, dx, dy, dz, grids_no_mask, ub, vb, wb,
+                rho, drho, wgt_c, wgt_s1, wgt_s2, wgt_s3, wgt_s4,
+                wgt_ub, wgt_vb, wgt_wb, wgt_w0, continuity_cost, 
+                smooth_cost, impermeability, finite_scheme,
+                echo_base, echo_top, column_type, sub_beam,
+                fill_value, proc, vel_field, debug, verbose)
         
         # Check if the user wants to perform a first pass which retrieves a
         # heavily-smoothed horizontal wind field and a w field of 0 everywhere
