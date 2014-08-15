@@ -3,52 +3,6 @@
 
 python module smooth ! in 
     interface  ! in :smooth
-        subroutine wind_cost_orig(dux,duy,duz,duxy,duxz,duyz,dvx,dvy,dvz,dvxy,dvxz,dvyz,wgt_s,fill_value,nx,ny,nz,js) ! in :smooth:smooth.f90
-            real(kind=8) dimension(nz,ny,nx),intent(in) :: dux
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duyz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvx
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvyz
-            real(kind=8) intent(in) :: wgt_s
-            real(kind=8) intent(in) :: fill_value
-            integer(kind=4), optional,intent(in),check(shape(dux,2)==nx),depend(dux) :: nx=shape(dux,2)
-            integer(kind=4), optional,intent(in),check(shape(dux,1)==ny),depend(dux) :: ny=shape(dux,1)
-            integer(kind=4), optional,intent(in),check(shape(dux,0)==nz),depend(dux) :: nz=shape(dux,0)
-            real(kind=8) intent(out) :: js
-        end subroutine wind_cost_orig
-        subroutine wind_grad_orig(dux,duy,duz,duxy,duxz,duyz,dvx,dvy,dvz,dvxy,dvxz,dvyz,wgt_s,dx,dy,dz,finite_scheme,fill_value,nx,ny,nz,djsu,djsv,djsw) ! in :smooth:smooth.f90
-            real(kind=8) dimension(nz,ny,nx),intent(in) :: dux
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duyz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvx
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxy
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxz
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvyz
-            real(kind=8) intent(in) :: wgt_s
-            real(kind=8) intent(in) :: dx
-            real(kind=8) intent(in) :: dy
-            real(kind=8) intent(in) :: dz
-            character*16 intent(in) :: finite_scheme
-            real(kind=8) intent(in) :: fill_value
-            integer(kind=4), optional,intent(in),check(shape(dux,2)==nx),depend(dux) :: nx=shape(dux,2)
-            integer(kind=4), optional,intent(in),check(shape(dux,1)==ny),depend(dux) :: ny=shape(dux,1)
-            integer(kind=4), optional,intent(in),check(shape(dux,0)==nz),depend(dux) :: nz=shape(dux,0)
-            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsu
-            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsv
-            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsw
-        end subroutine wind_grad_orig
         subroutine wind_cost_potvin(dux,duy,duz,dvx,dvy,dvz,dwx,dwy,dwz,wgt_s1,wgt_s2,wgt_s3,wgt_s4,fill_value,nx,ny,nz,js) ! in :smooth:smooth.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: dux
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duy
@@ -69,7 +23,7 @@ python module smooth ! in
             integer(kind=4), optional,intent(in),check(shape(dux,0)==nz),depend(dux) :: nz=shape(dux,0)
             real(kind=8) intent(out) :: js
         end subroutine wind_cost_potvin
-        subroutine wind_grad_potvin(dux,duy,duz,dvx,dvy,dvz,dwx,dwy,dwz,wgt_s1,wgt_s2,wgt_s3,wgt_s4,dx,dy,dz,finite_scheme,fill_value,nx,ny,nz,djsu,djsv,djsw) ! in :smooth:smooth.f90
+        subroutine wind_gradient_potvin(dux,duy,duz,dvx,dvy,dvz,dwx,dwy,dwz,wgt_s1,wgt_s2,wgt_s3,wgt_s4,dx,dy,dz,finite_scheme,fill_value,nx,ny,nz,djsu,djsv,djsw) ! in :smooth:smooth.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: dux
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duy
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duz
@@ -94,7 +48,53 @@ python module smooth ! in
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsu
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsv
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsw
-        end subroutine wind_grad_potvin
+        end subroutine wind_gradient_potvin
+        subroutine wind_cost_collis(dux,duy,duz,duxy,duxz,duyz,dvx,dvy,dvz,dvxy,dvxz,dvyz,wgt_s,fill_value,nx,ny,nz,js) ! in :smooth:smooth.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: dux
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duyz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvx
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvyz
+            real(kind=8) intent(in) :: wgt_s
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4), optional,intent(in),check(shape(dux,2)==nx),depend(dux) :: nx=shape(dux,2)
+            integer(kind=4), optional,intent(in),check(shape(dux,1)==ny),depend(dux) :: ny=shape(dux,1)
+            integer(kind=4), optional,intent(in),check(shape(dux,0)==nz),depend(dux) :: nz=shape(dux,0)
+            real(kind=8) intent(out) :: js
+        end subroutine wind_cost_collis
+        subroutine wind_gradient_collis(dux,duy,duz,duxy,duxz,duyz,dvx,dvy,dvz,dvxy,dvxz,dvyz,wgt_s,dx,dy,dz,finite_scheme,fill_value,nx,ny,nz,djsu,djsv,djsw) ! in :smooth:smooth.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: dux
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duxz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: duyz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvx
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxy
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvxz
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dvyz
+            real(kind=8) intent(in) :: wgt_s
+            real(kind=8) intent(in) :: dx
+            real(kind=8) intent(in) :: dy
+            real(kind=8) intent(in) :: dz
+            character*16 intent(in) :: finite_scheme
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4), optional,intent(in),check(shape(dux,2)==nx),depend(dux) :: nx=shape(dux,2)
+            integer(kind=4), optional,intent(in),check(shape(dux,1)==ny),depend(dux) :: ny=shape(dux,1)
+            integer(kind=4), optional,intent(in),check(shape(dux,0)==nz),depend(dux) :: nz=shape(dux,0)
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsu
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsv
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djsw
+        end subroutine wind_gradient_collis
     end interface 
 end python module smooth
 

@@ -3,7 +3,7 @@
 
 python module divergence ! in 
     interface  ! in :divergence
-        subroutine horiz_wind(u,v,dx,dy,finite_scheme,fill_value,proc,nx,ny,nz,div,du,dv) ! in :divergence:divergence.f90
+        subroutine horizontal_wind(u,v,dx,dy,finite_scheme,fill_value,proc,nx,ny,nz,div,du,dv) ! in :divergence:divergence.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: u
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v
             real(kind=8) intent(in) :: dx
@@ -17,7 +17,7 @@ python module divergence ! in
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: div
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: du
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: dv
-        end subroutine horiz_wind
+        end subroutine horizontal_wind
         subroutine full_wind(u,v,w,dx,dy,dz,finite_scheme,fill_value,proc,nx,ny,nz,div,du,dv,dw) ! in :divergence:divergence.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: u
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v

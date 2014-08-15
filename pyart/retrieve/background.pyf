@@ -3,7 +3,7 @@
 
 python module background ! in 
     interface  ! in :background
-        subroutine wind_cost(u,v,w,ub,vb,wb,wgt_ub,wgt_vb,wgt_wb,wgt_w0,fill_value,proc,nx,ny,nz,jb) ! in :background:background.f90
+        subroutine wind_cost(u,v,w,ub,vb,wb,wgt_ub,wgt_vb,wgt_wb,fill_value,proc,nx,ny,nz,jb) ! in :background:background.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: u
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: w
@@ -13,7 +13,6 @@ python module background ! in
             real(kind=8) intent(in) :: wgt_ub
             real(kind=8) intent(in) :: wgt_vb
             real(kind=8) intent(in) :: wgt_wb
-            real(kind=8) intent(in) :: wgt_w0
             real(kind=8) intent(in) :: fill_value
             integer(kind=4) intent(in) :: proc
             integer(kind=4), optional,intent(in),check(shape(u,2)==nx),depend(u) :: nx=shape(u,2)
@@ -21,7 +20,7 @@ python module background ! in
             integer(kind=4), optional,intent(in),check(shape(u,0)==nz),depend(u) :: nz=shape(u,0)
             real(kind=8) intent(out) :: jb
         end subroutine wind_cost
-        subroutine wind_grad(u,v,w,ub,vb,wb,wgt_ub,wgt_vb,wgt_wb,wgt_w0,fill_value,proc,nx,ny,nz,djbu,djbv,djbw) ! in :background:background.f90
+        subroutine wind_gradient(u,v,w,ub,vb,wb,wgt_ub,wgt_vb,wgt_wb,fill_value,proc,nx,ny,nz,djbu,djbv,djbw) ! in :background:background.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: u
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: v
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: w
@@ -31,7 +30,6 @@ python module background ! in
             real(kind=8) intent(in) :: wgt_ub
             real(kind=8) intent(in) :: wgt_vb
             real(kind=8) intent(in) :: wgt_wb
-            real(kind=8) intent(in) :: wgt_w0
             real(kind=8) intent(in) :: fill_value
             integer(kind=4) intent(in) :: proc
             integer(kind=4), optional,intent(in),check(shape(u,2)==nx),depend(u) :: nx=shape(u,2)
@@ -40,7 +38,7 @@ python module background ! in
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djbu
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djbv
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djbw
-        end subroutine wind_grad
+        end subroutine wind_gradient
     end interface 
 end python module background
 

@@ -3,28 +3,6 @@
 
 python module continuity ! in 
     interface  ! in :continuity
-        subroutine wind_cost_orig(w,wc,wgt_c,fill_value,nx,ny,nz,jc) ! in :continuity:continuity.f90
-            real(kind=8) dimension(nz,ny,nx),intent(in) :: w
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: wc
-            real(kind=8) intent(in) :: wgt_c
-            real(kind=8) intent(in) :: fill_value
-            integer(kind=4), optional,intent(in),check(shape(w,2)==nx),depend(w) :: nx=shape(w,2)
-            integer(kind=4), optional,intent(in),check(shape(w,1)==ny),depend(w) :: ny=shape(w,1)
-            integer(kind=4), optional,intent(in),check(shape(w,0)==nz),depend(w) :: nz=shape(w,0)
-            real(kind=8) intent(out) :: jc
-        end subroutine wind_cost_orig
-        subroutine wind_grad_orig(w,wc,wgt_c,fill_value,nx,ny,nz,djcu,djcv,djcw) ! in :continuity:continuity.f90
-            real(kind=8) dimension(nz,ny,nx),intent(in) :: w
-            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: wc
-            real(kind=8) intent(in) :: wgt_c
-            real(kind=8) intent(in) :: fill_value
-            integer(kind=4), optional,intent(in),check(shape(w,2)==nx),depend(w) :: nx=shape(w,2)
-            integer(kind=4), optional,intent(in),check(shape(w,1)==ny),depend(w) :: ny=shape(w,1)
-            integer(kind=4), optional,intent(in),check(shape(w,0)==nz),depend(w) :: nz=shape(w,0)
-            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcu
-            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcv
-            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcw
-        end subroutine wind_grad_orig
         subroutine wind_cost_potvin(w,du,dv,dw,rho,drho,wgt_c,fill_value,nx,ny,nz,jc) ! in :continuity:continuity.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: w
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: du
@@ -39,7 +17,7 @@ python module continuity ! in
             integer(kind=4), optional,intent(in),check(shape(w,0)==nz),depend(w) :: nz=shape(w,0)
             real(kind=8) intent(out) :: jc
         end subroutine wind_cost_potvin
-        subroutine wind_grad_potvin(w,du,dv,dw,rho,drho,wgt_c,dx,dy,dz,finite_scheme,fill_value,nx,ny,nz,djcu,djcv,djcw) ! in :continuity:continuity.f90
+        subroutine wind_gradient_potvin(w,du,dv,dw,rho,drho,wgt_c,dx,dy,dz,finite_scheme,fill_value,nx,ny,nz,djcu,djcv,djcw) ! in :continuity:continuity.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: w
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: du
             real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: dv
@@ -58,7 +36,29 @@ python module continuity ! in
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcu
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcv
             real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcw
-        end subroutine wind_grad_potvin
+        end subroutine wind_gradient_potvin
+        subroutine wind_cost_iterative(w,wc,wgt_c,fill_value,nx,ny,nz,jc) ! in :continuity:continuity.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: w
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: wc
+            real(kind=8) intent(in) :: wgt_c
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4), optional,intent(in),check(shape(w,2)==nx),depend(w) :: nx=shape(w,2)
+            integer(kind=4), optional,intent(in),check(shape(w,1)==ny),depend(w) :: ny=shape(w,1)
+            integer(kind=4), optional,intent(in),check(shape(w,0)==nz),depend(w) :: nz=shape(w,0)
+            real(kind=8) intent(out) :: jc
+        end subroutine wind_cost_iterative
+        subroutine wind_gradient_iterative(w,wc,wgt_c,fill_value,nx,ny,nz,djcu,djcv,djcw) ! in :continuity:continuity.f90
+            real(kind=8) dimension(nz,ny,nx),intent(in) :: w
+            real(kind=8) dimension(nz,ny,nx),intent(in),depend(nz,ny,nx) :: wc
+            real(kind=8) intent(in) :: wgt_c
+            real(kind=8) intent(in) :: fill_value
+            integer(kind=4), optional,intent(in),check(shape(w,2)==nx),depend(w) :: nx=shape(w,2)
+            integer(kind=4), optional,intent(in),check(shape(w,1)==ny),depend(w) :: ny=shape(w,1)
+            integer(kind=4), optional,intent(in),check(shape(w,0)==nz),depend(w) :: nz=shape(w,0)
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcu
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcv
+            real(kind=8) dimension(nz,ny,nx),intent(out),depend(nz,ny,nx) :: djcw
+        end subroutine wind_gradient_iterative
         subroutine integrate_up(div,rho,drhodz,dz,fill_value,nx,ny,nz,w) ! in :continuity:continuity.f90
             real(kind=8) dimension(nz,ny,nx),intent(in) :: div
             real(kind=8) dimension(nz),intent(in),depend(nz) :: rho
