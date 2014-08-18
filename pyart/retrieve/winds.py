@@ -74,10 +74,6 @@ def _cost_wind(x, *args):
     u = np.reshape(u, (nz,ny,nx)).astype(np.float64)
     v = np.reshape(v, (nz,ny,nx)).astype(np.float64)
     w = np.reshape(w, (nz,ny,nx)).astype(np.float64)
-
-    # Check impermeability condition
-    if impermeability == 'strong':
-        w[0,:,:] = 0.0
     
     # First calculate the observation cost Jo. We need to loop over all the
     # grids in order to get the contribution from each radar. We define the
@@ -114,7 +110,7 @@ def _cost_wind(x, *args):
     if continuity_cost is None:
         Jc = 0.0
 
-    elif continuity_cost == 'potvin':
+    elif continuity_cost == 'Potvin':
         # First calculate the full 3-D wind field divergence which consists
         # of the 3 terms du/dx, dv/dy, and dw/dz. These partial derivatives
         # are approximated by finite differences
@@ -132,7 +128,8 @@ def _cost_wind(x, *args):
                                          wgt_c=wgt_c)
         
         
-    elif continuity_cost == 'iterative':
+    elif (continuity_cost == 'Protat' or continuity_cost == 'bottom-up' or
+          continuity_cost == 'top-down'):
         # First calculate the horizontal wind divergence which consists of
         # the two terms du/dx and dv/dy. These partial derivatives are
         # approximated by finite differences
@@ -150,18 +147,33 @@ def _cost_wind(x, *args):
         if sub_beam:
             divergence.sub_beam(div, echo_base, column_type, z_disp, 
                                 proc=proc, fill_value=fill_value)
-            
-        # Explicitly integrate the anelastic air mass continuity
-        # equation both upwards and downwards. Once we have the
-        # estimation of w from both integrations, we weight the two
-        # solutions together to estimate the true w in the column
-        wu = continuity.integrate_up(div, rho, drho, dz=dz,
-                                     fill_value=fill_value)
-        wd = continuity.integrate_down(div, echo_top, rho, drho, z_disp,
-                                       dz=dz, fill_value=fill_value)
-        wc = continuity.weight_protat(wu, wd, echo_top, z_disp,
-                                      fill_value=fill_value)
-        
+
+        if continuity_cost == 'Protat':
+            # Explicitly integrate the anelastic air mass continuity
+            # equation both upwards and downwards. Once we have the
+            # estimation of w from both integrations, we weight the two
+            # solutions together to estimate the true w in the column
+            wu = continuity.integrate_up(div, rho, drho, dz=dz,
+                                         fill_value=fill_value)
+            wd = continuity.integrate_down(div, echo_top, rho, drho,
+                                           z_disp, dz=dz, 
+                                           fill_value=fill_value)
+            wc = continuity.weight_protat(wu, wd, echo_top, z_disp,
+                                          fill_value=fill_value)
+
+        elif continuity_cost == 'bottom-up':
+            # Explicitly integrate the anelastic air mass continuity
+            # equation upwards starting from the surface
+            wc = continuity.integrate_up(div, rho, drho, dz=dz,
+                                         fill_value=fill_value)
+
+        else:
+            # Explicitly integrate the anelastic air mass continuity
+            # equation downwards starting from the echo top
+            wc = continuity.integrate_down(div, echo_top, rho, drho,
+                                           z_disp, dz=dz,
+                                           fill_value=fill_value)
+
         # Calculate the anelastic continuity cost Jc
         Jc = continuity.wind_cost_iterative(w, wc, wgt_c=wgt_c,
                                             fill_value=fill_value)
@@ -175,7 +187,7 @@ def _cost_wind(x, *args):
     if smooth_cost is None:
         Js = 0.0
 
-    elif smooth_cost == 'potvin':
+    elif smooth_cost == 'Potvin':
         # Calculate the second order partial derivatives, in this case the
         # vector Laplacian. The Fortran routine returns 9 terms in the
         # following order,
@@ -210,15 +222,26 @@ def _cost_wind(x, *args):
         Jb = background.wind_cost(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
                                   wgt_vb=wgt_vb, wgt_wb=wgt_wb,
                                   fill_value=fill_value, proc=proc)
+
+    # Compute the impermeability cost Jw0
+    if impermeability is None or impermeability == 'strong':
+        Jw0 = 0.0
+
+    elif impermeability == 'weak':
+        Jw0 = 0.5 * wgt_w0 * np.sum(w[0,:,:]**2, dtype=np.float64)
+
+    else:
+        raise ValueError('Unsupported impermeability condition')
     
     if verbose:
         print 'Observation cost at x          = %1.5e' %Jo
         print 'Anelastic continuity cost at x = %1.5e' %Jc
         print 'Smoothness cost at x           = %1.5e' %Js
         print 'Background cost at x           = %1.5e' %Jb
-        print 'Total cost at x                = %1.5e' %(Jo + Jc + Js + Jb)
+        print 'Impermeability cost at x       = %1.5e' %Jw0
+        print 'Total cost at x                = %1.5e' %(Jo+Jc+Js+Jb+Jw0)
         
-    return Jo + Jc + Js + Jb
+    return Jo + Jc + Js + Jb + Jw0
 
 
 def _grad_wind(x, *args):
@@ -274,8 +297,10 @@ def _grad_wind(x, *args):
         print 'The background x-component weight is        %1.3e' %wgt_ub
         print 'The background y-component weight is        %1.3e' %wgt_vb
         print 'The background z-component weight is        %1.3e' %wgt_wb
+        print 'The impermeability weight is                %1.3e' %wgt_w0
         print 'The specified continuity cost is %s' %continuity_cost
         print 'The specified smoothness cost is %s' %smooth_cost
+        print 'The impermeability constraint is %s' %impermeability
         print 'The finite scheme for finite differences is %s' %finite_scheme
         print 'The fill value is %5.1f' %fill_value
         print 'The number of processors requested is %i' %proc
@@ -285,7 +310,7 @@ def _grad_wind(x, *args):
     # ordered, since the way in which we slice it requires this knowledge. We
     # assume the analysis vector is of the form,
     #
-    # x = x(u1,u2,...,uN,v1,v2,...,vN,w1,w2,...,wN)
+    # x = x(u1, u2, ... , uN, v1, v2, ... , vN, w1, w2, ... , wN)
     #
     # so u is packed first, then v, and finally w
     u = x[0:N]
@@ -298,10 +323,6 @@ def _grad_wind(x, *args):
     u = np.reshape(u, (nz,ny,nx)).astype(np.float64)
     v = np.reshape(v, (nz,ny,nx)).astype(np.float64)
     w = np.reshape(w, (nz,ny,nx)).astype(np.float64)
-
-    # Check impermeability condition
-    if impermeability == 'strong':
-        w[0,:,:] = 0.0
     
     # First calculate the gradient of the observation cost Jo with respect to
     # the 3 control variables (u, v, w), which means we need to compute
@@ -359,7 +380,7 @@ def _grad_wind(x, *args):
         dJcv = np.zeros_like(dJcu)
         dJcw = np.zeros_like(dJcu)
     
-    elif continuity_cost == 'potvin':
+    elif continuity_cost == 'Potvin':
         # First calculate the full 3-D wind field divergence which consists
         # of the 3 terms du/dx, dv/dy, and dw/dz. These partial derivatives
         # are approximated by finite differences
@@ -380,7 +401,8 @@ def _grad_wind(x, *args):
                         fill_value=fill_value)
         dJcu, dJcv, dJcw = res
         
-    elif continuity_cost == 'interative':
+    elif (continuity_cost == 'Protat' or continuity_cost == 'bottom-up' or
+          continuity_cost == 'top-down'):
         # First calculate the horizontal wind divergence which consists of
         # the 2 terms du/dx and dv/dy. These partial derivatives are
         # approximated by finite differences
@@ -399,23 +421,34 @@ def _grad_wind(x, *args):
         if sub_beam:
             divergence.sub_beam(div, base, column, z_disp, proc=proc,
                                 fill_value=fill_value)
-            
-        # Now explicitly integrate the anelastic air mass continuity
-        # equation both upwards and downwards. Once we have the
-        # estimation of w from both integrations, we weight the 2
-        # solutions together to estimate the true w in the column
-        wu = continuity.integrate_up(div, rho, drho, dz=dz,
-                                     fill_value=fill_value)
-        wd = continuity.integrate_down(div, top, rho, drho, z_disp, dz=dz,
-                                       fill_value=fill_value)
-        wc = continuity.weight_protat(wu, wd, top, z_disp,
-                                      fill_value=fill_value)
+           
+        if continuity_cost == 'Protat':    
+            # Explicitly integrate the anelastic air mass continuity
+            # equation both upwards and downwards. Once we have the
+            # estimation of w from both integrations, we weight the 2
+            # solutions together to estimate the true w in the column
+            wu = continuity.integrate_up(div, rho, drho, dz=dz,
+                                         fill_value=fill_value)
+            wd = continuity.integrate_down(div, top, rho, drho,
+                                           z_disp, dz=dz,
+                                           fill_value=fill_value)
+            wc = continuity.weight_protat(wu, wd, top, z_disp,
+                                          fill_value=fill_value)
+
+        elif continuity_cost == 'bottom-up':
+            wc = continuity.integrate_up(div, rho, drho, dz=dz,
+                                         fill_value=fill_value)
+
+        else:
+            wc = continuity.integrate_down(div, top, rho, drho,
+                                           z_disp, dz=dz,
+                                           fill_value=fill_value)
         
-        # Now calculate the gradient of the continuity cost. The Fortran
+        # Calculate the gradient of the continuity cost. The Fortran
         # routine returns the 3 terms dJc/du, dJc/dv, and dJc/dw, and so
         # we will unpack these after
         res = continuity.wind_gradient_iterative(
-                    w, wc, wgt_c, fill_value=fill_value)
+                        w, wc, wgt_c, fill_value=fill_value)
         dJcu, dJcv, dJcw = res
         
     else:
@@ -431,7 +464,7 @@ def _grad_wind(x, *args):
         dJsv = np.zeros_like(dJsu)
         dJsw = np.zeros_like(dJsu)
 
-    elif smooth_cost == 'potvin':
+    elif smooth_cost == 'Potvin':
         # Calculate the second order partial derivatives, in this case the
         # vector Laplacian. The Fortran routine returns 9 terms in the
         # following order,
@@ -470,13 +503,24 @@ def _grad_wind(x, *args):
         dJbw = np.zeros_like(dJbu)
 
     else:
-        # Now compute the gradient of the background cost Jb. The Fortran routine
+        # Compute the gradient of the background cost Jb. The Fortran routine
         # returns the 3 terms dJb/du, dJb/dv, and dJb/dw, so we will unpack 
         # these after
         res = background.wind_gradient(u, v, w, ub, vb, wb, wgt_ub=wgt_ub,
                                        wgt_vb=wgt_vb, wgt_wb=wgt_wb,
                                        fill_value=fill_value, proc=proc)
         dJbu, dJbv, dJbw = res
+
+    # Compute the gradient of the impermeability cost dJw0
+    if impermeability is None or impermeability == 'strong':
+        dJw0 = np.zeros((nz,ny,nx), dtype=np.float64)
+
+    elif impermeability == 'weak':
+        dJw0 = np.zeros((nz,ny,nx), dtype=np.float64)
+        dJw0[0,:,:] = wgt_w0 * w[0,:,:]
+
+    else:
+        raise ValueError('Unsupported impermeability condition')
     
     # Sum all the u-derivative, v-derivative, and w-derivative terms
     # together. We then permute these back into the vector space. Once again
@@ -493,7 +537,7 @@ def _grad_wind(x, *args):
     # so we must preserve this order
     dJu = np.ravel(dJou + dJcu + dJsu + dJbu)
     dJv = np.ravel(dJov + dJcv + dJsv + dJbv)
-    dJw = np.ravel(dJow + dJcw + dJsw + dJbw)
+    dJw = np.ravel(dJow + dJcw + dJsw + dJbw + dJw0)
     g = np.concatenate((dJu,dJv,dJw), axis=0)
     
     if verbose:
@@ -1209,8 +1253,20 @@ def _check_analysis(grids, conv, sonde=None, target=None, fall_speed='Caya',
     if w_field is None:
         w_field = get_field_name('vertical_wind_component')
         
-    # Get dimensions
+    # Get analysis domain dimensions
     nz, ny, nx = grids[0].fields[vel_field]['data'].shape
+
+    # Get analysis domain resolutions
+    dx = np.diff(grids[0].axes['x_disp']['data'], n=1)
+    dy = np.diff(grids[0].axes['y_disp']['data'], n=1)
+    dz = np.diff(grids[0].axes['z_disp']['data'], n=1)
+    if (np.unique(dx).size == 1 and np.unique(dy).size == 1 and
+        np.unique(dz).size == 1):
+        dx = dx[0]
+        dy = dy[0]
+        dz = dz[0]
+    else:
+        raise ValueError('Non-uniform grids are currently not supported')
     
     # Get target time. If no target time is provided, use the earliest time
     # out of the list of grids (radars)
@@ -1553,7 +1609,8 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
     # an iterative technique since this technique has to explicitly integrate
     # the anelastic continuity equation and therefore we require boundary
     # conditions
-    if continuity == 'iterative':
+    if (continuity_cost == 'Protat' or continuity_cost == 'bottom-up' or
+        continuity_cost == 'top-down'):
         base, top = _echo_bounds(grids, mds=mds, min_layer=min_layer,
                                  top_offset=top_offset,
                                  fill_value=fill_value,
@@ -1564,6 +1621,7 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         # Get column types
         column = _column_types(cover, base, top, fill_value=fill_value)
         column_type = column['data']
+
     else:
         echo_base = None
         echo_top = None
@@ -1595,9 +1653,9 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         # dimensionality of each cost uniform, as well as bring each cost
         # within 1-3 orders of magnitude of each other
         if length_scale is not None:
-            if continuity == 'potvin':
+            if continuity_cost == 'Potvin':
                 wgt_c = wgt_c * length_scale**2
-            if smooth == 'potvin':
+            if smooth_cost == 'Potvin':
                 wgt_s1 = wgt_s1 * length_scale**4
                 wgt_s2 = wgt_s2 * length_scale**4
                 wgt_s3 = wgt_s3 * length_scale**4
