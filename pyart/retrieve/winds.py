@@ -1359,9 +1359,9 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
                      wgt_s1=1.0, wgt_s2=1.0, wgt_s3=1.0, wgt_s4=1.0,
                      wgt_ub=1.0, wgt_vb=1.0, wgt_wb=1.0, wgt_w0=1.0,
                      gtol=1.0e-5, ftol=1.0e7, maxiter=100, maxcor=10,
-                     disp=False, length_scale=None, use_qc=True, mds=0.0, 
-                     ncp_min=0.4, rhv_min=0.8, vel_max=40.0,
-                     vel_grad_max=10.0, noise_ratio=50.0,
+                     disp=False, maxiter_first_pass=50, length_scale=None,
+                     use_qc=True, mds=0.0, ncp_min=0.4, rhv_min=0.8,
+                     vel_max=40.0, vel_grad_max=10.0, noise_ratio=50.0,
                      window_size=10, min_layer=1500.0, top_offset=500.0,
                      standard_density=False, save_refl=True, proc=1,
                      proj='lcc', datum='NAD83', ellps='GRS80',
@@ -1392,11 +1392,11 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
         Define what to use as a background field.
     sounding : 'ARM interpolated'
         Define the source for the radiosonde data.
-    continuity_cost : 'potvin' or 'iterative'
+    continuity_cost : 'Potvin', 'Protat', 'bottom-up', 'top-down'
         Define what method to use as the anelastic air mass continuity
         constraint. The 'iterative' method is a so-called non-simultaneaous
         method, while the 'potvin' method is a simultaneaous method.
-    smooth_cost : 'potvin' or 'collis'
+    smooth_cost : 'Potvin' or 'Collis'
         Define what method to use as a smoothness constraint. Currently only
         'potvin' is available.
     impermeability : 'strong' or 'weak'
@@ -1449,6 +1449,8 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
     ftol: float
     
     maxiter : int
+        Only applicable when solver is 'scipy'.
+    maxiter_first_pass : int
         Only applicable when solver is 'scipy'.
     maxcor : int
         Only applicable when solver is 'scipy'.
@@ -1734,11 +1736,16 @@ def solve_wind_field(grids, sonde=None, target=None, technique='3d-var',
                      impermeability, finite_scheme, echo_base, echo_top,
                      column_type, sub_beam, fill_value, proc, vel_field,
                      debug, verbose)
+
+            # Change the number of iterations for the first pass, if
+            # necessary
+            opts0 = deepcopy(opts)
+            opts0['maxiter'] = maxiter_first_pass
             
             # Call the SciPy solver
             res = minimize(f, x0, args=args0, method=method, jac=jac,
                            hess=None, hessp=None, bounds=None,
-                           constraints=None, options=opts)
+                           constraints=None, options=opts0)
             
             # Unpack the results from the first pass
             x0 = res.x
