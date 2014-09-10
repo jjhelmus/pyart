@@ -631,7 +631,7 @@ def _radar_components(grids, proj='lcc', datum='NAD83', ellps='GRS80'):
         # Create map projection centered at the analysis domain origin
         pj = pyproj.Proj(
             proj=proj, lat_0=lat_0, lon_0=lon_0, x_0=0.0, y_0=0.0,
-            datum=datum, ellps=ellps, )
+            datum=datum, ellps=ellps)
 
         # Get the (x, y) location of the radar in the analysis domain from
         # the projection
@@ -734,6 +734,8 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
         ze, z, mds=mds, min_layer=min_layer, proc=proc, fill_value=fill_value)
 
     top = np.where(top != fill_value, top + top_offset, top)
+    too_high = np.logical_and(top != fill_value, top > z.max())
+    top = np.where(too_high, z.max(), top)
 
     base = np.ma.masked_equal(base, fill_value)
     top = np.ma.masked_equal(top, fill_value)
@@ -757,8 +759,7 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
     return base, top
 
 
-def _observation_weight(grids, wgt_o=1.0, fill_value=None,
-                        refl_field=None, vel_field=None):
+def _observation_weight(grids, wgt_o=1.0, fill_value=None, vel_field=None):
     """
     Add an observation weight field to Grid objects. Grid points
     with valid observations should be given a scalar weight greater
@@ -779,8 +780,8 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None,
         Missing value used to signify bad data points. A value of None
         will use the default fill value as defined in the Py-ART
         configuration file.
-    refl_field, vel_field : str
-        Name of fields which will be used to determine grid points with
+    vel_field : str
+        Name of field which will be used to determine grid points with
         valid observations. A value of None will use the default field name
         as defined in the Py-ART configuration file.
 
@@ -791,27 +792,20 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None,
         fill_value = get_fillvalue()
 
     # Parse the field parameters
-    if refl_field is None:
-        refl_field = get_field_name('corrected_reflectivity')
     if vel_field is None:
         vel_field = get_field_name('corrected_velocity')
 
     # Loop over all grids
     for grid in grids:
-        # Get appropriate data
-        ze = np.ma.filled(grid.fields[refl_field]['data'], fill_value)
         vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
 
         # Initialize observation weight array for each grid (radar)
-        grid_weight = np.zeros_like(ze)
+        grid_weight = np.zeros_like(vr)
 
         # Create appropriate boolean arrays
-        is_bad_refl = ze == fill_value
-        is_bad_vel = vr == fill_value
+        is_good_vel = vr != fill_value
 
-        is_good = ~np.logical_or(is_bad_refl, is_bad_vel)
-
-        grid_weight[is_good] = wgt_o
+        grid_weight[is_good_vel] = wgt_o
 
         # Create dictionary of results
         grid_weight = {'data': grid_weight,
@@ -867,17 +861,10 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
     if rhv_field is None:
         rhv_field = get_field_name('cross_correlation_ratio')
 
-    # Get analysis domain dimensions
-    nz, ny, nx = grids[0].fields[refl_field]['data'].shape
-
-    # Get analysis domain heights and create its mesh
-    z = grids[0].axes['z_disp']['data']
-    Z = np.repeat(z, ny * nx, axis=0).reshape(nz, ny, nx)
-
     # Loop over all grids
     for grid in grids:
-        # Compute the magnitude of the radial velocity gradient and determine
-        # where it is bad
+
+        # Compute the magnitude of the radial velocity gradient
         vr = grid.fields[vel_field]['data']
         dvrz, dvry, dvrx = np.gradient(vr)
         grad_mag = np.ma.sqrt(dvrx**2 + dvry**2 + dvrz**2)
@@ -901,10 +888,6 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
 
         is_bad_refl = np.logical_or(is_noise, is_non_meteo)
         is_bad_vel = np.logical_or(is_vel_artifact, is_non_meteo)
-
-        # Special attention to heights below 2000 m where velocity artifacts
-        # can especially be a problem
-        is_bad_vel[np.logical_and(np.abs(vr) > 30.0, Z < 2000.0)] = True
 
         # Update masks
         grid.fields[refl_field]['data'] = np.ma.masked_where(is_bad_refl, ze)
