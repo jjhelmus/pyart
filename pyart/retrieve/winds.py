@@ -576,10 +576,10 @@ def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
         vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
 
         # Create appropriate boolean arrays
-        is_bad_refl = ze == fill_value
-        is_bad_vel = vr == fill_value
+        is_good_refl = ze != fill_value
+        is_good_vel = vr != fill_value
+        has_obs = np.logical_or(is_good_refl, is_good_vel)
 
-        has_obs = ~np.logical_or(is_bad_refl, is_bad_vel)
         cover = np.where(has_obs, cover + 1, cover)
 
     # Return dictionary of results
@@ -721,7 +721,7 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
         refl_field = get_field_name('corrected_reflectivity')
 
     # Get analysis domain axes
-    z = grids[0].axes['z_disp']['data']
+    z_disp = grids[0].axes['z_disp']['data']
 
     # Compute the maximum reflectivity observed at each grid point
     # using all grids (radars)
@@ -731,7 +731,8 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
 
     # Estimate echo base and top heights, and add offset to echo top heights
     base, top = continuity.boundary_conditions(
-        ze, z, mds=mds, min_layer=min_layer, proc=proc, fill_value=fill_value)
+        ze, z_disp, mds=mds, min_layer=min_layer, proc=proc,
+        fill_value=fill_value)
 
     top = np.where(top != fill_value, top + top_offset, top)
     too_high = np.logical_and(top != fill_value, top > z.max())
@@ -759,7 +760,8 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
     return base, top
 
 
-def _observation_weight(grids, wgt_o=1.0, fill_value=None, vel_field=None):
+def _observation_weight(grids, wgt_o=1.0, fill_value=None, vel_field=None,
+                        fall_field=None):
     """
     Add an observation weight field to Grid objects. Grid points
     with valid observations should be given a scalar weight greater
@@ -780,8 +782,8 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, vel_field=None):
         Missing value used to signify bad data points. A value of None
         will use the default fill value as defined in the Py-ART
         configuration file.
-    vel_field : str
-        Name of field which will be used to determine grid points with
+    vel_field, fall_field : str
+        Name of fields which will be used to determine grid points with
         valid observations. A value of None will use the default field name
         as defined in the Py-ART configuration file.
 
@@ -794,9 +796,16 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, vel_field=None):
     # Parse the field parameters
     if vel_field is None:
         vel_field = get_field_name('corrected_velocity')
+    if fall_field is None:
+        fall_field = 'hydrometeor_fall_velocity'
+
+    # Check if hydrometeor fall velocity is available
+    if fall_field not in grids[0].fields:
+        raise ValueError('Hydrometeor fall velocity not found')
 
     # Loop over all grids
     for grid in grids:
+        vt = np.ma.filled(grid.fields[fall_field]['data'], fill_value)
         vr = np.ma.filled(grid.fields[vel_field]['data'], fill_value)
 
         # Initialize observation weight array for each grid (radar)
@@ -804,8 +813,10 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, vel_field=None):
 
         # Create appropriate boolean arrays
         is_good_vel = vr != fill_value
+        is_good_fall = vt != fill_value
+        is_valid = np.logical_and(is_good_vel, is_good_fall)
 
-        grid_weight[is_good_vel] = wgt_o
+        grid_weight[is_valid] = wgt_o
 
         # Create dictionary of results
         grid_weight = {'data': grid_weight,
@@ -1116,10 +1127,10 @@ def _fall_speed_caya(grids, temp, fill_value=None, refl_field=None):
 
     # Get analysis domain heights and create its mesh
     z = grids[0].axes['z_disp']['data']
-    Z = np.repeat(z, ny*nx, axis=0).reshape(nz, ny, nx)
+    Z = np.repeat(z, ny * nx, axis=0).reshape(nz, ny, nx)
 
     # Create the temperature mesh
-    T = np.repeat(temp, ny*nx, axis=0).reshape(nz, ny, nx)
+    T = np.repeat(temp, ny * nx, axis=0).reshape(nz, ny, nx)
 
     # Compute the maximum reflectivity observed at each grid point
     # using all grids (radars)
@@ -1630,7 +1641,7 @@ def solve_wind_field(
         # Add observation weight field to all grids
         _observation_weight(
             grids_no_mask, wgt_o=wgt_o, fill_value=fill_value,
-            refl_field=refl_field, vel_field=vel_field)
+            vel_field=vel_field, fall_field=None)
 
         # SciPy nonlinear conjugate gradient method
         if solver == 'scipy.fmin_cg':
