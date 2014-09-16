@@ -735,8 +735,8 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
         fill_value=fill_value)
 
     top = np.where(top != fill_value, top + top_offset, top)
-    too_high = np.logical_and(top != fill_value, top > z.max())
-    top = np.where(too_high, z.max(), top)
+    too_high = np.logical_and(top != fill_value, top > z_disp.max())
+    top = np.where(too_high, z_disp.max(), top)
 
     base = np.ma.masked_equal(base, fill_value)
     top = np.ma.masked_equal(top, fill_value)
@@ -745,15 +745,15 @@ def _echo_bounds(grids, mds=0.0, min_layer=1500.0, top_offset=500.0,
     base = {'data': base,
             'standard_name': 'echo_base_height',
             'long_name': 'Height of echo base',
-            'valid_min': z.min(),
-            'valid_max': z.max(),
+            'valid_min': z_disp.min(),
+            'valid_max': z_disp.max(),
             '_FillValue': base.fill_value,
             'units': 'meters'}
     top = {'data': top,
            'standard_name': 'echo_top_height',
            'long_name': 'Height of echo top',
-           'valid_min': z.min(),
-           'valid_max': z.max(),
+           'valid_min': z_disp.min(),
+           'valid_max': z_disp.max(),
            '_FillValue': top.fill_value,
            'units': 'meters'}
 
