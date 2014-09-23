@@ -578,7 +578,7 @@ def _radar_coverage(grids, fill_value=None, refl_field=None, vel_field=None):
         # Create appropriate boolean arrays
         is_good_refl = ze != fill_value
         is_good_vel = vr != fill_value
-        has_obs = np.logical_or(is_good_refl, is_good_vel)
+        has_obs = np.logical_and(is_good_refl, is_good_vel)
 
         cover = np.where(has_obs, cover + 1, cover)
 
@@ -832,9 +832,10 @@ def _observation_weight(grids, wgt_o=1.0, fill_value=None, vel_field=None,
 
 
 def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
-              rhv_min=0.7, window_size=5, noise_ratio=50.0, fill_value=None,
-              refl_field=None, vel_field=None, ncp_field=None,
-              rhv_field=None):
+              rhv_min=0.7, window_size=5, noise_ratio=50.0, mask_close=False,
+              roi=5000.0, proj='lcc', datum='NAD83', ellps='GRS80',
+              fill_value=None, refl_field=None, vel_field=None,
+              ncp_field=None, rhv_field=None):
     """
     Parameters
     ----------
@@ -871,6 +872,44 @@ def _radar_qc(grids, mds=0.0, vel_max=55.0, vel_grad_max=10.0, ncp_min=0.3,
         ncp_field = get_field_name('normalized_coherent_power')
     if rhv_field is None:
         rhv_field = get_field_name('cross_correlation_ratio')
+
+    # Parse analysis domain dimensions
+    nz, ny, nx = grids[0].fields[vel_field]['data'].shape
+
+    # Mask grid points close to the radar, if necessary
+    if mask_close:
+        for grid in grids:
+
+            # Parse latitude, longitude, and altitude of analysis domain origin
+            # and radar
+            lat_0 = grid.axes['lat']['data'][0]
+            lon_0 = grid.axes['lon']['data'][0]
+            alt_0 = grid.axes['alt']['data'][0]
+            lat_r = grid.metadata['radar_0_latitude']
+            lon_r = grid.metadata['radar_0_longitude']
+
+            # Create map projection centered at the analysis domain origin and
+            # get the (x, y) location of the raar
+            pj = pyproj.Proj(proj=proj, lat_0=lat_0, lon_0=lon_0, x_0=0.0,
+                             y_0=0.0, datum=datum, ellps=ellps)
+            x_r, y_r = pj(lon_r, lat_r)
+
+            # Parse analysis domain coordinates and change the reference frame
+            # to be the radar
+            x_disp = grid.axes['x_disp']['data'] - x_r
+            y_disp = grid.axes['y_disp']['data'] - y_r
+            z_disp = grid.axes['z_disp']['data']
+            Z, Y, X = np.meshgrid(z_disp, y_disp, x_disp, indexing='ij')
+
+            # Determine grid points that are close to the radar, i.e. within
+            # the specified radius of influence
+            R = np.sqrt(X**2 + Y**2)
+            is_close = R < roi
+
+            # Mask velocity data
+            vel_data = grid.fields[vel_field]['data']
+            grid.fields[vel_field]['data'] = np.ma.masked_where(
+                    is_close, vel_data)
 
     # Loop over all grids
     for grid in grids:
