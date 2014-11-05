@@ -9,7 +9,7 @@
 
 set -e
 # use next line to debug this script
-#set -x
+set -x
 
 sudo apt-get update -qq
 
@@ -66,3 +66,6 @@ if [[ "$FROM_RECIPE" == "true" ]]; then
 else
     python setup.py build_ext --inplace
 fi
+conda list
+python -c "import pyart; pyart._debug_info()"
+python -c "import pyart.io._rsl_interface"
