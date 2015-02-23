@@ -99,6 +99,17 @@ To install for all users on Unix/Linux::
 Additional install instructions can be found in the **INSTALL.rst** file in
 this directory.
 
+Extensions and related software
+===============================
+
+* `PyTDA <https://github.com/tjlang/PyTDA>`_ : Python turbulence detection
+  algorithm which operates on Py-ART Radar objects.
+* `ARTView <https://github.com/nguy/artview>`_ : Interactive radar viewing
+  browser using Py-ART.
+* `wradlib <http://wradlib.bitbucket.org/>`_ : An open source library for
+  weather radar data processing.
+* `BALTRAD <http://baltrad.eu/>`_ : Community-based weather radar networking.
+
 Development
 ===========
 
