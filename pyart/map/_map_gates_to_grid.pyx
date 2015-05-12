@@ -16,13 +16,8 @@ def map_gates_to_grid(
         ):
 
     cdef float elevation, azimuth, _range
-    cdef float weight, dist, value, roi
-    cdef float xg, yg, zg
+    cdef float value, roi
     cdef float x, y, z
-    cdef int xi, yi, zi
-    cdef int x_min, x_max
-    cdef int y_min, y_max
-    cdef int z_min, z_max
     cdef float pi=3.141592653589793
     for nray in range(nrays):
 
@@ -61,36 +56,51 @@ def map_gates_to_grid(
             #roi = roi_func(z, y, x)  # Region of interest for the radar gate
             # TODO true ROI calculation
             roi = 2000.
+            map_gate(x, y, z, roi, value,
+                     x_step, y_step, z_step, nx, ny, nz, grid_sum, grid_wsum)
 
-            x_min = find_min(x, roi, x_step)
-            x_max = find_max(x, roi, x_step, nx)
-            if x_min > nx-1 or x_max < 0:
-                continue
+@cython.cdivision(True)
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef int map_gate(float x, float y, float z, float roi, float value,
+                  float x_step, float y_step, float z_step, 
+                  int nx, int ny, int nz,
+                  float [:, :, ::1] grid_sum, float[:, :, ::1] grid_wsum):
+    """ Map a single point to the grid. """
+    
+    cdef float xg, yg, zg, dist
+    cdef int x_min, x_max, y_min, y_max, z_min, z_max
+    cdef int xi, yi, zi
 
-            y_min = find_min(y, roi, y_step)
-            y_max = find_max(y, roi, y_step, ny)
-            if y_min > ny-1 or y_max < 0:
-                continue
+    x_min = find_min(x, roi, x_step)
+    x_max = find_max(x, roi, x_step, nx)
+    if x_min > nx-1 or x_max < 0:
+        return 0
 
-            z_min = find_min(z, roi, z_step)
-            z_max = find_max(z, roi, z_step, nz)
-            if z_min > nz-1 or z_max < 0:
-                continue
-            
-            for xi in range(x_min, x_max+1):
-                for yi in range(y_min, y_max+1): 
-                    for zi in range(z_min, z_max+1):
-                        xg = x_step * xi
-                        yg = y_step * yi
-                        zg = z_step * zi
-                        dist = sqrt((xg-x)**2 + (yg-y)**2 + (zg-z)**2)
-                        if roi == 0:
-                            weight = 1e-5
-                        else:
-                            weight = exp(-(dist*dist) / (2*roi*roi)) + 1e-5
-                        grid_sum[zi, yi, xi] += weight * value
-                        grid_wsum[zi, yi, xi] += weight
+    y_min = find_min(y, roi, y_step)
+    y_max = find_max(y, roi, y_step, ny)
+    if y_min > ny-1 or y_max < 0:
+        return 0
 
+    z_min = find_min(z, roi, z_step)
+    z_max = find_max(z, roi, z_step, nz)
+    if z_min > nz-1 or z_max < 0:
+        return 0
+    
+    for xi in range(x_min, x_max+1):
+        for yi in range(y_min, y_max+1): 
+            for zi in range(z_min, z_max+1):
+                xg = x_step * xi
+                yg = y_step * yi
+                zg = z_step * zi
+                dist = sqrt((xg-x)**2 + (yg-y)**2 + (zg-z)**2)
+                if roi == 0:
+                    weight = 1e-5
+                else:
+                    weight = exp(-(dist*dist) / (2*roi*roi)) + 1e-5
+                grid_sum[zi, yi, xi] += weight * value
+                grid_wsum[zi, yi, xi] += weight
+    return 1
 
 @cython.cdivision(True)
 cdef int find_min(float a, float roi, float step):
