@@ -1,8 +1,9 @@
 
 import numpy as np
 from ..io.common import radar_coords_to_cart
+from ._map_gates_to_grid import map_gates_to_grid
 
-
+#@profile
 def new_mapper(radar, grid_shape, grid_limits):
     # TODO multiple radars
     # TODO multiple fields
@@ -46,7 +47,7 @@ def new_mapper(radar, grid_shape, grid_limits):
     return grid
 
 
-def map_gates_to_grid(
+def map_gates_to_grid_old(
         grid_sum, grid_wsum,
         nrays, ngates,
         elevations, azimuths, ranges,
