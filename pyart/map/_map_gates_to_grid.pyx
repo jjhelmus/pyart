@@ -52,57 +52,63 @@ def map_gates_to_grid(
             x = s * sin(theta_a)
             y = s * cos(theta_a)
 
+            # shift positions so that grid starts at 0
             # TODO apply radar displayment from grid origin
+            x = x - x_start
+            y = y - y_start
+            z = z - z_start
 
             #roi = roi_func(z, y, x)  # Region of interest for the radar gate
             # TODO true ROI calculation
             roi = 2000.
 
-            x_min = <int>ceil((x - roi - x_start) / x_step)
-            if x_min < 0:
-                x_min = 0
-            x_max = <int>floor((x + roi - x_start) / x_step)
-            if x_max > nx-1:
-                x_max = nx-1
+            x_min = find_min(x, roi, x_step)
+            x_max = find_max(x, roi, x_step, nx)
             if x_min > nx-1 or x_max < 0:
                 continue
 
-            y_min = <int>ceil((y - roi - y_start) / y_step)
-            if y_min < 0:
-                y_min = 0
-            y_max = <int>floor((y + roi - y_start) / y_step)
-            if y_max > ny-1:
-                y_max = ny-1
+            y_min = find_min(y, roi, y_step)
+            y_max = find_max(y, roi, y_step, ny)
             if y_min > ny-1 or y_max < 0:
                 continue
 
-            if z_step == 0:
-                z_min = 0
-                z_max = 0
-            else:
-                z_min = <int>ceil((z - roi - z_start) / z_step)
-                if z_min < 0:
-                    z_min = 0
-                z_max = <int>floor((z + roi - z_start) / z_step)
-                if z_max > nz-1:
-                    z_max = nz-1
-                if z_min > nz-1 or z_max < 0:
-                    continue
+            z_min = find_min(z, roi, z_step)
+            z_max = find_max(z, roi, z_step, nz)
+            if z_min > nz-1 or z_max < 0:
+                continue
             
             for xi in range(x_min, x_max+1):
                 for yi in range(y_min, y_max+1): 
                     for zi in range(z_min, z_max+1):
-
-                        xg = x_start + x_step * xi
-                        yg = y_start + y_step * yi
-                        zg = z_start + z_step * zi
-
+                        xg = x_step * xi
+                        yg = y_step * yi
+                        zg = z_step * zi
                         dist = sqrt((xg-x)**2 + (yg-y)**2 + (zg-z)**2)
                         if roi == 0:
                             weight = 1e-5
                         else:
                             weight = exp(-(dist*dist) / (2*roi*roi)) + 1e-5
-
                         grid_sum[zi, yi, xi] += weight * value
                         grid_wsum[zi, yi, xi] += weight
 
+
+@cython.cdivision(True)
+cdef int find_min(float a, float roi, float step):
+    cdef int a_min
+    if step == 0:
+        return 0
+    a_min = <int>ceil((a - roi) / step)
+    if a_min < 0:
+        a_min = 0
+    return a_min
+
+
+@cython.cdivision(True)
+cdef int find_max(float a, float roi, float step, int na):
+    cdef int a_max
+    if step == 0:
+        return 0
+    a_max = <int>floor((a + roi) / step)
+    if a_max > na-1:
+        a_max = na-1
+    return a_max
