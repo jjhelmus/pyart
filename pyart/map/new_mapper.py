@@ -1,12 +1,13 @@
 
 import numpy as np
 from ..io.common import radar_coords_to_cart
-from ._map_gates_to_grid import map_gates_to_grid
+from ._map_gates_to_grid import GateMapper
 
 #@profile
 def new_mapper(radar, grid_shape, grid_limits):
     # TODO multiple radars
     # TODO multiple fields
+    # radar/grid displacement
     # TODO ROI function
 
     # unpack the grid parameters
@@ -35,14 +36,11 @@ def new_mapper(radar, grid_shape, grid_limits):
     field_data = np.ma.getdata(radar.fields['reflectivity']['data'])
     field_mask = np.ma.getmaskarray(radar.fields['reflectivity']['data'])
 
-    map_gates_to_grid(
-        grid_sum, grid_wsum,
-        radar.nrays, radar.ngates,
+    gatemapper = GateMapper(x_step, y_step, z_step, x_start, y_start, z_start,
+                            nx, ny, nz, grid_sum, grid_wsum)
+    gatemapper.map_gates_to_grid(
         radar.elevation['data'], radar.azimuth['data'], radar.range['data'],
-        field_data, field_mask.astype(np.uint8),
-        x_start, x_step, y_start, y_step, z_start, z_step,
-        nx, ny, nz
-        )
+        field_data, field_mask.astype(np.uint8))
 
     mweight = np.ma.masked_equal(grid_wsum, 0)
     msum = np.ma.masked_array(grid_sum, mweight.mask)
