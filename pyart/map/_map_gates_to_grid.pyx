@@ -1,6 +1,3 @@
-import numpy as np
-from ..io.common import radar_coords_to_cart
-
 from libc.math cimport sqrt, exp, ceil, floor, sin, cos, asin
 
 cimport cython
@@ -11,7 +8,7 @@ def map_gates_to_grid(
         float [:, :, ::1] grid_sum, float[:, :, ::1] grid_wsum,
         int nrays, int ngates,
         float[::1] elevations, float [::1] azimuths, float[::1] ranges,
-        field,
+        float[:, ::1] field_data, char[:, ::1] field_mask,
         float x_start, float x_step, 
         float y_start, float y_step,
         float z_start, float z_step,
@@ -35,10 +32,10 @@ def map_gates_to_grid(
         for ngate in range(ngates):
 
             _range = ranges[ngate] / 1000.
-            raw_value = field[nray, ngate]
-            if np.ma.is_masked(raw_value):
+            
+            if field_mask[nray, ngate]:
                 continue
-            value = float(raw_value)
+            value = field_data[nray, ngate]
 
             # radar_coords_to_cart inline function???
             #x, y, z = radar_coords_to_cart(_range, azimuth, elevation)

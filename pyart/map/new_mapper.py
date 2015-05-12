@@ -32,11 +32,14 @@ def new_mapper(radar, grid_shape, grid_limits):
     grid_sum = np.zeros((nz, ny, nx), dtype=np.float32)
     grid_wsum = np.zeros((nz, ny, nx), dtype=np.float32)
 
+    field_data = np.ma.getdata(radar.fields['reflectivity']['data'])
+    field_mask = np.ma.getmaskarray(radar.fields['reflectivity']['data'])
+
     map_gates_to_grid(
         grid_sum, grid_wsum,
         radar.nrays, radar.ngates,
         radar.elevation['data'], radar.azimuth['data'], radar.range['data'],
-        radar.fields['reflectivity']['data'],
+        field_data, field_mask.astype(np.uint8),
         x_start, x_step, y_start, y_step, z_start, z_step,
         nx, ny, nz
         )
