@@ -31,16 +31,39 @@ def new_mapper(radar, grid_shape, grid_limits):
     grid_sum = np.zeros((nz, ny, nx), dtype=np.float32)
     grid_wsum = np.zeros((nz, ny, nx), dtype=np.float32)
 
-    for nray in range(radar.nrays):
+    map_gates_to_grid(
+        grid_sum, grid_wsum,
+        radar.nrays, radar.ngates,
+        radar.elevation['data'], radar.azimuth['data'], radar.range['data'],
+        radar.fields['reflectivity']['data'],
+        x_start, x_step, y_start, y_step, z_start, z_step,
+        nx, ny, nz
+        )
+
+    mweight = np.ma.masked_equal(grid_wsum, 0)
+    msum = np.ma.masked_array(grid_sum, mweight.mask)
+    grid = msum / mweight
+    return grid
+
+
+def map_gates_to_grid(
+        grid_sum, grid_wsum,
+        nrays, ngates,
+        elevations, azimuths, ranges,
+        field,
+        x_start, x_step, y_start, y_step, z_start, z_step, nx, ny, nz
+        ):
+
+    for nray in range(nrays):
 
         print "nray", nray
-        elevation = radar.elevation['data'][nray]
-        azimuth = radar.azimuth['data'][nray]
+        elevation = elevations[nray]
+        azimuth = azimuths[nray]
 
-        for ngate in range(radar.ngates):
+        for ngate in range(ngates):
 
-            _range = radar.range['data'][ngate] / 1000.
-            value = radar.fields['reflectivity']['data'][nray, ngate]
+            _range = ranges[ngate] / 1000.
+            value = field[nray, ngate]
             if np.ma.is_masked(value):
                 continue
 
@@ -48,6 +71,7 @@ def new_mapper(radar, grid_shape, grid_limits):
             # TODO apply radar displayment from grid origin
 
             #roi = roi_func(z, y, x)  # Region of interest for the radar gate
+            # TODO true ROI calculation
             roi = 2000
 
             x_min = max(np.ceil((x - roi - x_start) / x_step), 0)
@@ -83,7 +107,3 @@ def new_mapper(radar, grid_shape, grid_limits):
                         grid_sum[zi, yi, xi] += weight * value
                         grid_wsum[zi, yi, xi] += weight
 
-    mweight = np.ma.masked_equal(grid_wsum, 0)
-    msum = np.ma.masked_array(grid_sum, mweight.mask)
-    grid = msum / mweight
-    return grid
