@@ -1,14 +1,52 @@
 
 import numpy as np
 from ..io.common import radar_coords_to_cart
+from ..graph.common import corner_to_point
 from ._map_gates_to_grid import GateMapper
+from ._map_gates_to_grid import ConstantROI, DistBeamROI, DistROI
+
+from .grid_mapper import _gen_roi_func_constant
+from .grid_mapper import _gen_roi_func_dist
+from .grid_mapper import _gen_roi_func_dist_beam
 
 #@profile
-def new_mapper(radar, grid_shape, grid_limits):
+def new_mapper(
+        radars, grid_shape, grid_limits,
+
+        grid_origin=None, grid_origin_alt=None,
+        roi_func='dist_beam',
+        constant_roi=500., z_factor=0.05, xy_factor=0.02,
+        min_radius=500.0, h_factor=1.0, nb=1.5, bsp=1.0,
+        ):
     # TODO multiple radars
     # TODO multiple fields
-    # radar/grid displacement
-    # TODO ROI function
+    # TODO radar/grid displacement
+
+    radar = radars[0]
+    if grid_origin is None:
+        lat = float(radars[0].latitude['data'])
+        lon = float(radars[0].longitude['data'])
+        grid_origin = (lat, lon)
+
+    if grid_origin_alt is None:
+        grid_origin_alt = float(radars[0].altitude['data'])
+
+    offsets = []
+    radar_lat = float(radar.latitude['data'])
+    radar_lon = float(radar.longitude['data'])
+    x_disp, y_disp = corner_to_point(grid_origin, (radar_lat, radar_lon))
+    z_disp = float(radar.altitude['data']) - grid_origin_alt
+    offsets.append((z_disp, y_disp, x_disp))
+    print offsets
+    if not hasattr(roi_func, '__call__'):
+        if roi_func == 'constant':
+            roi_func = ConstantROI(constant_roi)
+        elif roi_func == 'dist':
+            roi_func = DistROI(z_factor, xy_factor, min_radius, offsets)
+        elif roi_func == 'dist_beam':
+            roi_func = DistBeamROI(h_factor, nb, bsp, min_radius, offsets)
+        else:
+            raise ValueError('unknown roi_func: %s' % roi_func)
 
     # unpack the grid parameters
     nz, ny, nx = grid_shape
@@ -36,11 +74,14 @@ def new_mapper(radar, grid_shape, grid_limits):
     field_data = np.ma.getdata(radar.fields['reflectivity']['data'])
     field_mask = np.ma.getmaskarray(radar.fields['reflectivity']['data'])
 
+    z_offset, y_offset, x_offset = offsets[0]
     gatemapper = GateMapper(x_step, y_step, z_step, x_start, y_start, z_start,
                             nx, ny, nz, grid_sum, grid_wsum)
     gatemapper.map_gates_to_grid(
         radar.elevation['data'], radar.azimuth['data'], radar.range['data'],
-        field_data, field_mask.astype(np.uint8))
+        field_data, field_mask.astype(np.uint8),
+        x_offset, y_offset, x_offset,
+        roi_func)
 
     mweight = np.ma.masked_equal(grid_wsum, 0)
     msum = np.ma.masked_array(grid_sum, mweight.mask)

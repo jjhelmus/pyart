@@ -1,6 +1,118 @@
-from libc.math cimport sqrt, exp, ceil, floor, sin, cos, asin
+# cython: profile=False
+from libc.math cimport sqrt, exp, ceil, floor, sin, cos, tan, asin
 
 cimport cython
+from cython.view cimport array as cvarray
+
+
+# This definition can be added to a .pxd file so others can defined fast 
+# RoI functions
+cdef class ROIFunction:
+
+    cpdef float get_roi(self, float z, float y, float x):
+        return 0
+
+
+cdef class ConstantROI(ROIFunction):
+    
+    cdef float constant_roi
+
+    def __init__(self, float constant_roi):
+        self.constant_roi = constant_roi
+
+    cpdef float get_roi(self, float z, float y, float x):
+        return self.constant_roi
+
+
+cdef class DistROI(ROIFunction):
+    
+    cdef float z_factor, xy_factor, min_radius
+    cdef int num_offsets
+    cdef float[:, :] offsets
+
+    def __init__(self, z_factor, xy_factor, min_radius, offsets):
+        self.z_factor = z_factor
+        self.xy_factor = xy_factor
+        self.min_radius = min_radius
+
+        self.num_offsets = len(offsets)
+        # does this array need to be explicitly de-allocated when the
+        # class instance is removed?
+        self.offsets = cvarray(
+            shape=(self.num_offsets, 3), itemsize=sizeof(float), format='f')
+        
+        for i, (z_offset, y_offset, x_offset) in enumerate(offsets):
+            self.offsets[i, 0] = z_offset
+            self.offsets[i, 1] = y_offset
+            self.offsets[i, 2] = x_offset
+
+    @cython.initializedcheck(False)
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cpdef float get_roi(self, float z, float y, float x):
+        
+        cdef float min_roi, roi, z_offset, y_offset, x_offset
+        cdef int i
+
+        min_roi =  999999999.0
+        for i in range(self.num_offsets):
+            z_offset = self.offsets[i, 0]
+            y_offset = self.offsets[i, 1]
+            x_offset = self.offsets[i, 2]
+            roi = (self.z_factor * (z - z_offset) + self.xy_factor *
+                   sqrt((x - x_offset)**2 + (y - y_offset)**2) +
+                   self.min_radius)
+            if roi < min_roi:
+                min_roi = roi
+
+        return min_roi
+
+
+cdef class DistBeamROI(ROIFunction):
+    
+    cdef float h_factor, min_radius, beam_factor
+    cdef int num_offsets
+    cdef float[:, :] offsets
+
+    def __init__(self, h_factor, nb, bsp, min_radius, offsets):
+        self.h_factor = h_factor
+        self.min_radius = min_radius
+        self.beam_factor = tan(nb * bsp * 3.141592653589793 / 180.)
+
+        self.num_offsets = len(offsets)
+        # does this array need to be explicitly de-allocated when the
+        # class instance is removed?
+        self.offsets = cvarray(
+            shape=(self.num_offsets, 3), itemsize=sizeof(float), format='f')
+        
+        for i, (z_offset, y_offset, x_offset) in enumerate(offsets):
+            self.offsets[i, 0] = z_offset
+            self.offsets[i, 1] = y_offset
+            self.offsets[i, 2] = x_offset
+
+    @cython.initializedcheck(False)
+    @cython.cdivision(True)
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    cpdef float get_roi(self, float z, float y, float x):
+        
+        cdef float min_roi, roi, z_offset, y_offset, x_offset
+        cdef int i
+
+        min_roi =  999999999.0
+        for i in range(self.num_offsets):
+            z_offset = self.offsets[i, 0]
+            y_offset = self.offsets[i, 1]
+            x_offset = self.offsets[i, 2]
+            roi = (self.h_factor * ((z - z_offset) / 20.0) +
+                   sqrt((y - y_offset)**2 + (x - x_offset)**2) *
+                   self.beam_factor + self.min_radius)
+            if roi < min_roi:
+                min_roi = roi
+
+        return min_roi
+
 
 
 cdef class GateMapper:
@@ -36,7 +148,9 @@ cdef class GateMapper:
     @cython.wraparound(False)
     def map_gates_to_grid(self,
             float[::1] elevations, float[::1] azimuths, float[::1] ranges,
-            float[:, ::1] field_data, char[:, ::1] field_mask):
+            float[:, ::1] field_data, char[:, ::1] field_mask,
+            float x_offset, float y_offset, float z_offset,
+            ROIFunction roi_func):
 
         cdef int nrays, ngates
         cdef float elevation, azimuth, r, s 
@@ -65,14 +179,17 @@ cdef class GateMapper:
                 x = s * sin(azimuth)
                 y = s * cos(azimuth)
 
+                # Region of influence 
+                roi = roi_func.get_roi(z, y, x)
+
                 # shift positions so that grid starts at 0
                 # TODO apply radar displayment from grid origin
-                x = x - self.x_start
-                y = y - self.y_start
-                z = z - self.z_start
+                x = x - self.x_start + x_offset
+                y = y - self.y_start + y_offset
+                z = z - self.z_start + z_offset
 
                 # TODO dynamic ROI
-                roi = 2000.
+                #roi = 2000.
                 self.map_gate(x, y, z, roi, value)
 
     @cython.initializedcheck(False)
