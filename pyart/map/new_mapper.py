@@ -68,11 +68,18 @@ def new_mapper(
     else:
         x_step = (x_stop - x_start) / (nx - 1.)
 
-    grid_sum = np.zeros((nz, ny, nx), dtype=np.float32)
-    grid_wsum = np.zeros((nz, ny, nx), dtype=np.float32)
+    grid_sum = np.zeros((nz, ny, nx, 2), dtype=np.float32)
+    grid_wsum = np.zeros((nz, ny, nx, 2), dtype=np.float32)
 
-    field_data = np.ma.getdata(radar.fields['reflectivity']['data'])
-    field_mask = np.ma.getmaskarray(radar.fields['reflectivity']['data'])
+    field_data = np.empty((radar.nrays, radar.ngates, 2), dtype='float32')
+    field_mask = np.empty((radar.nrays, radar.ngates, 2), dtype='uint8')
+    field_data[:, :, 0] = np.ma.getdata(radar.fields['reflectivity']['data'])
+    field_mask[:, :, 0] = np.ma.getmaskarray(
+        radar.fields['reflectivity']['data'])
+    field_data[:, :, 1] = np.ma.getdata(
+        radar.fields['normalized_coherent_power']['data'])
+    field_mask[:, :, 1] = np.ma.getmaskarray(
+        radar.fields['normalized_coherent_power']['data'])
 
     z_offset, y_offset, x_offset = offsets[0]
     gatemapper = GateMapper(x_step, y_step, z_step, x_start, y_start, z_start,
@@ -83,6 +90,7 @@ def new_mapper(
         x_offset, y_offset, x_offset,
         roi_func)
 
+    #import IPython; IPython.embed()
     mweight = np.ma.masked_equal(grid_wsum, 0)
     msum = np.ma.masked_array(grid_sum, mweight.mask)
     grid = msum / mweight

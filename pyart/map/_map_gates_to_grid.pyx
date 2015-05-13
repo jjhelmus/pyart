@@ -121,14 +121,14 @@ cdef class GateMapper:
 
     cdef float x_step, y_step, z_step
     cdef float x_start, y_start, z_start
-    cdef int nx, ny, nz
-    cdef float[:, :, ::1] grid_sum
-    cdef float[:, :, ::1] grid_wsum
+    cdef int nx, ny, nz, nfields
+    cdef float[:, :, :, ::1] grid_sum
+    cdef float[:, :, :, ::1] grid_wsum
 
     def __init__(self, float x_step, float y_step, float z_step, 
                  float x_start, float y_start, float z_start,
                  int nx, int ny, int nz,
-                 float [:, :, ::1] grid_sum, float[:, :, ::1] grid_wsum):
+                 float [:, :, :, ::1] grid_sum, float[:, :, :, ::1] grid_wsum):
         """ initialize. """
         self.x_step = x_step
         self.y_step = y_step
@@ -139,6 +139,7 @@ cdef class GateMapper:
         self.nx = nx
         self.ny = ny
         self.nz = nz
+        self.nfields = grid_sum.shape[3]
         self.grid_sum = grid_sum
         self.grid_wsum = grid_wsum
         return
@@ -148,7 +149,7 @@ cdef class GateMapper:
     @cython.wraparound(False)
     def map_gates_to_grid(self,
             float[::1] elevations, float[::1] azimuths, float[::1] ranges,
-            float[:, ::1] field_data, char[:, ::1] field_mask,
+            float[:, :, ::1] field_data, char[:, :, ::1] field_mask,
             float x_offset, float y_offset, float z_offset,
             ROIFunction roi_func):
 
@@ -158,6 +159,8 @@ cdef class GateMapper:
         # 4/3 earths radius of 6371 km in meters
         cdef float R = 8494666.66666667
         cdef float value, roi
+        cdef float[:] values
+        cdef char[:] masks
         cdef float x, y, z
 
         nrays = len(elevations)
@@ -168,9 +171,11 @@ cdef class GateMapper:
             azimuth = azimuths[nray] * pi / 180.0
             for ngate in range(ngates):
 
-                if field_mask[nray, ngate]:
+                if field_mask[nray, ngate, 0]:
                     continue
-                value = field_data[nray, ngate]
+                value = field_data[nray, ngate, 0]
+                values = field_data[nray, ngate]
+                masks = field_mask[nray, ngate]
 
                 # calculate cartesian coordinate assuming 4/3 earth radius 
                 r = ranges[ngate] 
@@ -190,13 +195,14 @@ cdef class GateMapper:
 
                 # TODO dynamic ROI
                 #roi = 2000.
-                self.map_gate(x, y, z, roi, value)
+                self.map_gate(x, y, z, roi, values, masks)
 
     @cython.initializedcheck(False)
     @cython.cdivision(True)
     @cython.boundscheck(False)
     @cython.wraparound(False)
-    cdef int map_gate(self, float x, float y, float z, float roi, float value):
+    cdef int map_gate(self, float x, float y, float z, float roi, 
+                      float[:] values, char[:] masks):
         """ Map a single gate to the grid. """
         
         cdef float xg, yg, zg, dist
@@ -229,8 +235,11 @@ cdef class GateMapper:
                         weight = 1e-5
                     else:
                         weight = exp(-(dist*dist) / (2*roi*roi)) + 1e-5
-                    self.grid_sum[zi, yi, xi] += weight * value
-                    self.grid_wsum[zi, yi, xi] += weight
+                    for i in range(self.nfields):
+                        if masks[i]:
+                            continue
+                        self.grid_sum[zi, yi, xi, i] += weight * values[i]
+                        self.grid_wsum[zi, yi, xi, i] += weight
         return 1
 
 @cython.cdivision(True)
