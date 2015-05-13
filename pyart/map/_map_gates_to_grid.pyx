@@ -1,9 +1,8 @@
 # cython: profile=False
-from libc.math cimport sqrt, exp, ceil, floor, sin, cos, tan, asin
+from libc.math cimport sqrt, exp, ceil, floor, sin, cos, tan, asin, isfinite
 
 cimport cython
 from cython.view cimport array as cvarray
-
 
 # This definition can be added to a .pxd file so others can defined fast 
 # RoI functions
@@ -150,8 +149,8 @@ cdef class GateMapper:
     def map_gates_to_grid(self,
             float[::1] elevations, float[::1] azimuths, float[::1] ranges,
             float[:, :, ::1] field_data, char[:, :, ::1] field_mask,
-            float x_offset, float y_offset, float z_offset,
-            ROIFunction roi_func):
+            offset, float toa, ROIFunction roi_func, int filter_flag, 
+            float max_refl, int weighting_function):
 
         cdef int nrays, ngates
         cdef float elevation, azimuth, r, s 
@@ -162,9 +161,12 @@ cdef class GateMapper:
         cdef float[:] values
         cdef char[:] masks
         cdef float x, y, z
+        cdef float x_offset, y_offset, z_offset
+        print weighting_function
 
         nrays = len(elevations)
         ngates = len(ranges)
+        z_offset, y_offset, x_offset = offset
         for nray in range(nrays):
             # elevation and azimuth angles in radians
             elevation = elevations[nray] * pi / 180.0
@@ -173,13 +175,12 @@ cdef class GateMapper:
 
                 if field_mask[nray, ngate, 0]:
                     continue
-                value = field_data[nray, ngate, 0]
-                values = field_data[nray, ngate]
-                masks = field_mask[nray, ngate]
 
                 # calculate cartesian coordinate assuming 4/3 earth radius 
                 r = ranges[ngate] 
                 z = (r**2 + R**2 + 2.0*r*R*sin(elevation))**0.5 - R
+                if z + z_offset >= toa:
+                    continue    # above top of atmosphere
                 s = R * asin(r * cos(elevation) / (R + z))  # arc length in m.
                 x = s * sin(azimuth)
                 y = s * cos(azimuth)
@@ -188,24 +189,32 @@ cdef class GateMapper:
                 roi = roi_func.get_roi(z, y, x)
 
                 # shift positions so that grid starts at 0
-                # TODO apply radar displayment from grid origin
                 x = x - self.x_start + x_offset
                 y = y - self.y_start + y_offset
                 z = z - self.z_start + z_offset
 
-                # TODO dynamic ROI
-                #roi = 2000.
-                self.map_gate(x, y, z, roi, values, masks)
+                # reflectivity filtering for non-finite and large values
+                if filter_flag:
+                    value = field_data[nray, ngate, 0]
+                    if not isfinite(value):
+                        continue
+                    if value > max_refl:
+                        continue
+
+                values = field_data[nray, ngate]
+                masks = field_mask[nray, ngate]
+                self.map_gate(x, y, z, roi, values, masks, weighting_function)
 
     @cython.initializedcheck(False)
     @cython.cdivision(True)
     @cython.boundscheck(False)
     @cython.wraparound(False)
     cdef int map_gate(self, float x, float y, float z, float roi, 
-                      float[:] values, char[:] masks):
+                      float[:] values, char[:] masks,
+                      int weighting_function):
         """ Map a single gate to the grid. """
         
-        cdef float xg, yg, zg, dist
+        cdef float xg, yg, zg, dist, weight, r2, dist2
         cdef int x_min, x_max, y_min, y_max, z_min, z_max
         cdef int xi, yi, zi
 
@@ -231,10 +240,16 @@ cdef class GateMapper:
                     yg = self.y_step * yi
                     zg = self.z_step * zi
                     dist = sqrt((xg-x)**2 + (yg-y)**2 + (zg-z)**2)
-                    if roi == 0:
-                        weight = 1e-5
-                    else:
+
+                    if dist > roi:
+                        continue
+
+                    if weighting_function == 0: # BARNES
                         weight = exp(-(dist*dist) / (2*roi*roi)) + 1e-5
+                    else:   # CRESSMAN
+                        r2 = roi * roi
+                        dist2 = dist * dist
+                        weight = (r2 - dist2) / (r2 + dist2)
                     for i in range(self.nfields):
                         if masks[i]:
                             continue
