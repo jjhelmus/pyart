@@ -27,9 +27,9 @@ def configuration(parent_package='', top_path=None):
                          sources=['_load_nn_field_data.c'],
                          include_dirs=[numpy.get_include()])
 
-    config.add_extension('_map_gates_to_grid',
-                         sources=['_map_gates_to_grid.c'],
-                         include_dirs=[numpy.get_include()])
+    config.add_extension('_gate_to_grid_map',
+                         sources=['_gate_to_grid_map.c'],
+                         libraries=['m'])
 
     return config
 
