@@ -37,7 +37,7 @@ install:
   # Install Py-ART dependecies
   - "conda update -y conda"
   - "conda install -y -q numpy scipy matplotlib netcdf4 nose"
-  - "if [%PYTHON_VERSION%=='2.7'] (conda install -y -q basemap)"
+  - "if \"%PYTHON_VERSION%\"==\"2.7\" (conda install -y -q basemap)"
   - "conda list"
 
   # build Py-ART 
