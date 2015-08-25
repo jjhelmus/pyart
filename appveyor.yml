@@ -11,13 +11,13 @@ environment:
       PYTHON_VERSION: "2.7"
       PYTHON_ARCH: "32"
 
-    - PYTHON: "C:\\Python34_32"
-      PYTHON_VERSION: "3.4"
-      PYTHON_ARCH: "32"
+#    - PYTHON: "C:\\Python34_32"
+#      PYTHON_VERSION: "3.4"
+#      PYTHON_ARCH: "32"
 
-    - PYTHON: "C:\\Python27_64"
-      PYTHON_VERSION: "2.7"
-      PYTHON_ARCH: "64"
+#    - PYTHON: "C:\\Python27_64"
+#      PYTHON_VERSION: "2.7"
+#      PYTHON_ARCH: "64"
 
     - PYTHON: "C:\\Python34_64"
       PYTHON_VERSION: "3.4"
@@ -37,6 +37,7 @@ install:
   # Install Py-ART dependecies
   - "conda update -y conda"
   - "conda install -y -q numpy scipy matplotlib netcdf4 nose"
+  - "if [%PYTHON_VERSION%=='2.7'] (conda install -y -q basemap)"
   - "conda list"
 
   # build Py-ART 
