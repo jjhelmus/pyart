@@ -28,7 +28,7 @@ install:
 
   # Install Py-ART dependecies
   - "conda update -y conda"
-  - "conda install -y -q numpy scipy matplotlib netcdf4 nose basemap"
+  - "conda install -y -q numpy scipy matplotlib netcdf4 nose"
   - "conda list"
 
   # build Py-ART 
