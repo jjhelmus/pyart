@@ -36,4 +36,4 @@ build: false
 
 test_script:
   # run the unit tests
-  - "python -c \"import nose; nose.main()\" -s -v sklearn"
+  - "python -c \"import nose; nose.main()\" -v"
