@@ -24,6 +24,8 @@ Utilities for mapping radar objects to Cartesian grids.
 
 """
 
+import struct
+
 import numpy as np
 import scipy.spatial
 
@@ -37,6 +39,8 @@ from ._load_nn_field_data import _load_nn_field_data
 from .ckdtree import cKDTree
 from .ball_tree import BallTree
 from .gates_to_grid import map_gates_to_grid
+
+LONG = np.dtype('i' + str(struct.calcsize('l')))
 
 
 def grid_from_radars(radars, grid_shape, grid_limits,
@@ -623,8 +627,8 @@ def map_to_grid(radars, grid_shape, grid_limits, grid_origin=None,
             # the field data object array.  This is done in Cython for speed.
             r_nums, e_nums = divmod(lookup[ind], total_gates)
             npoints = r_nums.size
-            r_nums = r_nums.astype(np.long)
-            e_nums = e_nums.astype(np.long)
+            r_nums = r_nums.astype(LONG)
+            e_nums = e_nums.astype(LONG)
             nn_field_data = np.empty((npoints, nfields), np.float64)
             _load_nn_field_data(field_data_objs, nfields, npoints, r_nums,
                                 e_nums, nn_field_data)
