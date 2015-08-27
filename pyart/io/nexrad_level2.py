@@ -155,6 +155,7 @@ class NEXRADLevel2File(object):
         # pull out msg31 records which contain the moment data.
         self.msg31s = [r for r in self._records if r['header']['type'] == 31]
         if len(self.msg31s) == 0:
+            return
             raise ValueError('No MSG31 records found, cannot read file')
         elev_nums = np.array([m['msg31_header']['elevation_number']
                              for m in self.msg31s])
@@ -532,6 +533,11 @@ def _get_record_from_buf(buf, pos):
             dic['cut_parameters'].append(_unpack_from_buf(buf, p, MSG_5_ELEV))
 
         new_pos = pos + RECORD_SIZE
+    elif msg_type == 1:
+        msg_header_size = _structure_size(MSG_HEADER)
+        dic['msg1_header'] = _unpack_from_buf(buf, pos + msg_header_size,
+                                              MSG_1)
+        new_pos = pos + RECORD_SIZE
     else:   # not message 31 or 1, no decoding performed
         new_pos = pos + RECORD_SIZE
 
@@ -659,6 +665,42 @@ MSG_31 = (
     ('block_pointer_9', INT4),      # 64-67  Moment "RHO"
 )
 
+
+# Table III Digital Radar Data (Message Type 1)
+# pages 3-7 to
+MSG_1 = (
+    ('collect_ms', INT4),           # 0-3
+    ('collect_date', INT2),         # 4-5
+    ('unambiguous_range', SINT2),   # 6-7
+    ('azimuth_angle', CODE2),       # 8-9
+    ('azimuth_number', INT2),       # 10-11
+    ('radial_status', CODE2),       # 12-13
+    ('elevation_angle', INT2),      # 14-15
+    ('elevation_number', INT2),     # 16-17
+    ('sur_range_first', CODE2),     # 18-19
+    ('doppler_range_first', CODE2), # 20-21
+    ('sur_range_step', CODE2),      # 22-23
+    ('doppler_range_step', CODE2),  # 24-25
+    ('sur_nbins', INT2),            # 26-27
+    ('doppler_nbins', INT2),        # 28-29
+    ('cut_sector_num', INT2),       # 30-31
+    ('calib_const', REAL4),         # 32-35
+    ('sur_pointer', INT2),          # 36-37
+    ('vel_pointer', INT2),          # 38-39
+    ('width_pointer', INT2),        # 40-41
+    ('doppler_resolution', CODE2),  # 42-43
+    ('vcp', INT2),                  # 44-45
+    ('spare_1', '8s'),              # 46-53
+    ('spare_2', '2s'),              # 54-55
+    ('spare_3', '2s'),              # 56-57
+    ('spare_4', '2s'),              # 58-59
+    ('nyquist', SINT2),             # 60-61
+    ('atmos_attenuation', SINT2),   # 62-63
+    ('threshold', SINT2),           # 64-65
+    ('spot_blank_status', INT2),    # 66-67
+    ('spare_5', '32s'),             # 68-99
+    # 100+  reflectivity, velocity and/or spectral width data, CODE1
+)
 
 # Table XI Volume Coverage Pattern Data (Message Type 5 & 7)
 # pages 3-51 to 3-54
