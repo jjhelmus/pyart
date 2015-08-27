@@ -154,18 +154,24 @@ class NEXRADLevel2File(object):
 
         # pull out msg31 records which contain the moment data.
         self.msg31s = [r for r in self._records if r['header']['type'] == 31]
+        self._msg_type = '31'
         if len(self.msg31s) == 0:
-            return
-            raise ValueError('No MSG31 records found, cannot read file')
-        elev_nums = np.array([m['msg31_header']['elevation_number']
+            self.msg31s = [r for r in self._records if r['header']['type'] == 1]
+            self._msg_type = '1'
+            if len(self.msg31s) == 0:
+                raise ValueError('No MSG31 records found, cannot read file')
+        elev_nums = np.array([m['msg_header']['elevation_number']
                              for m in self.msg31s])
         self.scan_msgs = [np.where(elev_nums == i + 1)[0]
                           for i in range(elev_nums.max())]
         self.nscans = len(self.scan_msgs)
 
         # pull out the vcp record
-        self.vcp = [r for r in self._records if r['header']['type'] == 5][0]
-
+        msg_5 = [r for r in self._records if r['header']['type'] == 5]
+        if len(msg_5):
+            self.vcp = msg_5[0]
+        else:
+            self.vcp = None
         return
 
     def close(self):
@@ -186,8 +192,11 @@ class NEXRADLevel2File(object):
             Height of radar and feedhorn in meters above mean sea level.
 
         """
-        dic = self.msg31s[0]['VOL']
-        return dic['lat'], dic['lon'], dic['height'] + dic['feedhorn_height']
+        if self._msg_type == '31':
+            dic = self.msg31s[0]['VOL']
+            return dic['lat'], dic['lon'], dic['height'] + dic['feedhorn_height']
+        else:
+            return 0.0, 0.0, 0.0
 
     def scan_info(self):
         """
@@ -254,10 +263,22 @@ class NEXRADLevel2File(object):
             Range in meters from the antenna to the center of gate (bin).
 
         """
-        dic = self.msg31s[self.scan_msgs[scan_num][0]][moment]
-        ngates = dic['ngates']
-        first_gate = dic['first_gate']
-        gate_spacing = dic['gate_spacing']
+        if self._msg_type == '31':
+            dic = self.msg31s[self.scan_msgs[scan_num][0]][moment]
+            ngates = dic['ngates']
+            first_gate = dic['first_gate']
+            gate_spacing = dic['gate_spacing']
+        else:  # msg 1
+            dic = self.msg31s[self.scan_msgs[scan_num][0]]['msg_header']
+            if moment == 'REF':
+                ngates = dic['sur_nbins']
+                first_gate = dic['sur_range_first']
+                gate_spacing = dic['sur_range_step']
+            else: # VEL and SW
+                ngates = dic['doppler_nbins']
+                first_gate = dic['doppler_range_first']
+                gate_spacing = dic['doppler_range_step']
+
         return np.arange(ngates) * gate_spacing + first_gate
 
     # helper functions for looping over scans
@@ -270,7 +291,7 @@ class NEXRADLevel2File(object):
         Return an array of msg31 header elements for all rays in scans.
         """
         msg_nums = self._msg_nums(scans)
-        t = [self.msg31s[i]['msg31_header'][key] for i in msg_nums]
+        t = [self.msg31s[i]['msg_header'][key] for i in msg_nums]
         return np.array(t)
 
     def _msg31_rad_array(self, scans, key):
@@ -278,7 +299,10 @@ class NEXRADLevel2File(object):
         Return an array of msg31 RAD elements for all rays in scans.
         """
         msg_nums = self._msg_nums(scans)
-        t = [self.msg31s[i]['RAD'][key] for i in msg_nums]
+        if self._msg_type == '31':
+            t = [self.msg31s[i]['RAD'][key] for i in msg_nums]
+        else:
+            t = [self.msg31s[i]['msg_header'][key] for i in msg_nums]
         return np.array(t)
 
     def get_times(self, scans=None):
@@ -371,10 +395,17 @@ class NEXRADLevel2File(object):
         """
         if scans is None:
             scans = range(self.nscans)
-        cp = self.vcp['cut_parameters']
-        scale = 360. / 65536.
-        return np.array([cp[i]['elevation_angle'] * scale for i in scans],
-                        dtype='float32')
+        if self._msg_type == '31':
+            cp = self.vcp['cut_parameters']
+            scale = 360. / 65536.
+            return np.array([cp[i]['elevation_angle'] * scale for i in scans],
+                            dtype='float32')
+        else:
+            scale = (0.43945 / 8)
+            msgs = [self.msg31s[self.scan_msgs[i][0]] for i in scans]
+            return np.array(
+                [m['msg_header']['elevation_angle'] * scale for m in msgs],
+                dtype='float32')
 
     def get_nyquist_vel(self, scans=None):
         """
@@ -518,7 +549,7 @@ def _get_record_from_buf(buf, pos):
             block_name, block_dic = _get_msg31_data_block(mbuf, block_pointer)
             dic[block_name] = block_dic
 
-        dic['msg31_header'] = msg_31_header
+        dic['msg_header'] = msg_31_header
 
     elif msg_type == 5:
         msg_header_size = _structure_size(MSG_HEADER)
@@ -535,8 +566,31 @@ def _get_record_from_buf(buf, pos):
         new_pos = pos + RECORD_SIZE
     elif msg_type == 1:
         msg_header_size = _structure_size(MSG_HEADER)
-        dic['msg1_header'] = _unpack_from_buf(buf, pos + msg_header_size,
-                                              MSG_1)
+        msg1_header = _unpack_from_buf(buf, pos + msg_header_size, MSG_1)
+        dic['msg_header'] = msg1_header
+        # XXX
+        if msg1_header['sur_pointer']:
+            dic['REF'] = {
+                'ngates': 100,
+                'data': np.zeros((100,)),
+                'scale': 1.,
+                'offset': 1,
+            }
+        if msg1_header['vel_pointer']:
+            dic['VEL'] = {
+                'ngates': 100,
+                'data': np.zeros((100,)),
+                'scale': 1.,
+                'offset': 1,
+            }
+        if msg1_header['width_pointer']:
+            dic['SW'] = {
+                'ngates': 100,
+                'data': np.zeros((100,)),
+                'scale': 1.,
+                'offset': 1,
+            }
+
         new_pos = pos + RECORD_SIZE
     else:   # not message 31 or 1, no decoding performed
         new_pos = pos + RECORD_SIZE
@@ -671,7 +725,7 @@ MSG_31 = (
 MSG_1 = (
     ('collect_ms', INT4),           # 0-3
     ('collect_date', INT2),         # 4-5
-    ('unambiguous_range', SINT2),   # 6-7
+    ('unambig_range', SINT2),       # 6-7
     ('azimuth_angle', CODE2),       # 8-9
     ('azimuth_number', INT2),       # 10-11
     ('radial_status', CODE2),       # 12-13
@@ -694,7 +748,7 @@ MSG_1 = (
     ('spare_2', '2s'),              # 54-55
     ('spare_3', '2s'),              # 56-57
     ('spare_4', '2s'),              # 58-59
-    ('nyquist', SINT2),             # 60-61
+    ('nyquist_vel', SINT2),         # 60-61
     ('atmos_attenuation', SINT2),   # 62-63
     ('threshold', SINT2),           # 64-65
     ('spot_blank_status', INT2),    # 66-67
