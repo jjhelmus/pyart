@@ -86,29 +86,25 @@ def read(filename, use_rsl=False, **kwargs):
 
     # Bzip, uncompress and see if we can determine the type
     if filetype == 'BZ2':
-        bzfile = bz2.BZ2File(filename)
-        try:
-            radar = read(bzfile, use_rsl, **kwargs)
-        except:
-            raise ValueError(
-                'Bzip file cannot be read compressed, '
-                'uncompress and try again')
-        finally:
-            bzfile.close()
-        return radar
+        with bz2.BZ2File(filename) as bzfile:
+            try:
+                radar = read(bzfile, use_rsl, **kwargs)
+            except:
+                raise ValueError(
+                    'Bzip file cannot be read compressed, '
+                    'uncompress and try again')
+            return radar
 
     # Gzip, uncompress and see if we can determine the type
     if filetype == 'GZ':
-        gzfile = gzip.open(filename, 'rb')
-        try:
-            radar = read(gzfile, use_rsl, **kwargs)
-        except:
-            raise ValueError(
-                'Gzip file cannot be read compressed, '
-                'uncompress and try again')
-        finally:
-            gzfile.close()
-        return radar
+        with gzip.open(filename, 'rb') as gzfile:
+            try:
+                radar = read(gzfile, use_rsl, **kwargs)
+            except:
+                raise ValueError(
+                    'Gzip file cannot be read compressed, '
+                    'uncompress and try again')
+            return radar
 
     # Py-ART only supported formats
     if filetype == "MDV":
