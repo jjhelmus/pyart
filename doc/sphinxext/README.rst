@@ -1,3 +1,6 @@
+.. image:: https://travis-ci.org/numpy/numpydoc.png?branch=master
+   :target: https://travis-ci.org/numpy/numpydoc/
+
 =====================================
 numpydoc -- Numpy's Sphinx extensions
 =====================================
@@ -17,6 +20,9 @@ The following extensions are available:
   - ``numpydoc.plot_directive``: Adaptation of Matplotlib's ``plot::``
     directive. Note that this implementation may still undergo severe
     changes or eventually be deprecated.
+
+See `A Guide to NumPy/SciPy Documentation <https://github.com/numpy/numpy/blob/master/doc/HOWTO_DOCUMENT.rst.txt>`_
+for how to write docs that use this extension.
 
 
 numpydoc
@@ -39,6 +45,20 @@ The following options can be set in conf.py:
 
   Whether to show all members of a class in the Methods and Attributes
   sections automatically.
+  ``True`` by default.
+
+- numpydoc_show_inherited_class_members: bool
+
+  Whether to show all inherited members of a class in the Methods and Attributes
+  sections automatically. If it's false, inherited members won't shown.
+  ``True`` by default.
+
+- numpydoc_class_members_toctree: bool
+
+  Whether to create a Sphinx table of contents for the lists of class
+  methods and attributes. If a table of contents is made, Sphinx expects
+  each entry to have a separate page.
+  ``True`` by default.
 
 - numpydoc_edit_link: bool  (DEPRECATED -- edit your HTML template instead)
 

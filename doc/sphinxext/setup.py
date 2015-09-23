@@ -1,14 +1,13 @@
 from __future__ import division, print_function
 
+import sys
 import setuptools
 from distutils.core import setup
 
-import sys
-if sys.version_info[0] >= 3 and sys.version_info[1] < 3 or \
-        sys.version_info[0] <= 2 and sys.version_info[1] < 6:
+if sys.version_info[:2] < (2, 6) or (3, 0) <= sys.version_info[0:2] < (3, 3):
     raise RuntimeError("Python version 2.6, 2.7 or >= 3.3 required.")
 
-version = "0.4.dev"
+version = "0.6.dev"
 
 setup(
     name="numpydoc",
@@ -23,7 +22,7 @@ setup(
     keywords="sphinx numpy",
     author="Pauli Virtanen and others",
     author_email="pav@iki.fi",
-    url="http://github.com/numpy/numpy/tree/master/doc/sphinxext",
+    url="https://github.com/numpy/numpy/blob/master/doc/HOWTO_DOCUMENT.rst.txt",
     license="BSD",
     requires=["sphinx (>= 1.0.1)"],
     package_data={'numpydoc': ['tests/test_*.py']},
