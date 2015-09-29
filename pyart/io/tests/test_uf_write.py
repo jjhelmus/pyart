@@ -9,8 +9,9 @@ from numpy.testing import assert_raises, assert_almost_equal
 
 import pyart
 from pyart.io.uffile import UFFile, UFRay
-from pyart.io.uf_write import UFRayCreator
+from pyart.io.uf_write import UFRayCreator, UFFileCreator
 
+import struct
 
 def test_ray_section_by_section():
 
@@ -131,3 +132,22 @@ def test_ray_full():
     tst_ray = tst_ray[:204] + b'\x00\x00' + tst_ray[206:]   # DZ edit_code
     tst_ray = tst_ray[:5696] + b'\x00\x00' + tst_ray[5698:]     # ZT edit_code
     assert ref_ray == tst_ray
+
+
+def test_complete_file():
+
+    with open(pyart.testing.UF_FILE, 'rb') as fh:
+        ref_file = fh.read()
+
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                   'KD', 'SQ', 'HC']
+
+    in_mem = StringIO()
+    UFFileCreator(in_mem, radar, field_order)
+    in_mem.seek(0)
+    tst_file = in_mem.read()
+    tst_file = tst_file[:208] + b'\x00\x00' + tst_file[210:]    # DZ edit_code
+    tst_file = tst_file[:5700] + b'\x00\x00' + tst_file[5702:]  # ZT edit_code
+
+    assert ref_file == tst_file

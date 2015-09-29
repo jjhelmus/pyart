@@ -6,6 +6,34 @@ import numpy as np
 import netCDF4
 
 
+class UFFileCreator(object):
+    """
+    A class for creating UF files
+
+    """
+
+    def __init__(self, filename, radar, field_order):
+        if hasattr(filename, 'write'):
+            self._fh = filename
+        else:
+            self._fh = open(filename, 'wb')
+        self.filename = filename
+        self.radar = radar
+
+        raycreator = UFRayCreator(radar, field_order)
+        for ray_num in range(radar.nrays):
+
+            pad = struct.pack('>i', 16640)
+            ray_bytes = raycreator.make_ray(ray_num)
+
+            self._fh.write(pad)
+            self._fh.write(ray_bytes)
+            self._fh.write(pad)
+
+    def close():
+        self._fh.close()
+
+
 class UFRayCreator(object):
     """
     A class for generating UF file rays for writing to disk
