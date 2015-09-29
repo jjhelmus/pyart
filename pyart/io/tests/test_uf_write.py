@@ -15,6 +15,7 @@ from pyart.io.uffile import UFFile, UFRay
 import netCDF4
 
 
+"""
 def test_write_uf():
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
 
@@ -25,8 +26,9 @@ def test_write_uf():
     with open(pyart.testing.UF_FILE, 'rb') as f:
         tst_uf = f.read()
     assert tst_uf == ref_uf
+"""
 
-def test_make_ray():
+def test_ray_section_by_section():
 
 
     ufile = UFFile(pyart.testing.UF_FILE)
@@ -35,75 +37,38 @@ def test_make_ray():
     ufile.close()
 
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    nfields = len(radar.fields)
+    field_order = [d['data_type'] for d in uray.field_positions]
+    ufraycreator = UFRayCreator(radar, field_order)
 
     # mandatory header
     ref_man_header = ref_ray_buf[:90]
-    tst_man_header = make_uf_ray_mandatory_header(radar)
+    tst_man_header = ufraycreator.make_uf_ray_mandatory_header()
     assert tst_man_header == ref_man_header
 
     # optional header
     ref_opt_header = uray._buf[90:118]
-    tst_opt_header = make_uf_ray_optional_header(radar)
+    tst_opt_header = ufraycreator.make_uf_ray_optional_header()
     assert tst_opt_header == ref_opt_header
 
     # data headers
     ref_data_header = uray._buf[118:124]
-    nfields = len(radar.fields)
-    data_header = {
-        'ray_nrecords': 1,
-        'ray_nfields': nfields,
-        'record_nfields': nfields,
-    }
-    tst_data_header = _pack_structure(data_header, UF_DATA_HEADER)
+    tst_data_header = ufraycreator.make_data_header()
     assert tst_data_header == ref_data_header
 
     # field position info
     ref_field_position = uray._buf[124:124 + 4 * nfields]
-    field_order = [d['data_type'] for d in uray.field_positions]
-    field_position = []
-    offset = 62 + nfields * 2 + 1  # 87
-    for field in field_order:
-        field_position.append({
-            'data_type': field,
-            'offset_field_header': offset,
-        })
-        offset += radar.ngates + 19
-        if field in [b'VF', b'VE', b'VR', b'VT', b'VP']:
-            offset += 2
-    tst_field_position = ''.join(
-        [_pack_structure(fpos, UF_FIELD_POSITION) for fpos in field_position])
+    tst_field_position = ufraycreator.make_field_position()
     assert tst_field_position == ref_field_position
 
     # DZ field header
     ref_field_header = uray._buf[172:172+38]
-    field_header = {
-        'bandwidth': 9670,
-        'beam_width_h': 64,
-        'beam_width_v': 64,
-        'bits_per_bin': 16,
-        'data_offset': 106,
-        'edit_code': '\x00\x00',
-        'nbins': radar.ngates,
-        'polarization': 0,
-        'prt_ms': 450,
-        'pulse_width_m': 134,
-        'range_spacing_m': 60,
-        'range_start_km': 0,
-        'range_start_m': 0,
-        'sample_size': 90,
-        'scale': -32768,
-        'scale_factor': 100,
-        'threshold_data': '  ',
-        'threshold_value': -32768,
-        'wavelength_cm': 198,
-    }
-    tst_field_header = _pack_structure(field_header, UF_FIELD_HEADER)
+    tst_field_header = ufraycreator.make_field_header(106)
     assert tst_field_header == ref_field_header
 
     # DZ data
     ref_dz_data = uray.field_raw_data[0]
-    tst_dz_data = np.round(
-        radar.fields['DZ']['data'][0] * 100.).filled(-32768).astype('>i2')
+    tst_dz_data = ufraycreator.make_data_array('DZ', 0)
     assert np.array_equal(ref_dz_data, tst_dz_data)
 
     # DZ data buffer
@@ -113,38 +78,14 @@ def test_make_ray():
 
     # VR field header
     ref_field_header = uray._buf[1544:1544+42]
-    field_header = {
-        'bandwidth': 9670,
-        'beam_width_h': 64,
-        'beam_width_v': 64,
-        'bits_per_bin': 16,
-        'data_offset': 794,
-        'edit_code': '  ',
-        'nbins': radar.ngates,
-        'polarization': 0,
-        'prt_ms': 450,
-        'pulse_width_m': 134,
-        'range_spacing_m': 60,
-        'range_start_km': 0,
-        'range_start_m': 0,
-        'sample_size': 90,
-        'scale': -32768,
-        'scale_factor': 100,
-        'threshold_data': '  ',
-        'threshold_value': -32768,
-        'wavelength_cm': 198,
-        'nyquist': 1722,
-        'spare': 1,
-    }
-    tst_field_header = _pack_structure(field_header, UF_FIELD_HEADER)
-    vel_header = _pack_structure(field_header, UF_FSI_VEL)
-    tst_field_header += vel_header
-    assert tst_field_header == ref_field_header
+    ufraycreator._field_header_template['edit_code'] = '  '
+    tst_field_header = ufraycreator.make_field_header(794)
+    vel_header = ufraycreator.make_fsi_vel()
+    assert tst_field_header + vel_header == ref_field_header
 
     # VR data
     ref_vr_data = uray.field_raw_data[1]
-    tst_vr_data = np.round(
-        radar.fields['VR']['data'][0] * 100.).filled(-32768).astype('>i2')
+    tst_vr_data = ufraycreator.make_data_array('VR', 0)
     assert np.array_equal(ref_vr_data, tst_vr_data)
 
     # VR data buffer
@@ -152,100 +93,223 @@ def test_make_ray():
     assert ref_vr_data_buf == ref_vr_data.tostring()
     assert ref_vr_data_buf == tst_vr_data.tostring()
 
+    # SW field header
+    ref_field_header = uray._buf[2920:2920+38]
+    ufraycreator._field_header_template['edit_code'] = '  '
+    tst_field_header = ufraycreator.make_field_header(1480)
+    assert tst_field_header == ref_field_header
+
+    # SW data
+    ref_sw_data = uray.field_raw_data[2]
+    tst_sw_data = ufraycreator.make_data_array('SW', 0)
+    assert np.array_equal(ref_sw_data, tst_sw_data)
+
+    # SW data buffer
+    ref_sw_data_buf = uray._buf[2958:4292]
+    assert ref_sw_data_buf == ref_sw_data.tostring()
+    assert ref_sw_data_buf == tst_sw_data.tostring()
+
     # full buffer
     tst_ray_buf = ref_ray_buf
     assert tst_ray_buf == ref_ray_buf
 
+
+"""
+def test_ray_full():
+
+    ufile = UFFile(pyart.testing.UF_FILE)
+    ref_ray = ufile.rays[0]._buf[:]
+    ufile.close()
+
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                   'KD', 'SQ', 'HC']
+    ufraycreator = UFRayCreator(radar, field_order)
+
+    tst_ray = ufraycreator.make_ray(0)
+    assert ref_ray[:124] == tst_ray[:124]
+"""
+
 import struct
 
-def make_uf_ray_optional_header(radar):
-    opt_header = {
-        'baseline_azimuth': -32768,
-        'baseline_elevation': -32768,
-        'flag': 2,
-        'project_name': 'TRMMGVUF',
-        'tape_name': 'RADAR_UF',
-    }
-    dt = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
-    opt_header['volume_hour'] = dt.hour
-    opt_header['volume_minute'] = dt.minute
-    opt_header['volume_second'] = dt.second - 8
-    return _pack_structure(opt_header, UF_OPTIONAL_HEADER)
 
-def make_uf_ray_mandatory_header(radar):
-    # time parameters
-    times = netCDF4.num2date(radar.time['data'], radar.time['units'])
-    dt = times[0]
-    man_header = make_empty_mandatory_header()
-    man_header['year'] = dt.year - 2000
-    man_header['month'] = dt.month
-    man_header['day'] = dt.day
-    man_header['hour'] = dt.hour
-    man_header['minute'] = dt.minute
-    man_header['second'] = dt.second
+class UFRayCreator(object):
+    """
+    A class for generating UF file rays for writing to disk
 
-    # location parameters
-    degrees, minutes, seconds = d_to_dms(radar.latitude['data'][0])
-    man_header['latitude_degrees'] = int(degrees)
-    man_header['latitude_minutes'] = int(minutes)
-    man_header['latitude_seconds'] = int(seconds * 64)
+    Parameters
+    ----------
 
-    degrees, minutes, seconds = d_to_dms(radar.longitude['data'][0])
-    man_header['longitude_degrees'] = int(degrees)
-    man_header['longitude_minutes'] = int(minutes)
-    man_header['longitude_seconds'] = int(seconds * 64)
+    """
 
-    man_header['height_above_sea_level'] = int(radar.altitude['data'][0])
+    def __init__(self, radar, field_order):
+        """
+        """
+        self.radar = radar
+        self.nfields = len(radar.fields)
+        self.field_order = field_order
+        self._field_header_template = UF_FIELD_HEADER_TEMPLATE.copy()
+        return
 
-    # ray/sweep numbers
-    man_header['record_number'] = man_header['ray_number'] = 1
-    man_header['sweep_number'] = 1
+    def make_data_header(self):
+        data_header = {
+            'ray_nrecords': 1,
+            'ray_nfields': self.nfields,
+            'record_nfields': self.nfields,
+        }
+        return _pack_structure(data_header, UF_DATA_HEADER)
 
-    # pointing
-    azimuth = radar.azimuth['data'][0]
-    man_header['azimuth'] = int(round(azimuth * 64))
 
-    elevation = radar.elevation['data'][0]
-    man_header['elevation'] = int(round(elevation * 64))
+    def make_uf_ray_mandatory_header(self):
+        # time parameters
+        times = netCDF4.num2date(
+            self.radar.time['data'], self.radar.time['units'])
+        dt = times[0]
+        man_header = make_empty_mandatory_header()
+        man_header['year'] = dt.year - 2000
+        man_header['month'] = dt.month
+        man_header['day'] = dt.day
+        man_header['hour'] = dt.hour
+        man_header['minute'] = dt.minute
+        man_header['second'] = dt.second
 
-    fixed_angle = radar.fixed_angle['data'][0]  # index by sweep
-    man_header['fixed_angle'] = int(round(fixed_angle * 64))
+        # location parameters
+        degrees, minutes, seconds = d_to_dms(self.radar.latitude['data'][0])
+        man_header['latitude_degrees'] = int(degrees)
+        man_header['latitude_minutes'] = int(minutes)
+        man_header['latitude_seconds'] = int(seconds * 64)
 
-    if radar.scan_rate is not None:
-        scan_rate = radar.scan_rate['data'][0]
-    else:
-        scan_rate = 0
-    man_header['sweep_rate'] = int(round(scan_rate * 64))
+        degrees, minutes, seconds = d_to_dms(self.radar.longitude['data'][0])
+        man_header['longitude_degrees'] = int(degrees)
+        man_header['longitude_minutes'] = int(minutes)
+        man_header['longitude_seconds'] = int(seconds * 64)
 
-    _UF_SWEEP_MODES = {
-        'calibration': 0,
-        'ppi': 1,
-        'coplane': 2,
-        'rhi': 3,
-        'vpt': 4,
-        'target': 5,
-        'manual': 6,
-        'idle': 7,
-    }
-    if radar.scan_type in _UF_SWEEP_MODES:
-        sweep_mode_number = _UF_SWEEP_MODES[radar.scan_type]
-    else:
-        raise ValueError
-        sweep_mode_number = 6
-    man_header['sweep_mode'] = sweep_mode_number
+        man_header['height_above_sea_level'] = int(
+            self.radar.altitude['data'][0])
 
-    # TODO
-    man_header['record_length'] = 8320
+        # ray/sweep numbers
+        man_header['record_number'] = man_header['ray_number'] = 1
+        man_header['sweep_number'] = 1
 
-    # hacks to get match with example file
-    man_header['radar_name'] = 'xsapr-sg'
-    man_header['site_name'] = 'xsapr-sg'
-    man_header['generation_year'] = 15
-    man_header['generation_month'] = 8
-    man_header['generation_day'] = 19
-    man_header['generation_facility_name'] = 'RSLv1.48'
+        # pointing
+        azimuth = self.radar.azimuth['data'][0]
+        man_header['azimuth'] = int(round(azimuth * 64))
 
-    return _pack_structure(man_header, UF_MANDATORY_HEADER)
+        elevation = self.radar.elevation['data'][0]
+        man_header['elevation'] = int(round(elevation * 64))
+
+        fixed_angle = self.radar.fixed_angle['data'][0]  # index by sweep
+        man_header['fixed_angle'] = int(round(fixed_angle * 64))
+
+        if self.radar.scan_rate is not None:
+            scan_rate = self.radar.scan_rate['data'][0]
+        else:
+            scan_rate = 0
+        man_header['sweep_rate'] = int(round(scan_rate * 64))
+
+        _UF_SWEEP_MODES = {
+            'calibration': 0,
+            'ppi': 1,
+            'coplane': 2,
+            'rhi': 3,
+            'vpt': 4,
+            'target': 5,
+            'manual': 6,
+            'idle': 7,
+        }
+        if self.radar.scan_type in _UF_SWEEP_MODES:
+            sweep_mode_number = _UF_SWEEP_MODES[self.radar.scan_type]
+        else:
+            raise ValueError
+            sweep_mode_number = 6
+        man_header['sweep_mode'] = sweep_mode_number
+
+        # TODO
+        man_header['record_length'] = 8320
+
+        # hacks to get match with example file
+        man_header['radar_name'] = 'xsapr-sg'
+        man_header['site_name'] = 'xsapr-sg'
+        man_header['generation_year'] = 15
+        man_header['generation_month'] = 8
+        man_header['generation_day'] = 19
+        man_header['generation_facility_name'] = 'RSLv1.48'
+
+        return _pack_structure(man_header, UF_MANDATORY_HEADER)
+
+    def make_uf_ray_optional_header(self):
+        opt_header = {
+            'baseline_azimuth': -32768,
+            'baseline_elevation': -32768,
+            'flag': 2,
+            'project_name': 'TRMMGVUF',
+            'tape_name': 'RADAR_UF',
+        }
+        dt = netCDF4.num2date(
+            self.radar.time['data'][0], self.radar.time['units'])
+        opt_header['volume_hour'] = dt.hour
+        opt_header['volume_minute'] = dt.minute
+        opt_header['volume_second'] = dt.second - 8
+        return _pack_structure(opt_header, UF_OPTIONAL_HEADER)
+
+    def make_field_position(self):
+
+        field_pos = []
+        offset = 62 + self.nfields * 2 + 1  # 87
+        for field in self.field_order:
+            field_pos.append({
+                'data_type': field,
+                'offset_field_header': offset,
+            })
+            offset += self.radar.ngates + 19
+            if field in [b'VF', b'VE', b'VR', b'VT', b'VP']:
+                offset += 2
+        return ''.join(
+            [_pack_structure(fp, UF_FIELD_POSITION) for fp in field_pos])
+
+    def make_field_header(self, data_offset):
+        field_header = self._field_header_template
+        field_header['nbins'] = self.radar.ngates
+        field_header['data_offset'] = data_offset
+        return _pack_structure(field_header, UF_FIELD_HEADER)
+
+    def make_fsi_vel(self):
+        field_header = {
+            'nyquist': 1722,
+            'spare': 1,
+        }
+        return _pack_structure(field_header, UF_FSI_VEL)
+
+    def make_data_array(self, field, ray_num):
+        field_data = np.round(self.radar.fields[field]['data'][ray_num] * 100.)
+        return field_data.filled(-32768).astype('>i2')
+
+    def make_ray(self, ray_num):
+
+        return b''
+
+UF_FIELD_HEADER_TEMPLATE = {
+    'data_offset': 999,
+    'scale_factor': 100,
+    'range_start_km': 0,
+    'range_start_m': 0,
+    'range_spacing_m': 60,
+    'nbins': 999,
+    'pulse_width_m': 134,
+    'beam_width_h': 64,
+    'beam_width_v': 64,
+    'bandwidth': 9670,
+    'polarization': 0,
+    'wavelength_cm': 198,
+    'sample_size': 90,
+    'threshold_data': '  ',
+    'threshold_value': -32768,
+    'scale': -32768,
+    'edit_code': '\x00\x00',
+    'prt_ms': 450,
+    'bits_per_bin': 16,
+}
+
 
 def d_to_dms(in_deg):
     # add or subtract a fraction of a second to fix round off issues
@@ -267,11 +331,6 @@ def make_empty_mandatory_header():
         'time_zone': 'UT',
         'missing_data_value': -32768,
     }
-
-
-class UFWriteRay(object):
-    """
-    """
 
 
 def _pack_structure(dic, structure):
