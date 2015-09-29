@@ -5,6 +5,15 @@ import warnings
 import numpy as np
 import netCDF4
 
+from pyart.io.uffile import UF_MANDATORY_HEADER
+from pyart.io.uffile import UF_OPTIONAL_HEADER
+from pyart.io.uffile import UF_DATA_HEADER
+from pyart.io.uffile import UF_FIELD_POSITION
+from pyart.io.uffile import UF_FIELD_HEADER
+from pyart.io.uffile import UF_FSI_VEL
+from pyart.io.uf import _LIGHT_SPEED
+from pyart.io.uffile import POLARIZATION_STR
+
 
 class UFFileCreator(object):
     """
@@ -46,7 +55,7 @@ class UFFileCreator(object):
             self._fh.write(ray_bytes)
             self._fh.write(pad)
 
-    def close():
+    def close(self):
         self._fh.close()
 
 
@@ -67,12 +76,13 @@ class UFRayCreator(object):
         self.field_order = field_order
 
         self._mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
-        self._field_header_template = UF_FIELD_HEADER_TEMPLATE.copy()
         self._optional_header_template = UF_OPTIONAL_HEADER_TEMPLATE.copy()
-
+        self._data_header_template = UF_DATA_HEADER_TEMPLATE.copy()
+        self._field_header_template = UF_FIELD_HEADER_TEMPLATE.copy()
 
         self._set_mandatory_header_location()
         self._set_optional_header_volume_time(volume_start)
+        self._set_field_header()
 
         return
 
@@ -103,10 +113,70 @@ class UFRayCreator(object):
         header['height_above_sea_level'] = int(self.radar.altitude['data'][0])
         return
 
+    def _set_field_header(self):
+        # XXX refactor
+        # these parameter are assumed to be constant for all rays in
+        # the volume, UF can store volumes where these change between
+        # rays but Py-ART does not support writing such volumes
+        header = self._field_header_template
+
+        range_step = self.radar.range['meters_between_gates']
+        range_start = self.radar.range['meters_to_center_of_first_gate']
+        range_start -= (range_step / 2.)  # range bin center to edge
+        header['range_start_km'] = int(round(range_start)) * 1000
+        header['range_start_m'] = int(round(range_start))
+        header['range_spacing_m'] = int(round(range_step))
+
+        iparams = self.radar.instrument_parameters
+
+        if iparams is not None and 'radar_beam_width_h' in iparams:
+            beam_width_h = iparams['radar_beam_width_h']['data'][0]
+            header['beam_width_h'] = int(round(beam_width_h * 64))
+        else:
+            header['beam_width_h'] = UF_MISSING_VALUE
+
+        if iparams is not None and 'radar_beam_width_v' in iparams:
+            beam_width_v = iparams['radar_beam_width_v']['data'][0]
+            header['beam_width_v'] = int(round(beam_width_v * 64))
+        else:
+            header['beam_width_v'] = UF_MISSING_VALUE
+
+        if iparams is not None and 'pulse_width' in iparams:
+            pulse_width = iparams['pulse_width']['data'][0]
+            header['pulse_width_m'] = int(round(pulse_width * _LIGHT_SPEED))
+        else:
+            header['pulse_width_m'] = UF_MISSING_VALUE
+
+        if iparams is not None and 'radar_receiver_bandwidth' in iparams:
+            bandwidth = iparams['radar_receiver_bandwidth']['data'][0]
+            header['bandwidth'] = int(round(bandwidth / 1.e6 * 16))
+        else:
+            header['bandwidth'] = UF_MISSING_VALUE
+
+        if iparams is not None and 'frequency' in iparams:
+            frequency = iparams['frequency']['data'][0]
+            header['wavelength_cm'] = int(round(
+                _LIGHT_SPEED / frequency * 100 * 64))
+        else:
+            header['wavelength_cm'] = UF_MISSING_VALUE
+
+        if iparams is not None and 'prt' in iparams:
+            prt = iparams['prt']['data'][0]
+            header['prt_ms'] = int(round(prt * 1.e6))
+        else:
+            header['prt_ms'] = UF_MISSING_VALUE
+
+        header['polarization'] = 1  # default to horizontal polarization
+        if iparams is not None and 'polarization_mode' in iparams:
+            polarization = str(iparams['polarization_mode']['data'][0])
+            if polarization in POLARIZATION_STR:
+                header['polarization'] = POLARIZATION_STR.index(polarization)
+        return
+
     def make_ray(self, ray_num):
 
         ray = self.make_mandatory_header(ray_num)
-        ray += self.make_uf_ray_optional_header()
+        ray += self.make_optional_header()
         ray += self.make_data_header()
         field_positions = self.make_field_position_list()
         ray += self.make_field_position()
@@ -180,36 +250,40 @@ class UFRayCreator(object):
 
         return _pack_structure(header, UF_MANDATORY_HEADER)
 
-    def make_uf_ray_optional_header(self):
+    def make_optional_header(self):
         header = self._optional_header_template
         return _pack_structure(header, UF_OPTIONAL_HEADER)
 
     def make_data_header(self):
-        data_header = {
-            'ray_nrecords': 1,
-            'ray_nfields': self.nfields,
-            'record_nfields': self.nfields,
-        }
-        return _pack_structure(data_header, UF_DATA_HEADER)
-
-    def make_field_position(self):
-
-        field_pos = self.make_field_position_list()
-        return ''.join(
-            [_pack_structure(fp, UF_FIELD_POSITION) for fp in field_pos])
+        header = self._data_header_template
+        header['ray_nfields'] = self.nfields
+        header['record_nfields'] = self.nfields
+        return _pack_structure(header, UF_DATA_HEADER)
 
     def make_field_position_list(self):
-        field_pos = []
-        offset = 62 + self.nfields * 2 + 1  # 87
-        for field in self.field_order:
-            field_pos.append({
-                'data_type': field,
-                'offset_field_header': offset,
-            })
+        # 62 words (124 bytes) are occuplied by the:
+        # * mandatory header (90 bytes)
+        # * optional header (28)
+        # * data header (6)
+        # This is followed by 2 words (4 bytes) for each field name/offset
+        # Finally one must be added since the offset has origin of 1
+        offset = 62 + self.nfields * 2 + 1
+        field_positions = []
+        for data_type in self.field_order:
+            field_position = UF_FIELD_POSITION_TEMPLATE.copy()
+            field_position['data_type'] = data_type
+            field_position['offset_field_header'] = offset
+            field_positions.append(field_position)
+
+            # account for field header and data
             offset += self.radar.ngates + 19
-            if field in [b'VF', b'VE', b'VR', b'VT', b'VP']:
-                offset += 2
-        return field_pos
+            if data_type in UF_VEL_DATA_TYPES:
+                offset += 2  # account for the FSI_VEL structure
+        return field_positions
+
+    def make_field_position(self):
+        fps = self.make_field_position_list()
+        return b''.join([_pack_structure(fp, UF_FIELD_POSITION) for fp in fps])
 
     def make_field_header(self, data_offset, scale_factor=100):
         field_header = self._field_header_template
@@ -219,15 +293,30 @@ class UFRayCreator(object):
         return _pack_structure(field_header, UF_FIELD_HEADER)
 
     def make_fsi_vel(self):
-        field_header = {
-            'nyquist': 1722,
-            'spare': 1,
-        }
-        return _pack_structure(field_header, UF_FSI_VEL)
+        fsi_vel = UF_FSI_VEL_TEMPLATE.copy()
+        fsi_vel['nyquist'] = 1722  # XXX
+        return _pack_structure(fsi_vel, UF_FSI_VEL)
 
     def make_data_array(self, field, ray_num, scale=100.):
         field_data = np.round(self.radar.fields[field]['data'][ray_num]*scale)
         return field_data.filled(-32768).astype('>i2')
+
+
+def d_to_dms(in_deg):
+    # add or subtract a fraction of a second to fix round off issues
+    epsilon = 0.01 / 3600.
+    in_deg += epsilon * np.sign(in_deg)
+    remain, degrees = math.modf(in_deg)
+    remain, minutes = math.modf(remain * 60.)
+    remain, seconds = math.modf(remain * 60.)
+    return degrees, minutes, seconds
+
+
+def _pack_structure(dic, structure):
+    """ Pack a structure from a dictionary """
+    fmt = '>' + ''.join([i[1] for i in structure])  # UF is big-endian
+    values = [dic[i[0]] for i in structure]
+    return struct.pack(fmt, *values)
 
 
 UF_MISSING_VALUE = -32768
@@ -242,6 +331,8 @@ UF_SWEEP_MODES = {
     'manual': 6,
     'idle': 7,
 }
+
+UF_VEL_DATA_TYPES = [b'VF', b'VE', b'VR', b'VT', b'VP']
 
 UF_MANDATORY_HEADER_TEMPLATE = {
     'uf_string': 'UF',
@@ -293,115 +384,40 @@ UF_OPTIONAL_HEADER_TEMPLATE = {
     'flag': 2,   # default used by RSL
 }
 
-UF_FIELD_HEADER_TEMPLATE = {
-    'data_offset': 999,
-    'scale_factor': 100,
-    'range_start_km': 0,
-    'range_start_m': 0,
-    'range_spacing_m': 60,
-    'nbins': 999,
-    'pulse_width_m': 134,
-    'beam_width_h': 64,
-    'beam_width_v': 64,
-    'bandwidth': 9670,
-    'polarization': 0,
-    'wavelength_cm': 198,
-    'sample_size': 90,
-    'threshold_data': '  ',
-    'threshold_value': -32768,
-    'scale': -32768,
-    'edit_code': '  ',
-    'prt_ms': 450,
-    'bits_per_bin': 16,
+UF_DATA_HEADER_TEMPLATE = {
+    'ray_nfields': 999,
+    'ray_nrecords': 1,  # 1 record per ray
+    'record_nfields': 999,
 }
 
+UF_FIELD_POSITION_TEMPLATE = {
+    'data_type': 'XX',
+    'offset_field_header': 999,
+}
 
-def d_to_dms(in_deg):
-    # add or subtract a fraction of a second to fix round off issues
-    epsilon = 0.01 / 3600.
-    in_deg += epsilon * np.sign(in_deg)
-    remain, degrees = math.modf(in_deg)
-    remain, minutes = math.modf(remain * 60.)
-    remain, seconds = math.modf(remain * 60.)
-    return degrees, minutes, seconds
+UF_FIELD_HEADER_TEMPLATE = {
+    'data_offset': 999,
+    'scale_factor': 999,
+    'range_start_km': 999,
+    'range_start_m': 999,
+    'range_spacing_m': 999,
+    'nbins': 999,
+    'pulse_width_m': 999,
+    'beam_width_h': 999,
+    'beam_width_v': 999,
+    'bandwidth': 999,
+    'polarization': 999,
+    'wavelength_cm': 999,
+    'sample_size': 90,          # Apparently defaults to 90?
+    'threshold_data': '  ',     # No thresholding field
+    'threshold_value': UF_MISSING_VALUE,
+    'scale': UF_MISSING_VALUE,
+    'edit_code': '  ',          # unknown use, typically blank or null
+    'prt_ms': 999,
+    'bits_per_bin': 16,         # 16 bits (2 bytes, 1 word) per bin or gate
+}
 
-
-def _pack_structure(dic, structure):
-    """ Pack a structure from a dictionary """
-    fmt = '>' + ''.join([i[1] for i in structure])  # UF is big-endian
-    values = [dic[i[0]] for i in structure]
-    return struct.pack(fmt, *values)
-
-
-def _structure_size(structure):
-    """ Find the size of a structure in bytes. """
-    return struct.calcsize('>' + ''.join([i[1] for i in structure]))
-
-
-def _unpack_from_buf(buf, pos, structure):
-    """ Unpack a structure from a buffer. """
-    size = _structure_size(structure)
-    return _unpack_structure(buf[pos:pos + size], structure)
-
-
-def _unpack_structure(string, structure):
-    """ Unpack a structure from a string """
-    fmt = '>' + ''.join([i[1] for i in structure])  # UF is big-endian
-    lst = struct.unpack(fmt, string)
-    return dict(zip([i[0] for i in structure], lst))
-
-INT16 = 'h'
-
-from pyart.io.uffile import UF_MANDATORY_HEADER
-from pyart.io.uffile import UF_OPTIONAL_HEADER
-
-
-
-UF_DATA_HEADER = (
-    ('ray_nfields', INT16),
-    ('ray_nrecords', INT16),
-    ('record_nfields', INT16),
-)
-
-UF_FIELD_POSITION = (
-    ('data_type', '2s'),
-    ('offset_field_header', INT16),
-)
-
-UF_FIELD_HEADER = (
-    ('data_offset', INT16),
-    ('scale_factor', INT16),
-    ('range_start_km', INT16),
-    ('range_start_m', INT16),
-    ('range_spacing_m', INT16),
-    ('nbins', INT16),
-    ('pulse_width_m', INT16),
-    ('beam_width_h', INT16),    # degrees * 64
-    ('beam_width_v', INT16),    # degrees * 64
-    ('bandwidth', INT16),       # Reciever bandwidth in MHz * 16
-    ('polarization', INT16),    # 1: hort, 2: vert 3: circular, 4: ellip
-    ('wavelength_cm', INT16),   # cm * 64
-    ('sample_size', INT16),
-    ('threshold_data', '2s'),
-    ('threshold_value', INT16),
-    ('scale', INT16),
-    ('edit_code', '2s'),
-    ('prt_ms', INT16),
-    ('bits_per_bin', INT16),    # Must be 16
-)
-
-UF_FSI_VEL = (
-    ('nyquist', INT16),
-    ('spare', INT16),
-)
-
-# This structure is defined but not used in Py-ART
-# No sample file which contain the structure could be found.
-UF_FSI_DM = (
-    ('radar_constant', INT16),
-    ('noise_power', INT16),
-    ('reciever_gain', INT16),
-    ('peak_power', INT16),
-    ('antenna_gain', INT16),
-    ('pulse_duration', INT16),
-)
+UF_FSI_VEL_TEMPLATE = {
+    'nyquist': 999,
+    'spare': 1,     # 1 if commonly used for this unused element
+}

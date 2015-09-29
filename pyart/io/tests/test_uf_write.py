@@ -15,6 +15,7 @@ import struct
 import datetime
 import netCDF4
 
+
 def test_ray_section_by_section():
 
     ufile = UFFile(pyart.testing.UF_FILE)
@@ -47,7 +48,7 @@ def test_ray_section_by_section():
 
     # optional header
     ref_opt_header = uray._buf[90:118]
-    tst_opt_header = ufraycreator.make_uf_ray_optional_header()
+    tst_opt_header = ufraycreator.make_optional_header()
     assert tst_opt_header == ref_opt_header
 
     # data headers
