@@ -15,19 +15,6 @@ from pyart.io.uffile import UFFile, UFRay
 import netCDF4
 
 
-"""
-def test_write_uf():
-    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
-
-
-    with open(pyart.testing.UF_FILE, 'rb') as f:
-        ref_uf = f.read()
-
-    with open(pyart.testing.UF_FILE, 'rb') as f:
-        tst_uf = f.read()
-    assert tst_uf == ref_uf
-"""
-
 def test_ray_section_by_section():
 
 
@@ -63,6 +50,7 @@ def test_ray_section_by_section():
 
     # DZ field header
     ref_field_header = uray._buf[172:172+38]
+    ufraycreator._field_header_template['edit_code'] = '\x00\x00'
     tst_field_header = ufraycreator.make_field_header(106)
     assert tst_field_header == ref_field_header
 
@@ -109,12 +97,29 @@ def test_ray_section_by_section():
     assert ref_sw_data_buf == ref_sw_data.tostring()
     assert ref_sw_data_buf == tst_sw_data.tostring()
 
-    # full buffer
-    tst_ray_buf = ref_ray_buf
-    assert tst_ray_buf == ref_ray_buf
+    # ZT field header
+    ref_field_header = uray._buf[5664:5664+38]
+    ufraycreator._field_header_template['edit_code'] = '\x00\x00'
+    tst_field_header = ufraycreator.make_field_header(2852)
+    assert tst_field_header == ref_field_header
+
+    # PH field header
+    ref_field_header = uray._buf[11152:11152+38]
+    ufraycreator._field_header_template['edit_code'] = '  '
+    tst_field_header = ufraycreator.make_field_header(5596, 10)
+    assert tst_field_header == ref_field_header
+
+    # PH data
+    ref_ph_data = uray.field_raw_data[8]
+    tst_ph_data = ufraycreator.make_data_array('PH', 0, 10.)
+    assert np.array_equal(ref_ph_data, tst_ph_data)
+
+    # PH data buffer
+    ref_ph_data_buf = uray._buf[11152+38:12524]
+    assert ref_ph_data_buf == ref_ph_data.tostring()
+    assert ref_ph_data_buf == tst_ph_data.tostring()
 
 
-"""
 def test_ray_full():
 
     ufile = UFFile(pyart.testing.UF_FILE)
@@ -127,8 +132,9 @@ def test_ray_full():
     ufraycreator = UFRayCreator(radar, field_order)
 
     tst_ray = ufraycreator.make_ray(0)
-    assert ref_ray[:124] == tst_ray[:124]
-"""
+    tst_ray = tst_ray[:204] + b'\x00\x00' + tst_ray[206:]   # DZ edit_code
+    tst_ray = tst_ray[:5696] + b'\x00\x00' + tst_ray[5698:] # ZT edit_code
+    assert ref_ray == tst_ray
 
 import struct
 
@@ -254,6 +260,11 @@ class UFRayCreator(object):
 
     def make_field_position(self):
 
+        field_pos = self.make_field_position_list()
+        return ''.join(
+            [_pack_structure(fp, UF_FIELD_POSITION) for fp in field_pos])
+
+    def make_field_position_list(self):
         field_pos = []
         offset = 62 + self.nfields * 2 + 1  # 87
         for field in self.field_order:
@@ -264,13 +275,13 @@ class UFRayCreator(object):
             offset += self.radar.ngates + 19
             if field in [b'VF', b'VE', b'VR', b'VT', b'VP']:
                 offset += 2
-        return ''.join(
-            [_pack_structure(fp, UF_FIELD_POSITION) for fp in field_pos])
+        return field_pos
 
-    def make_field_header(self, data_offset):
+    def make_field_header(self, data_offset, scale_factor=100):
         field_header = self._field_header_template
         field_header['nbins'] = self.radar.ngates
         field_header['data_offset'] = data_offset
+        field_header['scale_factor'] = scale_factor
         return _pack_structure(field_header, UF_FIELD_HEADER)
 
     def make_fsi_vel(self):
@@ -280,13 +291,40 @@ class UFRayCreator(object):
         }
         return _pack_structure(field_header, UF_FSI_VEL)
 
-    def make_data_array(self, field, ray_num):
-        field_data = np.round(self.radar.fields[field]['data'][ray_num] * 100.)
+    def make_data_array(self, field, ray_num, scale=100.):
+        field_data = np.round(self.radar.fields[field]['data'][ray_num]*scale)
         return field_data.filled(-32768).astype('>i2')
 
     def make_ray(self, ray_num):
 
-        return b''
+        ray = self.make_uf_ray_mandatory_header()
+        ray += self.make_uf_ray_optional_header()
+        ray += self.make_data_header()
+        field_positions = self.make_field_position_list()
+        ray += self.make_field_position()
+
+        for field_info in field_positions:
+
+            data_type = field_info['data_type']
+            offset = field_info['offset_field_header'] + 19
+            if data_type in [b'VF', b'VE', b'VR', b'VT', b'VP']:
+                offset += 2
+                vel_header = self.make_fsi_vel()
+            else:
+                vel_header = b''
+
+            if data_type in [b'PH']: # XXX hack
+                scale = 10
+            else:
+                scale = 100
+            field_header = self.make_field_header(offset, scale)
+            data_array = self.make_data_array(data_type, ray_num, scale)
+
+            ray += field_header
+            ray += vel_header
+            ray += data_array.tostring()
+
+        return ray
 
 UF_FIELD_HEADER_TEMPLATE = {
     'data_offset': 999,
@@ -305,7 +343,7 @@ UF_FIELD_HEADER_TEMPLATE = {
     'threshold_data': '  ',
     'threshold_value': -32768,
     'scale': -32768,
-    'edit_code': '\x00\x00',
+    'edit_code': '  ',
     'prt_ms': 450,
     'bits_per_bin': 16,
 }
