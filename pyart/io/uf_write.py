@@ -1,6 +1,6 @@
 import math
-
 import struct
+import warnings
 
 import numpy as np
 import netCDF4
@@ -12,7 +12,7 @@ class UFFileCreator(object):
 
     """
 
-    def __init__(self, filename, radar, field_order):
+    def __init__(self, filename, radar, field_order, volume_start=None):
         if hasattr(filename, 'write'):
             self._fh = filename
         else:
@@ -20,7 +20,23 @@ class UFFileCreator(object):
         self.filename = filename
         self.radar = radar
 
-        raycreator = UFRayCreator(radar, field_order)
+        raycreator = UFRayCreator(
+            radar, field_order, volume_start=volume_start)
+
+        # XXX
+        # hacks to get match with example file
+        header = raycreator._mandatory_header_template
+        header['radar_name'] = 'xsapr-sg'
+        header['site_name'] = 'xsapr-sg'
+        header['generation_year'] = 15
+        header['generation_month'] = 8
+        header['generation_day'] = 19
+        header['generation_facility_name'] = 'RSLv1.48'
+
+        header = raycreator._optional_header_template
+        header['project_name'] = 'TRMMGVUF'
+        header['tape_name'] = 'RADAR_UF'
+
         for ray_num in range(radar.nrays):
 
             pad = struct.pack('>i', 16640)
@@ -43,14 +59,130 @@ class UFRayCreator(object):
 
     """
 
-    def __init__(self, radar, field_order):
+    def __init__(self, radar, field_order, volume_start=None):
         """
         """
         self.radar = radar
         self.nfields = len(radar.fields)
         self.field_order = field_order
+
+        self._mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
         self._field_header_template = UF_FIELD_HEADER_TEMPLATE.copy()
+        self._optional_header_template = UF_OPTIONAL_HEADER_TEMPLATE.copy()
+
+
+        self._set_mandatory_header_location()
+        self._set_optional_header_volume_time(volume_start)
+
         return
+
+    def _set_optional_header_volume_time(self, volume_start):
+        header = self._optional_header_template
+        if volume_start is None:
+            volume_start = netCDF4.num2date(
+                self.radar.time['data'][0], self.radar.time['units'])
+        header['volume_hour'] = volume_start.hour
+        header['volume_minute'] = volume_start.minute
+        header['volume_second'] = volume_start.second
+
+    def _set_mandatory_header_location(self):
+        """
+        """
+        header = self._mandatory_header_template
+
+        degrees, minutes, seconds = d_to_dms(self.radar.latitude['data'][0])
+        header['latitude_degrees'] = int(degrees)
+        header['latitude_minutes'] = int(minutes)
+        header['latitude_seconds'] = int(seconds * 64)
+
+        degrees, minutes, seconds = d_to_dms(self.radar.longitude['data'][0])
+        header['longitude_degrees'] = int(degrees)
+        header['longitude_minutes'] = int(minutes)
+        header['longitude_seconds'] = int(seconds * 64)
+
+        header['height_above_sea_level'] = int(self.radar.altitude['data'][0])
+        return
+
+    def make_ray(self, ray_num):
+
+        ray = self.make_mandatory_header(ray_num)
+        ray += self.make_uf_ray_optional_header()
+        ray += self.make_data_header()
+        field_positions = self.make_field_position_list()
+        ray += self.make_field_position()
+
+        for field_info in field_positions:
+
+            data_type = field_info['data_type']
+            offset = field_info['offset_field_header'] + 19
+            if data_type in [b'VF', b'VE', b'VR', b'VT', b'VP']:
+                offset += 2
+                vel_header = self.make_fsi_vel()
+            else:
+                vel_header = b''
+
+            if data_type in [b'PH']:    # XXX hack
+                scale = 10
+            else:
+                scale = 100
+            field_header = self.make_field_header(offset, scale)
+            data_array = self.make_data_array(data_type, ray_num, scale)
+
+            ray += field_header
+            ray += vel_header
+            ray += data_array.tostring()
+
+        return ray
+
+    def make_mandatory_header(self, ray_num):
+
+        # time parameters
+        dt = netCDF4.num2date(
+            self.radar.time['data'][ray_num], self.radar.time['units'])
+        header = self._mandatory_header_template
+        header['year'] = dt.year - 2000
+        header['month'] = dt.month
+        header['day'] = dt.day
+        header['hour'] = dt.hour
+        header['minute'] = dt.minute
+        header['second'] = dt.second
+
+        # ray/sweep numbers
+        header['record_number'] = header['ray_number'] = ray_num + 1
+        header['sweep_number'] = 1  # XXX sweep
+
+        # pointing
+        azimuth = self.radar.azimuth['data'][ray_num]
+        header['azimuth'] = int(round(azimuth * 64))
+
+        elevation = self.radar.elevation['data'][ray_num]
+        header['elevation'] = int(round(elevation * 64))
+
+        fixed_angle = self.radar.fixed_angle['data'][0]  # XXX sweep
+        header['fixed_angle'] = int(round(fixed_angle * 64))
+
+        if self.radar.scan_rate is not None:
+            scan_rate = self.radar.scan_rate['data'][ray_num]
+        else:
+            scan_rate = UF_MISSING_VALUE
+        header['sweep_rate'] = int(round(scan_rate * 64))
+
+        if self.radar.scan_type in UF_SWEEP_MODES:
+            sweep_mode_number = UF_SWEEP_MODES[self.radar.scan_type]
+        else:
+            warnings.warn(
+                'Unknown scan_type: %s, defaulting to PPI' %
+                (self.radar.scan_type))
+            sweep_mode_number = UF_SWEEP_MODES['ppi']
+        header['sweep_mode'] = sweep_mode_number
+
+        header['record_length'] = 8320  # XXX
+
+        return _pack_structure(header, UF_MANDATORY_HEADER)
+
+    def make_uf_ray_optional_header(self):
+        header = self._optional_header_template
+        return _pack_structure(header, UF_OPTIONAL_HEADER)
 
     def make_data_header(self):
         data_header = {
@@ -59,98 +191,6 @@ class UFRayCreator(object):
             'record_nfields': self.nfields,
         }
         return _pack_structure(data_header, UF_DATA_HEADER)
-
-    def make_uf_ray_mandatory_header(self):
-        # time parameters
-        times = netCDF4.num2date(
-            self.radar.time['data'], self.radar.time['units'])
-        dt = times[0]
-        man_header = make_empty_mandatory_header()
-        man_header['year'] = dt.year - 2000
-        man_header['month'] = dt.month
-        man_header['day'] = dt.day
-        man_header['hour'] = dt.hour
-        man_header['minute'] = dt.minute
-        man_header['second'] = dt.second
-
-        # location parameters
-        degrees, minutes, seconds = d_to_dms(self.radar.latitude['data'][0])
-        man_header['latitude_degrees'] = int(degrees)
-        man_header['latitude_minutes'] = int(minutes)
-        man_header['latitude_seconds'] = int(seconds * 64)
-
-        degrees, minutes, seconds = d_to_dms(self.radar.longitude['data'][0])
-        man_header['longitude_degrees'] = int(degrees)
-        man_header['longitude_minutes'] = int(minutes)
-        man_header['longitude_seconds'] = int(seconds * 64)
-
-        man_header['height_above_sea_level'] = int(
-            self.radar.altitude['data'][0])
-
-        # ray/sweep numbers
-        man_header['record_number'] = man_header['ray_number'] = 1
-        man_header['sweep_number'] = 1
-
-        # pointing
-        azimuth = self.radar.azimuth['data'][0]
-        man_header['azimuth'] = int(round(azimuth * 64))
-
-        elevation = self.radar.elevation['data'][0]
-        man_header['elevation'] = int(round(elevation * 64))
-
-        fixed_angle = self.radar.fixed_angle['data'][0]  # index by sweep
-        man_header['fixed_angle'] = int(round(fixed_angle * 64))
-
-        if self.radar.scan_rate is not None:
-            scan_rate = self.radar.scan_rate['data'][0]
-        else:
-            scan_rate = 0
-        man_header['sweep_rate'] = int(round(scan_rate * 64))
-
-        _UF_SWEEP_MODES = {
-            'calibration': 0,
-            'ppi': 1,
-            'coplane': 2,
-            'rhi': 3,
-            'vpt': 4,
-            'target': 5,
-            'manual': 6,
-            'idle': 7,
-        }
-        if self.radar.scan_type in _UF_SWEEP_MODES:
-            sweep_mode_number = _UF_SWEEP_MODES[self.radar.scan_type]
-        else:
-            raise ValueError
-            sweep_mode_number = 6
-        man_header['sweep_mode'] = sweep_mode_number
-
-        # TODO
-        man_header['record_length'] = 8320
-
-        # hacks to get match with example file
-        man_header['radar_name'] = 'xsapr-sg'
-        man_header['site_name'] = 'xsapr-sg'
-        man_header['generation_year'] = 15
-        man_header['generation_month'] = 8
-        man_header['generation_day'] = 19
-        man_header['generation_facility_name'] = 'RSLv1.48'
-
-        return _pack_structure(man_header, UF_MANDATORY_HEADER)
-
-    def make_uf_ray_optional_header(self):
-        opt_header = {
-            'baseline_azimuth': -32768,
-            'baseline_elevation': -32768,
-            'flag': 2,
-            'project_name': 'TRMMGVUF',
-            'tape_name': 'RADAR_UF',
-        }
-        dt = netCDF4.num2date(
-            self.radar.time['data'][0], self.radar.time['units'])
-        opt_header['volume_hour'] = dt.hour
-        opt_header['volume_minute'] = dt.minute
-        opt_header['volume_second'] = dt.second - 8
-        return _pack_structure(opt_header, UF_OPTIONAL_HEADER)
 
     def make_field_position(self):
 
@@ -189,36 +229,69 @@ class UFRayCreator(object):
         field_data = np.round(self.radar.fields[field]['data'][ray_num]*scale)
         return field_data.filled(-32768).astype('>i2')
 
-    def make_ray(self, ray_num):
 
-        ray = self.make_uf_ray_mandatory_header()
-        ray += self.make_uf_ray_optional_header()
-        ray += self.make_data_header()
-        field_positions = self.make_field_position_list()
-        ray += self.make_field_position()
+UF_MISSING_VALUE = -32768
 
-        for field_info in field_positions:
+UF_SWEEP_MODES = {
+    'calibration': 0,
+    'ppi': 1,
+    'coplane': 2,
+    'rhi': 3,
+    'vpt': 4,
+    'target': 5,
+    'manual': 6,
+    'idle': 7,
+}
 
-            data_type = field_info['data_type']
-            offset = field_info['offset_field_header'] + 19
-            if data_type in [b'VF', b'VE', b'VR', b'VT', b'VP']:
-                offset += 2
-                vel_header = self.make_fsi_vel()
-            else:
-                vel_header = b''
+UF_MANDATORY_HEADER_TEMPLATE = {
+    'uf_string': 'UF',
+    'record_length': 999,
+    'offset_optional_header': 46,   # Always include the optional read
+    'offset_local_use_header': 60,  # Never include a local use header
+    'offset_data_header': 60,       # Data header follows optional header
+    'record_number': 999,
+    'volume_number': 1,             # always a single volume
+    'ray_number': 999,
+    'ray_record_number': 1,         # always one recorded per ray
+    'sweep_number': 999,
+    'radar_name': 'XXXXXXXX',
+    'site_name': 'XXXXXXXX',
+    'latitude_degrees': 999,
+    'latitude_minutes': 999,
+    'latitude_seconds': 999,
+    'longitude_degrees': 999,
+    'longitude_minutes': 999,
+    'longitude_seconds': 999,
+    'height_above_sea_level': 999,
+    'year': 999,
+    'month': 999,
+    'day': 999,
+    'hour': 999,
+    'minute': 999,
+    'second': 999,
+    'time_zone': 'UT',
+    'azimuth': 999,
+    'elevation': 999,
+    'sweep_mode': 999,
+    'fixed_angle': 999,
+    'sweep_rate': 999,
+    'generation_year': 999,
+    'generation_month': 999,
+    'generation_day': 999,
+    'generation_facility_name': 'XXXXXXXX',
+    'missing_data_value': UF_MISSING_VALUE,     # standard missing value
+}
 
-            if data_type in [b'PH']:    # XXX hack
-                scale = 10
-            else:
-                scale = 100
-            field_header = self.make_field_header(offset, scale)
-            data_array = self.make_data_array(data_type, ray_num, scale)
-
-            ray += field_header
-            ray += vel_header
-            ray += data_array.tostring()
-
-        return ray
+UF_OPTIONAL_HEADER_TEMPLATE = {
+    'project_name': 'XXXXXXXX',
+    'baseline_azimuth': UF_MISSING_VALUE,
+    'baseline_elevation': UF_MISSING_VALUE,
+    'volume_hour': 999,
+    'volume_minute': 999,
+    'volume_second': 999,
+    'tape_name': 'XXXXXXXX',
+    'flag': 2,   # default used by RSL
+}
 
 UF_FIELD_HEADER_TEMPLATE = {
     'data_offset': 999,
@@ -253,19 +326,6 @@ def d_to_dms(in_deg):
     return degrees, minutes, seconds
 
 
-def make_empty_mandatory_header():
-    return {
-        'uf_string': 'UF',
-        'offset_optional_header': 46,
-        'offset_local_use_header': 60,
-        'offset_data_header': 60,
-        'volume_number': 1,
-        'ray_record_number': 1,
-        'time_zone': 'UT',
-        'missing_data_value': -32768,
-    }
-
-
 def _pack_structure(dic, structure):
     """ Pack a structure from a dictionary """
     fmt = '>' + ''.join([i[1] for i in structure])  # UF is big-endian
@@ -292,55 +352,10 @@ def _unpack_structure(string, structure):
 
 INT16 = 'h'
 
-UF_MANDATORY_HEADER = (
-    ('uf_string', '2s'),
-    ('record_length', INT16),
-    ('offset_optional_header', INT16),
-    ('offset_local_use_header', INT16),
-    ('offset_data_header', INT16),
-    ('record_number', INT16),
-    ('volume_number', INT16),
-    ('ray_number', INT16),
-    ('ray_record_number', INT16),
-    ('sweep_number', INT16),
-    ('radar_name', '8s'),
-    ('site_name', '8s'),
-    ('latitude_degrees', INT16),
-    ('latitude_minutes', INT16),
-    ('latitude_seconds', INT16),
-    ('longitude_degrees', INT16),
-    ('longitude_minutes', INT16),
-    ('longitude_seconds', INT16),
-    ('height_above_sea_level', INT16),
-    ('year', INT16),
-    ('month', INT16),
-    ('day', INT16),
-    ('hour', INT16),
-    ('minute', INT16),
-    ('second', INT16),
-    ('time_zone', '2s'),
-    ('azimuth', INT16),
-    ('elevation', INT16),
-    ('sweep_mode', INT16),
-    ('fixed_angle', INT16),
-    ('sweep_rate', INT16),
-    ('generation_year', INT16),
-    ('generation_month', INT16),
-    ('generation_day', INT16),
-    ('generation_facility_name', '8s'),
-    ('missing_data_value', INT16),
-)
+from pyart.io.uffile import UF_MANDATORY_HEADER
+from pyart.io.uffile import UF_OPTIONAL_HEADER
 
-UF_OPTIONAL_HEADER = (
-    ('project_name', '8s'),
-    ('baseline_azimuth', INT16),
-    ('baseline_elevation', INT16),
-    ('volume_hour', INT16),
-    ('volume_minute', INT16),
-    ('volume_second', INT16),
-    ('tape_name', '8s'),
-    ('flag', INT16)
-)
+
 
 UF_DATA_HEADER = (
     ('ray_nfields', INT16),

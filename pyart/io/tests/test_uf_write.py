@@ -12,6 +12,8 @@ from pyart.io.uffile import UFFile, UFRay
 from pyart.io.uf_write import UFRayCreator, UFFileCreator
 
 import struct
+import datetime
+import netCDF4
 
 def test_ray_section_by_section():
 
@@ -21,13 +23,26 @@ def test_ray_section_by_section():
     ufile.close()
 
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
+    volume_start -= datetime.timedelta(seconds=8)
     nfields = len(radar.fields)
     field_order = [d['data_type'] for d in uray.field_positions]
-    ufraycreator = UFRayCreator(radar, field_order)
+    ufraycreator = UFRayCreator(radar, field_order, volume_start=volume_start)
+    header = ufraycreator._mandatory_header_template
+    header['radar_name'] = 'xsapr-sg'
+    header['site_name'] = 'xsapr-sg'
+    header['generation_year'] = 15
+    header['generation_month'] = 8
+    header['generation_day'] = 19
+    header['generation_facility_name'] = 'RSLv1.48'
+
+    header = ufraycreator._optional_header_template
+    header['project_name'] = 'TRMMGVUF'
+    header['tape_name'] = 'RADAR_UF'
 
     # mandatory header
     ref_man_header = ref_ray_buf[:90]
-    tst_man_header = ufraycreator.make_uf_ray_mandatory_header()
+    tst_man_header = ufraycreator.make_mandatory_header(0)
     assert tst_man_header == ref_man_header
 
     # optional header
@@ -126,7 +141,20 @@ def test_ray_full():
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
     field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
                    'KD', 'SQ', 'HC']
-    ufraycreator = UFRayCreator(radar, field_order)
+    volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
+    volume_start -= datetime.timedelta(seconds=8)
+    ufraycreator = UFRayCreator(radar, field_order, volume_start=volume_start)
+    header = ufraycreator._mandatory_header_template
+    header['radar_name'] = 'xsapr-sg'
+    header['site_name'] = 'xsapr-sg'
+    header['generation_year'] = 15
+    header['generation_month'] = 8
+    header['generation_day'] = 19
+    header['generation_facility_name'] = 'RSLv1.48'
+
+    header = ufraycreator._optional_header_template
+    header['project_name'] = 'TRMMGVUF'
+    header['tape_name'] = 'RADAR_UF'
 
     tst_ray = ufraycreator.make_ray(0)
     tst_ray = tst_ray[:204] + b'\x00\x00' + tst_ray[206:]   # DZ edit_code
@@ -144,7 +172,9 @@ def test_complete_file():
                    'KD', 'SQ', 'HC']
 
     in_mem = StringIO()
-    UFFileCreator(in_mem, radar, field_order)
+    volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
+    volume_start -= datetime.timedelta(seconds=8)
+    UFFileCreator(in_mem, radar, field_order, volume_start=volume_start)
     in_mem.seek(0)
     tst_file = in_mem.read()
     tst_file = tst_file[:208] + b'\x00\x00' + tst_file[210:]    # DZ edit_code
