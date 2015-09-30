@@ -60,7 +60,8 @@ def test_ray_section_by_section():
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
     nfields = len(radar.fields)
-    field_write_order = [d['data_type'] for d in uray.field_positions]
+    field_write_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                         'KD', 'SQ', 'HC']
     ufraycreator = UFRayCreator(
         radar, FIELD_MAPPING, field_write_order, volume_start=volume_start,
         templates_extra=TEMPLATES_EXTRA)

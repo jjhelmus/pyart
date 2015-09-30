@@ -216,7 +216,8 @@ class UFRayCreator(object):
         # For each velocity-like field:
         #   * 2 words (4-bytes) for the FSI velocity structure
         nfields = len(field_write_order)
-        data_types = [field_mapping[field] for field in field_write_order]
+        data_types = [field_mapping[field].encode('ascii') for
+                      field in field_write_order]
         nvel = sum(
             [data_type in UF_VEL_DATA_TYPES for data_type in data_types])
         return 45+14+3 + (radar.ngates+2+19)*nfields + 2*nvel
@@ -413,9 +414,9 @@ class UFRayCreator(object):
         offset = 62 + len(self.field_write_order) * 2 + 1
         field_positions = []
         for radar_field in self.field_write_order:
-            data_type = self.field_mapping[radar_field]
+            data_type = self.field_mapping[radar_field].encode('ascii')
             field_position = UF_FIELD_POSITION_TEMPLATE.copy()
-            field_position['data_type'] = data_type.encode('ascii')
+            field_position['data_type'] = data_type
             field_position['offset_field_header'] = offset
             field_position['radar_field'] = radar_field
             field_positions.append(field_position)
