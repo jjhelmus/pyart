@@ -48,6 +48,7 @@ def write_uf(filename, radar, uf_field_names=None, radar_field_names=False,
     Create a UF file containing data from the provided radar instance.
     The UF file will contain instrument parameters from the following
     dictionaries if they contained in radar.instrument_parameters:
+
         * radar_beam_width_h
         * radar_beam_width_v
         * radar_receiver_bandwidth
@@ -56,6 +57,7 @@ def write_uf(filename, radar, uf_field_names=None, radar_field_names=False,
         * prt
         * polarization_mode
         * nyquist_velocity
+
     If any of these parameter are not present a default or sentinel value
     will be written in the UF file in the place of the parameter.
 
