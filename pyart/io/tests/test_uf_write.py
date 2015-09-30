@@ -316,7 +316,7 @@ def test_missing_instrument_parameters():
     assert field_header['polarization'] == 1
 
     bstring = ufraycreator.make_fsi_vel(0, 100)
-    nyq = struct.unpack('>h', bstring[:2])
+    nyq = struct.unpack('>h', bstring[:2])[0]
     assert nyq == UF_MISSING_VALUE
 
 
