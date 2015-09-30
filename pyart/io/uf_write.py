@@ -32,7 +32,7 @@ class UFFileCreator(object):
         raycreator = UFRayCreator(
             radar, field_order, volume_start=volume_start)
 
-        # XXX
+        # TODO
         # hacks to get match with example file
         header = raycreator._mandatory_header_template
         header['radar_name'] = 'xsapr-sg'
@@ -75,6 +75,21 @@ class UFRayCreator(object):
         self.nfields = len(radar.fields)
         self.field_order = field_order
 
+        # record length is given by the sum of
+        # 45 word (90 byte) mandatory header
+        # 14 word (28 byte) optional header which is always written
+        # 3 word (6 byte) data header
+        # For each field:
+        #   * nbin words for the data (stored as int16)
+        #   * 2 words for the data type name and offset in the data header
+        #   * 19 words for the field header
+        # For each velocity-like field:
+        #   * 2 words (4-bytes) for the FSI velocity structure
+        nbins = radar.ngates
+        nvel = sum([field in UF_VEL_DATA_TYPES for field in field_order])
+        self.record_length = (
+            (nbins + 2 + 19) * self.nfields + 45 + 14 + 3 + 2 * nvel)
+
         self._mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
         self._optional_header_template = UF_OPTIONAL_HEADER_TEMPLATE.copy()
         self._data_header_template = UF_DATA_HEADER_TEMPLATE.copy()
@@ -114,7 +129,6 @@ class UFRayCreator(object):
         return
 
     def _set_field_header(self):
-        # XXX refactor
         # these parameter are assumed to be constant for all rays in
         # the volume, UF can store volumes where these change between
         # rays but Py-ART does not support writing such volumes
@@ -158,7 +172,8 @@ class UFRayCreator(object):
 
     def make_ray(self, ray_num):
 
-        ray = self.make_mandatory_header(ray_num)
+        sweep_num = 0  # TODO
+        ray = self.make_mandatory_header(ray_num, sweep_num)
         ray += self.make_optional_header()
         ray += self.make_data_header()
         field_positions = self.make_field_position_list()
@@ -168,18 +183,19 @@ class UFRayCreator(object):
 
             data_type = field_info['data_type']
             offset = field_info['offset_field_header'] + 19
-            if data_type in [b'PH']:    # XXX hack
-                scale = 10
+            if '_UF_scale_factor' in self.radar.fields[data_type]:
+                scale = self.radar.fields[data_type]['_UF_scale_factor']
             else:
-                scale = 100
+                scale = UF_DEFAULT_SCALE_FACTOR
 
-            if data_type in [b'VF', b'VE', b'VR', b'VT', b'VP']:
+            if data_type in UF_VEL_DATA_TYPES:
                 offset += 2
                 vel_header = self.make_fsi_vel(ray_num, scale)
             else:
                 vel_header = b''
 
-            field_header = self.make_field_header(offset, ray_num, scale)
+            field_header = self.make_field_header(
+                offset, ray_num, sweep_num, scale)
             data_array = self.make_data_array(data_type, ray_num, scale)
 
             ray += field_header
@@ -188,7 +204,7 @@ class UFRayCreator(object):
 
         return ray
 
-    def make_mandatory_header(self, ray_num):
+    def make_mandatory_header(self, ray_num, sweep_num):
 
         # time parameters
         dt = netCDF4.num2date(
@@ -203,7 +219,7 @@ class UFRayCreator(object):
 
         # ray/sweep numbers
         header['record_number'] = header['ray_number'] = ray_num + 1
-        header['sweep_number'] = 1  # XXX sweep
+        header['sweep_number'] = sweep_num + 1
 
         # pointing
         azimuth = self.radar.azimuth['data'][ray_num]
@@ -212,7 +228,7 @@ class UFRayCreator(object):
         elevation = self.radar.elevation['data'][ray_num]
         header['elevation'] = int(round(elevation * 64))
 
-        fixed_angle = self.radar.fixed_angle['data'][0]  # XXX sweep
+        fixed_angle = self.radar.fixed_angle['data'][sweep_num]
         header['fixed_angle'] = int(round(fixed_angle * 64))
 
         if self.radar.scan_rate is not None:
@@ -230,7 +246,7 @@ class UFRayCreator(object):
             sweep_mode_number = UF_SWEEP_MODES['ppi']
         header['sweep_mode'] = sweep_mode_number
 
-        header['record_length'] = 8320  # XXX
+        header['record_length'] = self.record_length
 
         return _pack_structure(header, UF_MANDATORY_HEADER)
 
@@ -269,7 +285,8 @@ class UFRayCreator(object):
         fps = self.make_field_position_list()
         return b''.join([_pack_structure(fp, UF_FIELD_POSITION) for fp in fps])
 
-    def make_field_header(self, data_offset, ray_num, scale_factor=100):
+    def make_field_header(
+            self, data_offset, ray_num, sweep_num, scale_factor):
         field_header = self._field_header_template
         field_header['nbins'] = self.radar.ngates
         field_header['data_offset'] = data_offset
@@ -289,13 +306,11 @@ class UFRayCreator(object):
         else:
             field_header['prt_ms'] = UF_MISSING_VALUE
 
-        # XXX sweep
         field_header['polarization'] = 1  # default to horizontal polarization
         if iparams is not None and 'polarization_mode' in iparams:
-            polarization = str(iparams['polarization_mode']['data'][0])
-            if polarization in POLARIZATION_STR:
-                polarization_type = POLARIZATION_STR.index(polarization)
-                field_header['polarization'] = polarization_type
+            mode = str(iparams['polarization_mode']['data'][sweep_num])
+            if mode in POLARIZATION_STR:
+                field_header['polarization'] = POLARIZATION_STR.index(mode)
         return _pack_structure(field_header, UF_FIELD_HEADER)
 
     def make_fsi_vel(self, ray_num, scale):
@@ -331,6 +346,7 @@ def _pack_structure(dic, structure):
 
 
 UF_MISSING_VALUE = -32768
+UF_DEFAULT_SCALE_FACTOR = 100   # default field scale factor
 
 UF_SWEEP_MODES = {
     'calibration': 0,

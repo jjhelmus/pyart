@@ -43,7 +43,7 @@ def test_ray_section_by_section():
 
     # mandatory header
     ref_man_header = ref_ray_buf[:90]
-    tst_man_header = ufraycreator.make_mandatory_header(0)
+    tst_man_header = ufraycreator.make_mandatory_header(0, 0)
     assert tst_man_header == ref_man_header
 
     # optional header
@@ -64,7 +64,7 @@ def test_ray_section_by_section():
     # DZ field header
     ref_field_header = uray._buf[172:172+38]
     ufraycreator._field_header_template['edit_code'] = '\x00\x00'
-    tst_field_header = ufraycreator.make_field_header(106, 0)
+    tst_field_header = ufraycreator.make_field_header(106, 0, 0, 100)
     assert tst_field_header == ref_field_header
 
     # DZ data
@@ -80,7 +80,7 @@ def test_ray_section_by_section():
     # VR field header
     ref_field_header = uray._buf[1544:1544+42]
     ufraycreator._field_header_template['edit_code'] = '  '
-    tst_field_header = ufraycreator.make_field_header(794, 0)
+    tst_field_header = ufraycreator.make_field_header(794, 0, 0, 100)
     vel_header = ufraycreator.make_fsi_vel(0, 100)
     assert tst_field_header + vel_header == ref_field_header
 
@@ -97,7 +97,7 @@ def test_ray_section_by_section():
     # SW field header
     ref_field_header = uray._buf[2920:2920+38]
     ufraycreator._field_header_template['edit_code'] = '  '
-    tst_field_header = ufraycreator.make_field_header(1480, 0)
+    tst_field_header = ufraycreator.make_field_header(1480, 0, 0, 100)
     assert tst_field_header == ref_field_header
 
     # SW data
@@ -113,13 +113,13 @@ def test_ray_section_by_section():
     # ZT field header
     ref_field_header = uray._buf[5664:5664+38]
     ufraycreator._field_header_template['edit_code'] = '\x00\x00'
-    tst_field_header = ufraycreator.make_field_header(2852, 0)
+    tst_field_header = ufraycreator.make_field_header(2852, 0, 0, 100)
     assert tst_field_header == ref_field_header
 
     # PH field header
     ref_field_header = uray._buf[11152:11152+38]
     ufraycreator._field_header_template['edit_code'] = '  '
-    tst_field_header = ufraycreator.make_field_header(5596, 0, 10)
+    tst_field_header = ufraycreator.make_field_header(5596, 0, 0, 10)
     assert tst_field_header == ref_field_header
 
     # PH data
@@ -140,6 +140,7 @@ def test_ray_full():
     ufile.close()
 
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    radar.fields['PH']['_UF_scale_factor'] = 10
     field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
                    'KD', 'SQ', 'HC']
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
@@ -169,6 +170,7 @@ def test_complete_file():
         ref_file = fh.read()
 
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    radar.fields['PH']['_UF_scale_factor'] = 10
     field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
                    'KD', 'SQ', 'HC']
 
