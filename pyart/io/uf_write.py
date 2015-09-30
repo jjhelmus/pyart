@@ -38,8 +38,8 @@ from .uffile import UF_FSI_VEL
 from .uffile import POLARIZATION_STR
 
 
-def write_uf(filename, radar, field_order, volume_start=None,
-             templates_extra=None):
+def write_uf(filename, radar, field_mapping=None, field_order=None,
+             volume_start=None, templates_extra=None):
     """
     Write a Radar object to a UF file.
 
@@ -66,8 +66,20 @@ def write_uf(filename, radar, field_order, volume_start=None,
         fhandle = open(filename, 'wb')
         close = True
 
+    """
+    filemetadata = FileMetadata(
+        'uf', field_mapping, None, False, exclude_fields)
+    filemetadata.get_field_name(
+    """
+
+    if field_order is None:
+        field_order = list(radar.fields.keys())
+
+    if field_mapping is None:
+        field_mapping = {f: f for f in field_order}
+
     raycreator = UFRayCreator(
-        radar, field_order, volume_start=volume_start,
+        radar, field_mapping, field_order, volume_start=volume_start,
         templates_extra=templates_extra)
 
     for ray_num in range(radar.nrays):
@@ -102,12 +114,14 @@ class UFRayCreator(object):
 
     """
 
-    def __init__(
-            self, radar, field_order, volume_start=None, templates_extra=None):
+    def __init__(self, radar, field_mapping, field_order,
+                 volume_start=None, templates_extra=None):
         """ Initialize the object. """
         self.radar = radar
+        self.field_mapping = field_mapping
         self.field_order = field_order
-        self.record_length = self._calc_record_length(radar, field_order)
+        self.record_length = self._calc_record_length(
+            radar, field_mapping, field_order)
         self.ray_num_to_sweep_num = self._calc_ray_num_to_sweep_num(radar)
 
         self.mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
@@ -130,7 +144,7 @@ class UFRayCreator(object):
         return ray_num_to_sweep_num
 
     @staticmethod
-    def _calc_record_length(radar, field_order):
+    def _calc_record_length(radar, field_mapping, field_order):
         """ Return the record length in 2-byte words. """
         # record length is given by the sum of
         # 45 word (90 byte) mandatory header
@@ -143,7 +157,9 @@ class UFRayCreator(object):
         # For each velocity-like field:
         #   * 2 words (4-bytes) for the FSI velocity structure
         nfields = len(field_order)
-        nvel = sum([field in UF_VEL_DATA_TYPES for field in field_order])
+        data_types = [field_mapping[field] for field in field_order]
+        nvel = sum(
+            [data_type in UF_VEL_DATA_TYPES for data_type in data_types])
         return 45+14+3 + (radar.ngates+2+19)*nfields + 2*nvel
 
     def _set_optional_header_time(self, volume_start):
@@ -245,8 +261,9 @@ class UFRayCreator(object):
 
             data_type = field_info['data_type']
             offset = field_info['offset_field_header'] + 19
-            if '_UF_scale_factor' in self.radar.fields[data_type]:
-                scale = self.radar.fields[data_type]['_UF_scale_factor']
+            radar_field = field_info['radar_field']
+            if '_UF_scale_factor' in self.radar.fields[radar_field]:
+                scale = self.radar.fields[radar_field]['_UF_scale_factor']
             else:
                 scale = UF_DEFAULT_SCALE_FACTOR
 
@@ -257,7 +274,7 @@ class UFRayCreator(object):
                 vel_header = b''
 
             field_header = self.make_field_header(offset, ray_num, scale)
-            data_array = self.make_data_array(data_type, ray_num, scale)
+            data_array = self.make_data_array(radar_field, ray_num, scale)
 
             ray += field_header
             ray += vel_header
@@ -336,10 +353,12 @@ class UFRayCreator(object):
         # Finally one must be added since the offset has origin of 1
         offset = 62 + len(self.field_order) * 2 + 1
         field_positions = []
-        for data_type in self.field_order:
+        for radar_field in self.field_order:
+            data_type = self.field_mapping[radar_field]
             field_position = UF_FIELD_POSITION_TEMPLATE.copy()
             field_position['data_type'] = data_type.encode('ascii')
             field_position['offset_field_header'] = offset
+            field_position['radar_field'] = radar_field
             field_positions.append(field_position)
 
             # account for field header and data

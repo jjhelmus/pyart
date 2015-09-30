@@ -18,6 +18,36 @@ import struct
 import datetime
 import netCDF4
 
+TEMPLATES_EXTRA = {
+    'mandatory_header': {
+        'radar_name': b'xsapr-sg',
+        'site_name': b'xsapr-sg',
+        'generation_year': 15,
+        'generation_month': 8,
+        'generation_day': 19,
+        'generation_facility_name': b'RSLv1.48',
+    },
+    'optional_header': {
+        'project_name': b'TRMMGVUF',
+        'tape_name': b'RADAR_UF',
+    }
+}
+
+FIELD_MAPPING = {
+    'DZ': 'DZ',
+    'VR': 'VR',
+    'SW': 'SW',
+    'CZ': 'CZ',
+    'ZT': 'ZT',
+    'DR': 'DR',
+    'ZD': 'ZD',
+    'RH': 'RH',
+    'PH': 'PH',
+    'KD': 'KD',
+    'SQ': 'SQ',
+    'HC': 'HC',
+}
+
 
 def test_ray_section_by_section():
 
@@ -31,23 +61,9 @@ def test_ray_section_by_section():
     volume_start -= datetime.timedelta(seconds=8)
     nfields = len(radar.fields)
     field_order = [d['data_type'] for d in uray.field_positions]
-    templates_extra = {
-        'mandatory_header': {
-            'radar_name': b'xsapr-sg',
-            'site_name': b'xsapr-sg',
-            'generation_year': 15,
-            'generation_month': 8,
-            'generation_day': 19,
-            'generation_facility_name': b'RSLv1.48',
-        },
-        'optional_header': {
-            'project_name': b'TRMMGVUF',
-            'tape_name': b'RADAR_UF',
-        }
-    }
     ufraycreator = UFRayCreator(
-        radar, field_order, volume_start=volume_start,
-        templates_extra=templates_extra)
+        radar, FIELD_MAPPING, field_order, volume_start=volume_start,
+        templates_extra=TEMPLATES_EXTRA)
     header = ufraycreator.mandatory_header_template
 
     # mandatory header
@@ -154,23 +170,9 @@ def test_ray_full():
                    'KD', 'SQ', 'HC']
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
-    templates_extra = {
-        'mandatory_header': {
-            'radar_name': b'xsapr-sg',
-            'site_name': b'xsapr-sg',
-            'generation_year': 15,
-            'generation_month': 8,
-            'generation_day': 19,
-            'generation_facility_name': b'RSLv1.48',
-        },
-        'optional_header': {
-            'project_name': b'TRMMGVUF',
-            'tape_name': b'RADAR_UF',
-        }
-    }
     ufraycreator = UFRayCreator(
-        radar, field_order, volume_start=volume_start,
-        templates_extra=templates_extra)
+        radar, FIELD_MAPPING, field_order, volume_start=volume_start,
+        templates_extra=TEMPLATES_EXTRA)
     tst_ray = ufraycreator.make_ray(0)
     tst_ray = tst_ray[:204] + b'\x00\x00' + tst_ray[206:]   # DZ edit_code
     tst_ray = tst_ray[:5696] + b'\x00\x00' + tst_ray[5698:]     # ZT edit_code
@@ -187,28 +189,78 @@ def test_complete_file():
     field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
                    'KD', 'SQ', 'HC']
 
-    templates_extra = {
-        'mandatory_header': {
-            'radar_name': b'xsapr-sg',
-            'site_name': b'xsapr-sg',
-            'generation_year': 15,
-            'generation_month': 8,
-            'generation_day': 19,
-            'generation_facility_name': b'RSLv1.48',
-        },
-        'optional_header': {
-            'project_name': b'TRMMGVUF',
-            'tape_name': b'RADAR_UF',
-        }
-    }
     in_mem = StringIO()
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
-    write_uf(in_mem, radar, field_order, volume_start=volume_start,
-             templates_extra=templates_extra)
+    write_uf(in_mem, radar, FIELD_MAPPING, field_order,
+             volume_start=volume_start, templates_extra=TEMPLATES_EXTRA)
     in_mem.seek(0)
     tst_file = in_mem.read()
     tst_file = tst_file[:208] + b'\x00\x00' + tst_file[210:]    # DZ edit_code
     tst_file = tst_file[:5700] + b'\x00\x00' + tst_file[5702:]  # ZT edit_code
 
     assert ref_file == tst_file
+
+
+def test_complete_file_standard_names():
+
+    with open(pyart.testing.UF_FILE, 'rb') as fh:
+        ref_file = fh.read()
+
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE)
+    radar.fields['differential_phase']['_UF_scale_factor'] = 10
+
+    field_mapping = {
+        'reflectivity': 'DZ',
+        'velocity': 'VR',
+        'spectrum_width': 'SW',
+        'corrected_reflectivity': 'CZ',
+        'total_power': 'ZT',
+        'corrected_differential_reflectivity': 'DR',
+        'differential_reflectivity': 'ZD',
+        'cross_correlation_ratio': 'RH',
+        'differential_phase': 'PH',
+        'specific_differential_phase': 'KD',
+        'normalized_coherent_power': 'SQ',
+        'radar_echo_classification': 'HC',
+    }
+    field_order = [
+        'reflectivity',
+        'velocity',
+        'spectrum_width',
+        'corrected_reflectivity',
+        'total_power',
+        'corrected_differential_reflectivity',
+        'differential_reflectivity',
+        'cross_correlation_ratio',
+        'differential_phase',
+        'specific_differential_phase',
+        'normalized_coherent_power',
+        'radar_echo_classification',
+    ]
+    in_mem = StringIO()
+    volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
+    volume_start -= datetime.timedelta(seconds=8)
+    write_uf(in_mem, radar, field_mapping, field_order,
+             volume_start=volume_start, templates_extra=TEMPLATES_EXTRA)
+    in_mem.seek(0)
+    tst_file = in_mem.read()
+    tst_file = tst_file[:208] + b'\x00\x00' + tst_file[210:]    # DZ edit_code
+    tst_file = tst_file[:5700] + b'\x00\x00' + tst_file[5702:]  # ZT edit_code
+
+    assert ref_file == tst_file
+
+
+def test_write_defaults_file_field_names():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    in_mem = StringIO()
+    write_uf(in_mem, radar)
+    assert in_mem.tell() == 16648
+
+
+def test_write_defaults():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE)
+    in_mem = StringIO()
+    write_uf(in_mem, radar)
+    print in_mem.tell()
+    assert in_mem.tell() == 16648

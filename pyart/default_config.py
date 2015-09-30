@@ -1105,6 +1105,7 @@ uf_field_mapping = {
     'RH': cross_correlation_ratio,
     'SQ': normalized_coherent_power,
     'NP': normalized_coherent_power,
+    'HC': radar_echo_classification,
 }
 
 FIELD_MAPPINGS = {                  # Required variable
