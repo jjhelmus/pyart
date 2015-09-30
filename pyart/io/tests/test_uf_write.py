@@ -12,7 +12,7 @@ from numpy.testing import assert_raises, assert_almost_equal
 
 import pyart
 from pyart.io.uffile import UFFile, UFRay
-from pyart.io.uf_write import UFRayCreator, UFFileCreator
+from pyart.io.uf_write import UFRayCreator, write_uf
 
 import struct
 import datetime
@@ -31,18 +31,24 @@ def test_ray_section_by_section():
     volume_start -= datetime.timedelta(seconds=8)
     nfields = len(radar.fields)
     field_order = [d['data_type'] for d in uray.field_positions]
-    ufraycreator = UFRayCreator(radar, field_order, volume_start=volume_start)
+    templates_extra = {
+        'mandatory_header': {
+            'radar_name': b'xsapr-sg',
+            'site_name': b'xsapr-sg',
+            'generation_year': 15,
+            'generation_month': 8,
+            'generation_day': 19,
+            'generation_facility_name': b'RSLv1.48',
+        },
+        'optional_header': {
+            'project_name': b'TRMMGVUF',
+            'tape_name': b'RADAR_UF',
+        }
+    }
+    ufraycreator = UFRayCreator(
+        radar, field_order, volume_start=volume_start,
+        templates_extra=templates_extra)
     header = ufraycreator.mandatory_header_template
-    header['radar_name'] = b'xsapr-sg'
-    header['site_name'] = b'xsapr-sg'
-    header['generation_year'] = 15
-    header['generation_month'] = 8
-    header['generation_day'] = 19
-    header['generation_facility_name'] = b'RSLv1.48'
-
-    header = ufraycreator.optional_header_template
-    header['project_name'] = b'TRMMGVUF'
-    header['tape_name'] = b'RADAR_UF'
 
     # mandatory header
     ref_man_header = ref_ray_buf[:90]
@@ -148,19 +154,23 @@ def test_ray_full():
                    'KD', 'SQ', 'HC']
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
-    ufraycreator = UFRayCreator(radar, field_order, volume_start=volume_start)
-    header = ufraycreator.mandatory_header_template
-    header['radar_name'] = b'xsapr-sg'
-    header['site_name'] = b'xsapr-sg'
-    header['generation_year'] = 15
-    header['generation_month'] = 8
-    header['generation_day'] = 19
-    header['generation_facility_name'] = b'RSLv1.48'
-
-    header = ufraycreator.optional_header_template
-    header['project_name'] = b'TRMMGVUF'
-    header['tape_name'] = b'RADAR_UF'
-
+    templates_extra = {
+        'mandatory_header': {
+            'radar_name': b'xsapr-sg',
+            'site_name': b'xsapr-sg',
+            'generation_year': 15,
+            'generation_month': 8,
+            'generation_day': 19,
+            'generation_facility_name': b'RSLv1.48',
+        },
+        'optional_header': {
+            'project_name': b'TRMMGVUF',
+            'tape_name': b'RADAR_UF',
+        }
+    }
+    ufraycreator = UFRayCreator(
+        radar, field_order, volume_start=volume_start,
+        templates_extra=templates_extra)
     tst_ray = ufraycreator.make_ray(0)
     tst_ray = tst_ray[:204] + b'\x00\x00' + tst_ray[206:]   # DZ edit_code
     tst_ray = tst_ray[:5696] + b'\x00\x00' + tst_ray[5698:]     # ZT edit_code
@@ -177,10 +187,25 @@ def test_complete_file():
     field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
                    'KD', 'SQ', 'HC']
 
+    templates_extra = {
+        'mandatory_header': {
+            'radar_name': b'xsapr-sg',
+            'site_name': b'xsapr-sg',
+            'generation_year': 15,
+            'generation_month': 8,
+            'generation_day': 19,
+            'generation_facility_name': b'RSLv1.48',
+        },
+        'optional_header': {
+            'project_name': b'TRMMGVUF',
+            'tape_name': b'RADAR_UF',
+        }
+    }
     in_mem = StringIO()
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
-    UFFileCreator(in_mem, radar, field_order, volume_start=volume_start)
+    write_uf(in_mem, radar, field_order, volume_start=volume_start,
+             templates_extra=templates_extra)
     in_mem.seek(0)
     tst_file = in_mem.read()
     tst_file = tst_file[:208] + b'\x00\x00' + tst_file[210:]    # DZ edit_code

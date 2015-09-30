@@ -4,7 +4,6 @@ pyart.io.uf_write
 
 Functions for writing UF files.
 
-
 .. autosummary::
     :toctree: generated/
     :template: dev_template.rst
@@ -14,9 +13,9 @@ Functions for writing UF files.
 .. autosummary::
     :toctree: generated/
 
-    _structure_size
-    _unpack_from_buf
-    _unpack_structure
+    write_uf
+    _d_to_dms
+    _pack_structure
 
 """
 
@@ -27,77 +26,84 @@ import struct
 import warnings
 
 import numpy as np
-import netCDF4
+from netCDF4 import num2date
 
-from pyart.io.uffile import UF_MANDATORY_HEADER
-from pyart.io.uffile import UF_OPTIONAL_HEADER
-from pyart.io.uffile import UF_DATA_HEADER
-from pyart.io.uffile import UF_FIELD_POSITION
-from pyart.io.uffile import UF_FIELD_HEADER
-from pyart.io.uffile import UF_FSI_VEL
-from pyart.io.uf import _LIGHT_SPEED
-from pyart.io.uffile import POLARIZATION_STR
+from .uf import _LIGHT_SPEED
+from .uffile import UF_MANDATORY_HEADER
+from .uffile import UF_OPTIONAL_HEADER
+from .uffile import UF_DATA_HEADER
+from .uffile import UF_FIELD_POSITION
+from .uffile import UF_FIELD_HEADER
+from .uffile import UF_FSI_VEL
+from .uffile import POLARIZATION_STR
 
 
-class UFFileCreator(object):
+def write_uf(filename, radar, field_order, volume_start=None,
+             templates_extra=None):
     """
-    A class for creating UF files
+    Write a Radar object to a UF file.
+
+    Note about _UF_scale_factor key
+    Note about instrument parameters required...
+
+    Parameters
+    ----------
+    filename : str or file-like object.
+        Filename of UF file to create.  If file-like object is provided
+        data will be written using the write method of this object.
+    radar : Radar
+        Radar object from which to create UF file.
+    field_order : list
+        TODO
+    volume_start : datetime, optional
+        Start of volume used to set UF volume fields.
 
     """
+    if hasattr(filename, 'write'):
+        fhandle = filename
+        close = False
+    else:
+        fhandle = open(filename, 'wb')
+        close = True
 
-    def __init__(self, filename, radar, field_order, volume_start=None):
-        if hasattr(filename, 'write'):
-            self._fh = filename
-        else:
-            self._fh = open(filename, 'wb')
-        self.filename = filename
-        self.radar = radar
+    raycreator = UFRayCreator(
+        radar, field_order, volume_start=volume_start,
+        templates_extra=templates_extra)
 
-        raycreator = UFRayCreator(
-            radar, field_order, volume_start=volume_start)
+    for ray_num in range(radar.nrays):
 
-        # TODO
-        # hacks to get match with example file
-        header = raycreator.mandatory_header_template
-        header['radar_name'] = b'xsapr-sg'
-        header['site_name'] = b'xsapr-sg'
-        header['generation_year'] = 15
-        header['generation_month'] = 8
-        header['generation_day'] = 19
-        header['generation_facility_name'] = b'RSLv1.48'
+        ray_bytes = raycreator.make_ray(ray_num)
+        pad = struct.pack('>i', raycreator.record_length * 2)
 
-        header = raycreator.optional_header_template
-        header['project_name'] = b'TRMMGVUF'
-        header['tape_name'] = b'RADAR_UF'
+        fhandle.write(pad)
+        fhandle.write(ray_bytes)
+        fhandle.write(pad)
 
-        for ray_num in range(radar.nrays):
-
-            ray_bytes = raycreator.make_ray(ray_num)
-            pad = struct.pack('>i', raycreator.record_length * 2)
-
-            self._fh.write(pad)
-            self._fh.write(ray_bytes)
-            self._fh.write(pad)
-
-    def close(self):
-        self._fh.close()
+    if close:
+        fhandle.close()
+    return
 
 
 class UFRayCreator(object):
     """
-    A class for generating UF file rays for writing to disk
+    A class for generating UF rays for writing UF file.
 
     Parameters
     ----------
     radar : Radar
         Radar used to create rays.
-    field_order : list of bytes
+    field_order : list of fields
+        Fields TODO
+    volume_start : datetime, optional
+        Start of volume used to set UF volume fields.
+    templates_extra : dict of dict, optional
+        Additional template parameters.  Use the TODO
 
-    volume_start :
 
     """
 
-    def __init__(self, radar, field_order, volume_start=None):
+    def __init__(
+            self, radar, field_order, volume_start=None, templates_extra=None):
         """ Initialize the object. """
         self.radar = radar
         self.field_order = field_order
@@ -111,7 +117,8 @@ class UFRayCreator(object):
         self._set_mandatory_header_location()
         self._set_optional_header_time(volume_start)
         self._set_field_header()
-
+        if templates_extra is not None:
+            self._parse_custom_templates(templates_extra)
         return
 
     @staticmethod
@@ -143,8 +150,8 @@ class UFRayCreator(object):
         """ Populate the optional header template with the volume start. """
         header = self.optional_header_template
         if volume_start is None:
-            volume_start = netCDF4.num2date(
-                self.radar.time['data'][0], self.radar.time['units'])
+            volume_start = num2date(self.radar.time['data'][0],
+                                    self.radar.time['units'])
         header['volume_hour'] = volume_start.hour
         header['volume_minute'] = volume_start.minute
         header['volume_second'] = volume_start.second
@@ -209,6 +216,23 @@ class UFRayCreator(object):
 
         return
 
+    def _parse_custom_templates(self, templates_extra):
+        """ Set additional template parameter using provided dictionary. """
+
+        if 'mandatory_header' in templates_extra:
+            for key, value in templates_extra['mandatory_header'].items():
+                self.mandatory_header_template[key] = value
+
+        if 'optional_header' in templates_extra:
+            for key, value in templates_extra['optional_header'].items():
+                self.optional_header_template[key] = value
+
+        if 'field_header' in templates_extra:
+            for key, value in templates_extra['field_header'].items():
+                self.field_header_template[key] = value
+
+        return
+
     def make_ray(self, ray_num):
         """ Return a byte string representing a complete UF ray. """
         ray = self.make_mandatory_header(ray_num)
@@ -245,8 +269,8 @@ class UFRayCreator(object):
         """ Return a byte string representing a UF mandatory header. """
 
         # time parameters
-        ray_time = netCDF4.num2date(
-            self.radar.time['data'][ray_num], self.radar.time['units'])
+        ray_time = num2date(self.radar.time['data'][ray_num],
+                            self.radar.time['units'])
         header = self.mandatory_header_template
         header['year'] = ray_time.year - 2000
         header['month'] = ray_time.month
@@ -314,7 +338,7 @@ class UFRayCreator(object):
         field_positions = []
         for data_type in self.field_order:
             field_position = UF_FIELD_POSITION_TEMPLATE.copy()
-            field_position['data_type'] = bytes(data_type)
+            field_position['data_type'] = data_type.encode('ascii')
             field_position['offset_field_header'] = offset
             field_positions.append(field_position)
 
@@ -455,7 +479,7 @@ UF_OPTIONAL_HEADER_TEMPLATE = {
     'volume_hour': 999,
     'volume_minute': 999,
     'volume_second': 999,
-    'tape_name': 'XXXXXXXX',
+    'tape_name': b'XXXXXXXX',
     'flag': 2,   # default used by RSL
 }
 
