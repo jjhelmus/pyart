@@ -374,7 +374,7 @@ class UFRayCreator(object):
         if self.radar.scan_rate is not None:
             scan_rate = self.radar.scan_rate['data'][ray_num]
         else:
-            scan_rate = UF_MISSING_VALUE
+            scan_rate = UF_MISSING_VALUE / 64
         header['sweep_rate'] = int(round(scan_rate * 64))
 
         if self.radar.scan_type in UF_SWEEP_MODES:

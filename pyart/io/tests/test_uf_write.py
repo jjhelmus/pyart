@@ -7,7 +7,9 @@ try:
 except ImportError:
     from io import BytesIO as StringIO
 
+import struct
 import datetime
+import warnings
 
 import numpy as np
 from numpy.testing import assert_raises, assert_almost_equal
@@ -15,7 +17,7 @@ import netCDF4
 
 import pyart
 from pyart.io.uffile import UFFile
-from pyart.io.uf_write import UFRayCreator, write_uf
+from pyart.io.uf_write import UFRayCreator, write_uf, UF_MISSING_VALUE
 
 
 TEMPLATES_EXTRA = {
@@ -250,3 +252,123 @@ def test_write_defaults():
     in_mem = StringIO()
     write_uf(in_mem, radar)
     assert in_mem.tell() == 16648
+
+
+def test_write_real_file():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE)
+    with pyart.testing.InTemporaryDirectory():
+        write_uf('test.uf', radar)
+        f = open('test.uf', 'rb')
+        buf = f.read()
+        f.close()
+        assert len(buf) == 16648
+
+
+def test_templates_extra():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    field_write_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                         'KD', 'SQ', 'HC']
+
+    templates_extra = {
+        'mandatory_header': {
+            'radar_name': b'xsapr-sg',
+            'site_name': b'xsapr-sg',
+            'generation_year': 15,
+            'generation_month': 8,
+            'generation_day': 19,
+            'generation_facility_name': b'RSLv1.48',
+        },
+        'optional_header': {
+            'project_name': b'TRMMGVUF',
+            'tape_name': b'RADAR_UF',
+        },
+        'field_header': {
+            'threshold_data': b'XX',
+        }
+    }
+    ufraycreator = UFRayCreator(radar, FIELD_MAPPING, field_write_order,
+                                templates_extra=templates_extra)
+    field_header = ufraycreator.field_header_template
+    assert field_header['threshold_data'] == b'XX'
+    man_header = ufraycreator.mandatory_header_template
+    assert man_header['radar_name'] == b'xsapr-sg'
+    optional_header = ufraycreator.optional_header_template
+    assert optional_header['project_name'] == b'TRMMGVUF'
+
+
+def test_missing_instrument_parameters():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    radar.instrument_parameters = None
+    field_write_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                         'KD', 'SQ', 'HC']
+    ufraycreator = UFRayCreator(radar, FIELD_MAPPING, field_write_order)
+
+    field_header = ufraycreator.field_header_template
+    assert field_header['beam_width_h'] == UF_MISSING_VALUE
+    assert field_header['beam_width_v'] == UF_MISSING_VALUE
+    assert field_header['bandwidth'] == UF_MISSING_VALUE
+    assert field_header['wavelength_cm'] == UF_MISSING_VALUE
+
+    ufraycreator.make_field_header(999, 0, 100)
+    field_header = ufraycreator.field_header_template
+    assert field_header['pulse_width_m'] == UF_MISSING_VALUE
+    assert field_header['prt_ms'] == UF_MISSING_VALUE
+    assert field_header['polarization'] == 1
+
+    bstring = ufraycreator.make_fsi_vel(0, 100)
+    nyq = struct.unpack('>h', bstring[:2])
+    assert nyq == UF_MISSING_VALUE
+
+
+def test_missing_scan_rate():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    radar.scan_rate = None
+    field_write_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                         'KD', 'SQ', 'HC']
+    ufraycreator = UFRayCreator(radar, FIELD_MAPPING, field_write_order)
+    ufraycreator.make_mandatory_header(0)
+    man_header = ufraycreator.mandatory_header_template
+    assert man_header['sweep_rate'] == UF_MISSING_VALUE
+
+
+def test_unknown_scan_type():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
+    radar.scan_type = 'foo'
+    field_write_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                         'KD', 'SQ', 'HC']
+    ufraycreator = UFRayCreator(radar, FIELD_MAPPING, field_write_order)
+    with warnings.catch_warnings(record=True) as w:
+        ufraycreator.make_mandatory_header(0)
+        man_header = ufraycreator.mandatory_header_template
+        assert man_header['sweep_mode'] == 1
+        # check that warnings was caught
+        assert len(w) == 1
+        assert issubclass(w[-1].category, UserWarning)
+
+
+def test_write_exclude():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE)
+    in_mem = StringIO()
+    write_uf(in_mem, radar, exclude_fields=['reflectivity'])
+    assert in_mem.tell() == 15272   # 15727 = 16648 - (667+2+19) * 2
+
+
+def test_map_field_to_none():
+    radar = pyart.io.read_uf(pyart.testing.UF_FILE)
+    in_mem = StringIO()
+    uf_field_names = {
+        'reflectivity': None,
+        'velocity': 'VR',
+        'spectrum_width': 'SW',
+        'corrected_reflectivity': 'CZ',
+        'total_power': 'ZT',
+        'corrected_differential_reflectivity': 'DR',
+        'differential_reflectivity': 'ZD',
+        'cross_correlation_ratio': 'RH',
+        'differential_phase': 'PH',
+        'specific_differential_phase': 'KD',
+        'normalized_coherent_power': 'SQ',
+        'radar_echo_classification': 'HC'
+    }
+    write_uf(in_mem, radar, uf_field_names=uf_field_names)
+    assert in_mem.tell() == 15272   # 15727 = 16648 - (667+2+19) * 2
