@@ -168,16 +168,17 @@ class UFRayCreator(object):
 
             data_type = field_info['data_type']
             offset = field_info['offset_field_header'] + 19
-            if data_type in [b'VF', b'VE', b'VR', b'VT', b'VP']:
-                offset += 2
-                vel_header = self.make_fsi_vel()
-            else:
-                vel_header = b''
-
             if data_type in [b'PH']:    # XXX hack
                 scale = 10
             else:
                 scale = 100
+
+            if data_type in [b'VF', b'VE', b'VR', b'VT', b'VP']:
+                offset += 2
+                vel_header = self.make_fsi_vel(ray_num, scale)
+            else:
+                vel_header = b''
+
             field_header = self.make_field_header(offset, ray_num, scale)
             data_array = self.make_data_array(data_type, ray_num, scale)
 
@@ -297,9 +298,14 @@ class UFRayCreator(object):
                 field_header['polarization'] = polarization_type
         return _pack_structure(field_header, UF_FIELD_HEADER)
 
-    def make_fsi_vel(self):
+    def make_fsi_vel(self, ray_num, scale):
         fsi_vel = UF_FSI_VEL_TEMPLATE.copy()
-        fsi_vel['nyquist'] = 1722  # XXX
+        iparams = self.radar.instrument_parameters
+        if iparams is not None and 'nyquist_velocity' in iparams:
+            nyquist = iparams['nyquist_velocity']['data'][ray_num]
+            fsi_vel['nyquist'] = int(round(nyquist * scale))
+        else:
+            fsi_vel['nyquist'] = UF_MISSING_VALUE
         return _pack_structure(fsi_vel, UF_FSI_VEL)
 
     def make_data_array(self, field, ray_num, scale=100.):

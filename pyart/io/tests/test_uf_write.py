@@ -81,7 +81,7 @@ def test_ray_section_by_section():
     ref_field_header = uray._buf[1544:1544+42]
     ufraycreator._field_header_template['edit_code'] = '  '
     tst_field_header = ufraycreator.make_field_header(794, 0)
-    vel_header = ufraycreator.make_fsi_vel()
+    vel_header = ufraycreator.make_fsi_vel(0, 100)
     assert tst_field_header + vel_header == ref_field_header
 
     # VR data
