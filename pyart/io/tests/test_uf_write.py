@@ -1,4 +1,4 @@
-""" Unit Tests for Py-ART's io/uf.py and io/uffile.py modules. """
+""" Unit Tests for Py-ART's uf_write module. """
 
 from __future__ import unicode_literals
 
@@ -7,16 +7,16 @@ try:
 except ImportError:
     from io import BytesIO as StringIO
 
+import datetime
+
 import numpy as np
 from numpy.testing import assert_raises, assert_almost_equal
+import netCDF4
 
 import pyart
-from pyart.io.uffile import UFFile, UFRay
+from pyart.io.uffile import UFFile
 from pyart.io.uf_write import UFRayCreator, write_uf
 
-import struct
-import datetime
-import netCDF4
 
 TEMPLATES_EXTRA = {
     'mandatory_header': {
@@ -60,11 +60,10 @@ def test_ray_section_by_section():
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
     nfields = len(radar.fields)
-    field_order = [d['data_type'] for d in uray.field_positions]
+    field_write_order = [d['data_type'] for d in uray.field_positions]
     ufraycreator = UFRayCreator(
-        radar, FIELD_MAPPING, field_order, volume_start=volume_start,
+        radar, FIELD_MAPPING, field_write_order, volume_start=volume_start,
         templates_extra=TEMPLATES_EXTRA)
-    header = ufraycreator.mandatory_header_template
 
     # mandatory header
     ref_man_header = ref_ray_buf[:90]
@@ -166,12 +165,12 @@ def test_ray_full():
 
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
     radar.fields['PH']['_UF_scale_factor'] = 10
-    field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
-                   'KD', 'SQ', 'HC']
+    field_write_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                         'KD', 'SQ', 'HC']
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
     ufraycreator = UFRayCreator(
-        radar, FIELD_MAPPING, field_order, volume_start=volume_start,
+        radar, FIELD_MAPPING, field_write_order, volume_start=volume_start,
         templates_extra=TEMPLATES_EXTRA)
     tst_ray = ufraycreator.make_ray(0)
     tst_ray = tst_ray[:204] + b'\x00\x00' + tst_ray[206:]   # DZ edit_code
@@ -186,14 +185,15 @@ def test_complete_file():
 
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
     radar.fields['PH']['_UF_scale_factor'] = 10
-    field_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
-                   'KD', 'SQ', 'HC']
+    field_write_order = ['DZ', 'VR', 'SW', 'CZ', 'ZT', 'DR', 'ZD', 'RH', 'PH',
+                         'KD', 'SQ', 'HC']
 
     in_mem = StringIO()
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
-    write_uf(in_mem, radar, FIELD_MAPPING, field_order,
-             volume_start=volume_start, templates_extra=TEMPLATES_EXTRA)
+    write_uf(in_mem, radar, uf_field_names=FIELD_MAPPING,
+             field_write_order=field_write_order, volume_start=volume_start,
+             templates_extra=TEMPLATES_EXTRA)
     in_mem.seek(0)
     tst_file = in_mem.read()
     tst_file = tst_file[:208] + b'\x00\x00' + tst_file[210:]    # DZ edit_code
@@ -210,21 +210,7 @@ def test_complete_file_standard_names():
     radar = pyart.io.read_uf(pyart.testing.UF_FILE)
     radar.fields['differential_phase']['_UF_scale_factor'] = 10
 
-    field_mapping = {
-        'reflectivity': 'DZ',
-        'velocity': 'VR',
-        'spectrum_width': 'SW',
-        'corrected_reflectivity': 'CZ',
-        'total_power': 'ZT',
-        'corrected_differential_reflectivity': 'DR',
-        'differential_reflectivity': 'ZD',
-        'cross_correlation_ratio': 'RH',
-        'differential_phase': 'PH',
-        'specific_differential_phase': 'KD',
-        'normalized_coherent_power': 'SQ',
-        'radar_echo_classification': 'HC',
-    }
-    field_order = [
+    field_write_order = [
         'reflectivity',
         'velocity',
         'spectrum_width',
@@ -241,7 +227,7 @@ def test_complete_file_standard_names():
     in_mem = StringIO()
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
-    write_uf(in_mem, radar, field_mapping, field_order,
+    write_uf(in_mem, radar, field_write_order=field_write_order,
              volume_start=volume_start, templates_extra=TEMPLATES_EXTRA)
     in_mem.seek(0)
     tst_file = in_mem.read()
@@ -251,10 +237,10 @@ def test_complete_file_standard_names():
     assert ref_file == tst_file
 
 
-def test_write_defaults_file_field_names():
+def test_write_radar_field_names():
     radar = pyart.io.read_uf(pyart.testing.UF_FILE, file_field_names=True)
     in_mem = StringIO()
-    write_uf(in_mem, radar)
+    write_uf(in_mem, radar, radar_field_names=True)
     assert in_mem.tell() == 16648
 
 
@@ -262,5 +248,4 @@ def test_write_defaults():
     radar = pyart.io.read_uf(pyart.testing.UF_FILE)
     in_mem = StringIO()
     write_uf(in_mem, radar)
-    print in_mem.tell()
     assert in_mem.tell() == 16648

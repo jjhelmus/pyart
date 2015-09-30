@@ -28,6 +28,7 @@ import warnings
 import numpy as np
 from netCDF4 import num2date
 
+from ..config import get_field_mapping
 from .uf import _LIGHT_SPEED
 from .uffile import UF_MANDATORY_HEADER
 from .uffile import UF_OPTIONAL_HEADER
@@ -38,25 +39,61 @@ from .uffile import UF_FSI_VEL
 from .uffile import POLARIZATION_STR
 
 
-def write_uf(filename, radar, field_mapping=None, field_order=None,
-             volume_start=None, templates_extra=None):
+def write_uf(filename, radar, uf_field_names=None, radar_field_names=False,
+             exclude_fields=None, field_write_order=None, volume_start=None,
+             templates_extra=None):
     """
     Write a Radar object to a UF file.
 
-    Note about _UF_scale_factor key
-    Note about instrument parameters required...
+    Create a UF file containing data from the provided radar instance.
+    The UF file will contain instrument parameters from the following
+    dictionaries if they contained in radar.instrument_parameters:
+        * radar_beam_width_h
+        * radar_beam_width_v
+        * radar_receiver_bandwidth
+        * frequency
+        * pulse_width
+        * prt
+        * polarization_mode
+        * nyquist_velocity
+    If any of these parameter are not present a default or sentinel value
+    will be written in the UF file in the place of the parameter.
+
+    Radar fields will be scaled and rounded to integer values when writing to
+    UF files.  The scale factor for each field can be specified in the
+    `_UF_scale_factor` key for each field dictionary.  If not specified the
+    default scaling (100) will be used.
 
     Parameters
     ----------
     filename : str or file-like object.
-        Filename of UF file to create.  If file-like object is provided
-        data will be written using the write method of this object.
+        Filename of UF file to create.  If a file-like object is specified
+        data will be written using the write method.
     radar : Radar
         Radar object from which to create UF file.
-    field_order : list
-        TODO
+    uf_field_names : dict or None, optional
+        Mapping between radar fields and two character UF data type names.
+        Field names mapped to None will be excluded from writing.  If None,
+        the default mappings for UF files will be used.
+    radar_field_names : bool, optional
+        True to use the radar field names as the field names of the UF
+        fields.  False to use the uf_field_names mapping to generate UF field
+        names.  The `exclude_fields` argument can still be used to exclude
+        fields from the UF file when this parameter is True.  When reading a UF
+        file using `file_field_names=True` set this parameter to True to write
+        a UF file with the same field names.
+    exclude_fields : list or None, optional
+        List of radar fields to exclude from writing.
+    field_write_order : list or None, optional
+        Order in which radar fields should be written out in the UF file.
+        None, the default, will determine a valid order automatically.
     volume_start : datetime, optional
-        Start of volume used to set UF volume fields.
+        Start of volume used to set UF volume structure elements.
+    templates_extra : dict of dict or None
+        Advanced usage parameter for setting UF structure templates.
+        Elements defined in dictionaries with keys 'mandatory_header',
+        'optional_header', and 'field_header' will be used to build the
+        structure template.
 
     """
     if hasattr(filename, 'write'):
@@ -66,20 +103,14 @@ def write_uf(filename, radar, field_mapping=None, field_order=None,
         fhandle = open(filename, 'wb')
         close = True
 
-    """
-    filemetadata = FileMetadata(
-        'uf', field_mapping, None, False, exclude_fields)
-    filemetadata.get_field_name(
-    """
+    field_mapping = _find_field_mapping(
+        radar, uf_field_names, radar_field_names, exclude_fields)
 
-    if field_order is None:
-        field_order = list(radar.fields.keys())
-
-    if field_mapping is None:
-        field_mapping = {f: f for f in field_order}
+    if field_write_order is None:
+        field_write_order = list(field_mapping.keys())
 
     raycreator = UFRayCreator(
-        radar, field_mapping, field_order, volume_start=volume_start,
+        radar, field_mapping, field_write_order, volume_start=volume_start,
         templates_extra=templates_extra)
 
     for ray_num in range(radar.nrays):
@@ -96,6 +127,31 @@ def write_uf(filename, radar, field_mapping=None, field_order=None,
     return
 
 
+def _find_field_mapping(
+        radar, uf_field_names, radar_field_names, exclude_fields):
+    """ Return a dictionary mapping radar fields to UF data types. """
+    if uf_field_names is None:
+        uf_field_names = get_field_mapping('write_uf')
+    if exclude_fields is None:
+        exclude_fields = []
+
+    field_mapping = {}
+    for radar_field in radar.fields.keys():
+
+        if radar_field in exclude_fields:
+            continue
+
+        if radar_field_names:
+            data_type = radar_field
+        else:
+            data_type = uf_field_names[radar_field]
+
+        if data_type is None:
+            continue
+        field_mapping[radar_field] = data_type
+    return field_mapping
+
+
 class UFRayCreator(object):
     """
     A class for generating UF rays for writing UF file.
@@ -104,24 +160,27 @@ class UFRayCreator(object):
     ----------
     radar : Radar
         Radar used to create rays.
-    field_order : list of fields
-        Fields TODO
+    field_write_order : list
+        Order in which radar fields should be written out in the UF file.
+        None, the default, will determine a valid order automatically.
     volume_start : datetime, optional
         Start of volume used to set UF volume fields.
     templates_extra : dict of dict, optional
-        Additional template parameters.  Use the TODO
-
+        Advanced usage parameter for setting UF structure templates.
+        Elements defined in dictionaries with keys 'mandatory_header',
+        'optional_header', and 'field_header' will be added to the
+        appropriate structure template.
 
     """
 
-    def __init__(self, radar, field_mapping, field_order,
+    def __init__(self, radar, field_mapping, field_write_order,
                  volume_start=None, templates_extra=None):
         """ Initialize the object. """
         self.radar = radar
         self.field_mapping = field_mapping
-        self.field_order = field_order
+        self.field_write_order = field_write_order
         self.record_length = self._calc_record_length(
-            radar, field_mapping, field_order)
+            radar, field_mapping, field_write_order)
         self.ray_num_to_sweep_num = self._calc_ray_num_to_sweep_num(radar)
 
         self.mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
@@ -144,7 +203,7 @@ class UFRayCreator(object):
         return ray_num_to_sweep_num
 
     @staticmethod
-    def _calc_record_length(radar, field_mapping, field_order):
+    def _calc_record_length(radar, field_mapping, field_write_order):
         """ Return the record length in 2-byte words. """
         # record length is given by the sum of
         # 45 word (90 byte) mandatory header
@@ -156,8 +215,8 @@ class UFRayCreator(object):
         #   * 19 words for the field header
         # For each velocity-like field:
         #   * 2 words (4-bytes) for the FSI velocity structure
-        nfields = len(field_order)
-        data_types = [field_mapping[field] for field in field_order]
+        nfields = len(field_write_order)
+        data_types = [field_mapping[field] for field in field_write_order]
         nvel = sum(
             [data_type in UF_VEL_DATA_TYPES for data_type in data_types])
         return 45+14+3 + (radar.ngates+2+19)*nfields + 2*nvel
@@ -338,22 +397,22 @@ class UFRayCreator(object):
     def make_data_header(self):
         """ Return a byte string representing a UF data header. """
         header = UF_DATA_HEADER_TEMPLATE.copy()
-        nfields = len(self.field_order)
+        nfields = len(self.field_write_order)
         header['ray_nfields'] = nfields
         header['record_nfields'] = nfields
         return _pack_structure(header, UF_DATA_HEADER)
 
     def make_field_position_list(self):
         """ Return a list of field position dictionaries. """
-        # 62 words (124 bytes) are occuplied by the:
+        # 62 words (124 bytes) are occupied by the:
         # * mandatory header (90 bytes)
         # * optional header (28)
         # * data header (6)
         # This is followed by 2 words (4 bytes) for each field name/offset
         # Finally one must be added since the offset has origin of 1
-        offset = 62 + len(self.field_order) * 2 + 1
+        offset = 62 + len(self.field_write_order) * 2 + 1
         field_positions = []
-        for radar_field in self.field_order:
+        for radar_field in self.field_write_order:
             data_type = self.field_mapping[radar_field]
             field_position = UF_FIELD_POSITION_TEMPLATE.copy()
             field_position['data_type'] = data_type.encode('ascii')
