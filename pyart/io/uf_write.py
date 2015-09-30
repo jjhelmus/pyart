@@ -141,12 +141,6 @@ class UFRayCreator(object):
         else:
             header['beam_width_v'] = UF_MISSING_VALUE
 
-        if iparams is not None and 'pulse_width' in iparams:
-            pulse_width = iparams['pulse_width']['data'][0]
-            header['pulse_width_m'] = int(round(pulse_width * _LIGHT_SPEED))
-        else:
-            header['pulse_width_m'] = UF_MISSING_VALUE
-
         if iparams is not None and 'radar_receiver_bandwidth' in iparams:
             bandwidth = iparams['radar_receiver_bandwidth']['data'][0]
             header['bandwidth'] = int(round(bandwidth / 1.e6 * 16))
@@ -160,17 +154,6 @@ class UFRayCreator(object):
         else:
             header['wavelength_cm'] = UF_MISSING_VALUE
 
-        if iparams is not None and 'prt' in iparams:
-            prt = iparams['prt']['data'][0]
-            header['prt_ms'] = int(round(prt * 1.e6))
-        else:
-            header['prt_ms'] = UF_MISSING_VALUE
-
-        header['polarization'] = 1  # default to horizontal polarization
-        if iparams is not None and 'polarization_mode' in iparams:
-            polarization = str(iparams['polarization_mode']['data'][0])
-            if polarization in POLARIZATION_STR:
-                header['polarization'] = POLARIZATION_STR.index(polarization)
         return
 
     def make_ray(self, ray_num):
@@ -195,7 +178,7 @@ class UFRayCreator(object):
                 scale = 10
             else:
                 scale = 100
-            field_header = self.make_field_header(offset, scale)
+            field_header = self.make_field_header(offset, ray_num, scale)
             data_array = self.make_data_array(data_type, ray_num, scale)
 
             ray += field_header
@@ -285,11 +268,33 @@ class UFRayCreator(object):
         fps = self.make_field_position_list()
         return b''.join([_pack_structure(fp, UF_FIELD_POSITION) for fp in fps])
 
-    def make_field_header(self, data_offset, scale_factor=100):
+    def make_field_header(self, data_offset, ray_num, scale_factor=100):
         field_header = self._field_header_template
         field_header['nbins'] = self.radar.ngates
         field_header['data_offset'] = data_offset
         field_header['scale_factor'] = scale_factor
+
+        iparams = self.radar.instrument_parameters
+        if iparams is not None and 'pulse_width' in iparams:
+            pulse_width = iparams['pulse_width']['data'][ray_num]
+            field_header['pulse_width_m'] = int(round(
+                pulse_width * _LIGHT_SPEED))
+        else:
+            field_header['pulse_width_m'] = UF_MISSING_VALUE
+
+        if iparams is not None and 'prt' in iparams:
+            prt = iparams['prt']['data'][ray_num]
+            field_header['prt_ms'] = int(round(prt * 1.e6))
+        else:
+            field_header['prt_ms'] = UF_MISSING_VALUE
+
+        # XXX sweep
+        field_header['polarization'] = 1  # default to horizontal polarization
+        if iparams is not None and 'polarization_mode' in iparams:
+            polarization = str(iparams['polarization_mode']['data'][0])
+            if polarization in POLARIZATION_STR:
+                polarization_type = POLARIZATION_STR.index(polarization)
+                field_header['polarization'] = polarization_type
         return _pack_structure(field_header, UF_FIELD_HEADER)
 
     def make_fsi_vel(self):
