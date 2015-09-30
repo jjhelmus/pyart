@@ -85,10 +85,13 @@ class UFRayCreator(object):
         #   * 19 words for the field header
         # For each velocity-like field:
         #   * 2 words (4-bytes) for the FSI velocity structure
-        nbins = radar.ngates
         nvel = sum([field in UF_VEL_DATA_TYPES for field in field_order])
         self.record_length = (
-            (nbins + 2 + 19) * self.nfields + 45 + 14 + 3 + 2 * nvel)
+            45 + 14 + 3 + (radar.ngates + 2 + 19) * self.nfields + 2 * nvel)
+
+        self.ray_num_to_sweep_num = np.zeros((radar.nrays, ), dtype='int32')
+        for isweep, sweep_slice in enumerate(radar.iter_slice()):
+            self.ray_num_to_sweep_num[sweep_slice] = isweep
 
         self._mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
         self._optional_header_template = UF_OPTIONAL_HEADER_TEMPLATE.copy()
@@ -172,8 +175,8 @@ class UFRayCreator(object):
 
     def make_ray(self, ray_num):
 
-        sweep_num = 0  # TODO
-        ray = self.make_mandatory_header(ray_num, sweep_num)
+        sweep_num = self.ray_num_to_sweep_num[ray_num]
+        ray = self.make_mandatory_header(ray_num)
         ray += self.make_optional_header()
         ray += self.make_data_header()
         field_positions = self.make_field_position_list()
@@ -194,8 +197,7 @@ class UFRayCreator(object):
             else:
                 vel_header = b''
 
-            field_header = self.make_field_header(
-                offset, ray_num, sweep_num, scale)
+            field_header = self.make_field_header(offset, ray_num, scale)
             data_array = self.make_data_array(data_type, ray_num, scale)
 
             ray += field_header
@@ -204,7 +206,7 @@ class UFRayCreator(object):
 
         return ray
 
-    def make_mandatory_header(self, ray_num, sweep_num):
+    def make_mandatory_header(self, ray_num):
 
         # time parameters
         dt = netCDF4.num2date(
@@ -218,6 +220,7 @@ class UFRayCreator(object):
         header['second'] = dt.second
 
         # ray/sweep numbers
+        sweep_num = self.ray_num_to_sweep_num[ray_num]
         header['record_number'] = header['ray_number'] = ray_num + 1
         header['sweep_number'] = sweep_num + 1
 
@@ -285,8 +288,7 @@ class UFRayCreator(object):
         fps = self.make_field_position_list()
         return b''.join([_pack_structure(fp, UF_FIELD_POSITION) for fp in fps])
 
-    def make_field_header(
-            self, data_offset, ray_num, sweep_num, scale_factor):
+    def make_field_header(self, data_offset, ray_num, scale_factor):
         field_header = self._field_header_template
         field_header['nbins'] = self.radar.ngates
         field_header['data_offset'] = data_offset
@@ -307,6 +309,7 @@ class UFRayCreator(object):
             field_header['prt_ms'] = UF_MISSING_VALUE
 
         field_header['polarization'] = 1  # default to horizontal polarization
+        sweep_num = self.ray_num_to_sweep_num[ray_num]
         if iparams is not None and 'polarization_mode' in iparams:
             mode = str(iparams['polarization_mode']['data'][sweep_num])
             if mode in POLARIZATION_STR:
