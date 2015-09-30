@@ -116,7 +116,7 @@ def write_uf(filename, radar, uf_field_names=None, radar_field_names=False,
     for ray_num in range(radar.nrays):
 
         ray_bytes = raycreator.make_ray(ray_num)
-        pad = struct.pack('>i', raycreator.record_length * 2)
+        pad = struct.pack(b'>i', raycreator.record_length * 2)
 
         fhandle.write(pad)
         fhandle.write(ray_bytes)
