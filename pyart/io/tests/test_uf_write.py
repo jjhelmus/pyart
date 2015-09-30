@@ -1,4 +1,7 @@
 """ Unit Tests for Py-ART's io/uf.py and io/uffile.py modules. """
+
+from __future__ import unicode_literals
+
 try:
     from StringIO import StringIO
 except ImportError:
@@ -29,17 +32,17 @@ def test_ray_section_by_section():
     nfields = len(radar.fields)
     field_order = [d['data_type'] for d in uray.field_positions]
     ufraycreator = UFRayCreator(radar, field_order, volume_start=volume_start)
-    header = ufraycreator._mandatory_header_template
-    header['radar_name'] = 'xsapr-sg'
-    header['site_name'] = 'xsapr-sg'
+    header = ufraycreator.mandatory_header_template
+    header['radar_name'] = b'xsapr-sg'
+    header['site_name'] = b'xsapr-sg'
     header['generation_year'] = 15
     header['generation_month'] = 8
     header['generation_day'] = 19
-    header['generation_facility_name'] = 'RSLv1.48'
+    header['generation_facility_name'] = b'RSLv1.48'
 
-    header = ufraycreator._optional_header_template
-    header['project_name'] = 'TRMMGVUF'
-    header['tape_name'] = 'RADAR_UF'
+    header = ufraycreator.optional_header_template
+    header['project_name'] = b'TRMMGVUF'
+    header['tape_name'] = b'RADAR_UF'
 
     # mandatory header
     ref_man_header = ref_ray_buf[:90]
@@ -63,7 +66,7 @@ def test_ray_section_by_section():
 
     # DZ field header
     ref_field_header = uray._buf[172:172+38]
-    ufraycreator._field_header_template['edit_code'] = '\x00\x00'
+    ufraycreator.field_header_template['edit_code'] = b'\x00\x00'
     tst_field_header = ufraycreator.make_field_header(106, 0, 100)
     assert tst_field_header == ref_field_header
 
@@ -79,7 +82,7 @@ def test_ray_section_by_section():
 
     # VR field header
     ref_field_header = uray._buf[1544:1544+42]
-    ufraycreator._field_header_template['edit_code'] = '  '
+    ufraycreator.field_header_template['edit_code'] = b'  '
     tst_field_header = ufraycreator.make_field_header(794, 0, 100)
     vel_header = ufraycreator.make_fsi_vel(0, 100)
     assert tst_field_header + vel_header == ref_field_header
@@ -96,7 +99,7 @@ def test_ray_section_by_section():
 
     # SW field header
     ref_field_header = uray._buf[2920:2920+38]
-    ufraycreator._field_header_template['edit_code'] = '  '
+    ufraycreator.field_header_template['edit_code'] = b'  '
     tst_field_header = ufraycreator.make_field_header(1480, 0, 100)
     assert tst_field_header == ref_field_header
 
@@ -112,13 +115,13 @@ def test_ray_section_by_section():
 
     # ZT field header
     ref_field_header = uray._buf[5664:5664+38]
-    ufraycreator._field_header_template['edit_code'] = '\x00\x00'
+    ufraycreator.field_header_template['edit_code'] = b'\x00\x00'
     tst_field_header = ufraycreator.make_field_header(2852, 0, 100)
     assert tst_field_header == ref_field_header
 
     # PH field header
     ref_field_header = uray._buf[11152:11152+38]
-    ufraycreator._field_header_template['edit_code'] = '  '
+    ufraycreator.field_header_template['edit_code'] = b'  '
     tst_field_header = ufraycreator.make_field_header(5596, 0, 10)
     assert tst_field_header == ref_field_header
 
@@ -146,17 +149,17 @@ def test_ray_full():
     volume_start = netCDF4.num2date(radar.time['data'][0], radar.time['units'])
     volume_start -= datetime.timedelta(seconds=8)
     ufraycreator = UFRayCreator(radar, field_order, volume_start=volume_start)
-    header = ufraycreator._mandatory_header_template
-    header['radar_name'] = 'xsapr-sg'
-    header['site_name'] = 'xsapr-sg'
+    header = ufraycreator.mandatory_header_template
+    header['radar_name'] = b'xsapr-sg'
+    header['site_name'] = b'xsapr-sg'
     header['generation_year'] = 15
     header['generation_month'] = 8
     header['generation_day'] = 19
-    header['generation_facility_name'] = 'RSLv1.48'
+    header['generation_facility_name'] = b'RSLv1.48'
 
-    header = ufraycreator._optional_header_template
-    header['project_name'] = 'TRMMGVUF'
-    header['tape_name'] = 'RADAR_UF'
+    header = ufraycreator.optional_header_template
+    header['project_name'] = b'TRMMGVUF'
+    header['tape_name'] = b'RADAR_UF'
 
     tst_ray = ufraycreator.make_ray(0)
     tst_ray = tst_ray[:204] + b'\x00\x00' + tst_ray[206:]   # DZ edit_code

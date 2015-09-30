@@ -1,3 +1,27 @@
+"""
+pyart.io.uf_write
+=================
+
+Functions for writing UF files.
+
+
+.. autosummary::
+    :toctree: generated/
+    :template: dev_template.rst
+
+    UFRayCreator
+
+.. autosummary::
+    :toctree: generated/
+
+    _structure_size
+    _unpack_from_buf
+    _unpack_structure
+
+"""
+
+from __future__ import division, unicode_literals
+
 import math
 import struct
 import warnings
@@ -34,22 +58,22 @@ class UFFileCreator(object):
 
         # TODO
         # hacks to get match with example file
-        header = raycreator._mandatory_header_template
-        header['radar_name'] = 'xsapr-sg'
-        header['site_name'] = 'xsapr-sg'
+        header = raycreator.mandatory_header_template
+        header['radar_name'] = b'xsapr-sg'
+        header['site_name'] = b'xsapr-sg'
         header['generation_year'] = 15
         header['generation_month'] = 8
         header['generation_day'] = 19
-        header['generation_facility_name'] = 'RSLv1.48'
+        header['generation_facility_name'] = b'RSLv1.48'
 
-        header = raycreator._optional_header_template
-        header['project_name'] = 'TRMMGVUF'
-        header['tape_name'] = 'RADAR_UF'
+        header = raycreator.optional_header_template
+        header['project_name'] = b'TRMMGVUF'
+        header['tape_name'] = b'RADAR_UF'
 
         for ray_num in range(radar.nrays):
 
-            pad = struct.pack('>i', 16640)
             ray_bytes = raycreator.make_ray(ray_num)
+            pad = struct.pack('>i', raycreator.record_length * 2)
 
             self._fh.write(pad)
             self._fh.write(ray_bytes)
@@ -65,16 +89,42 @@ class UFRayCreator(object):
 
     Parameters
     ----------
+    radar : Radar
+        Radar used to create rays.
+    field_order : list of bytes
+
+    volume_start :
 
     """
 
     def __init__(self, radar, field_order, volume_start=None):
-        """
-        """
+        """ Initialize the object. """
         self.radar = radar
-        self.nfields = len(radar.fields)
         self.field_order = field_order
+        self.record_length = self._calc_record_length(radar, field_order)
+        self.ray_num_to_sweep_num = self._calc_ray_num_to_sweep_num(radar)
 
+        self.mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
+        self.optional_header_template = UF_OPTIONAL_HEADER_TEMPLATE.copy()
+        self.field_header_template = UF_FIELD_HEADER_TEMPLATE.copy()
+
+        self._set_mandatory_header_location()
+        self._set_optional_header_time(volume_start)
+        self._set_field_header()
+
+        return
+
+    @staticmethod
+    def _calc_ray_num_to_sweep_num(radar):
+        """ Return an array mapping ray number to sweep numbers. """
+        ray_num_to_sweep_num = np.zeros((radar.nrays, ), dtype='int32')
+        for isweep, sweep_slice in enumerate(radar.iter_slice()):
+            ray_num_to_sweep_num[sweep_slice] = isweep
+        return ray_num_to_sweep_num
+
+    @staticmethod
+    def _calc_record_length(radar, field_order):
+        """ Return the record length in 2-byte words. """
         # record length is given by the sum of
         # 45 word (90 byte) mandatory header
         # 14 word (28 byte) optional header which is always written
@@ -85,27 +135,13 @@ class UFRayCreator(object):
         #   * 19 words for the field header
         # For each velocity-like field:
         #   * 2 words (4-bytes) for the FSI velocity structure
+        nfields = len(field_order)
         nvel = sum([field in UF_VEL_DATA_TYPES for field in field_order])
-        self.record_length = (
-            45 + 14 + 3 + (radar.ngates + 2 + 19) * self.nfields + 2 * nvel)
+        return 45+14+3 + (radar.ngates+2+19)*nfields + 2*nvel
 
-        self.ray_num_to_sweep_num = np.zeros((radar.nrays, ), dtype='int32')
-        for isweep, sweep_slice in enumerate(radar.iter_slice()):
-            self.ray_num_to_sweep_num[sweep_slice] = isweep
-
-        self._mandatory_header_template = UF_MANDATORY_HEADER_TEMPLATE.copy()
-        self._optional_header_template = UF_OPTIONAL_HEADER_TEMPLATE.copy()
-        self._data_header_template = UF_DATA_HEADER_TEMPLATE.copy()
-        self._field_header_template = UF_FIELD_HEADER_TEMPLATE.copy()
-
-        self._set_mandatory_header_location()
-        self._set_optional_header_volume_time(volume_start)
-        self._set_field_header()
-
-        return
-
-    def _set_optional_header_volume_time(self, volume_start):
-        header = self._optional_header_template
+    def _set_optional_header_time(self, volume_start):
+        """ Populate the optional header template with the volume start. """
+        header = self.optional_header_template
         if volume_start is None:
             volume_start = netCDF4.num2date(
                 self.radar.time['data'][0], self.radar.time['units'])
@@ -114,16 +150,15 @@ class UFRayCreator(object):
         header['volume_second'] = volume_start.second
 
     def _set_mandatory_header_location(self):
-        """
-        """
-        header = self._mandatory_header_template
+        """ Populate the mandatory header template with the location. """
+        header = self.mandatory_header_template
 
-        degrees, minutes, seconds = d_to_dms(self.radar.latitude['data'][0])
+        degrees, minutes, seconds = _d_to_dms(self.radar.latitude['data'][0])
         header['latitude_degrees'] = int(degrees)
         header['latitude_minutes'] = int(minutes)
         header['latitude_seconds'] = int(seconds * 64)
 
-        degrees, minutes, seconds = d_to_dms(self.radar.longitude['data'][0])
+        degrees, minutes, seconds = _d_to_dms(self.radar.longitude['data'][0])
         header['longitude_degrees'] = int(degrees)
         header['longitude_minutes'] = int(minutes)
         header['longitude_seconds'] = int(seconds * 64)
@@ -132,10 +167,11 @@ class UFRayCreator(object):
         return
 
     def _set_field_header(self):
+        """ Populate the field header template with radar parameters. """
         # these parameter are assumed to be constant for all rays in
         # the volume, UF can store volumes where these change between
         # rays but Py-ART does not support writing such volumes
-        header = self._field_header_template
+        header = self.field_header_template
 
         range_step = self.radar.range['meters_between_gates']
         range_start = self.radar.range['meters_to_center_of_first_gate']
@@ -174,8 +210,7 @@ class UFRayCreator(object):
         return
 
     def make_ray(self, ray_num):
-
-        sweep_num = self.ray_num_to_sweep_num[ray_num]
+        """ Return a byte string representing a complete UF ray. """
         ray = self.make_mandatory_header(ray_num)
         ray += self.make_optional_header()
         ray += self.make_data_header()
@@ -207,17 +242,18 @@ class UFRayCreator(object):
         return ray
 
     def make_mandatory_header(self, ray_num):
+        """ Return a byte string representing a UF mandatory header. """
 
         # time parameters
-        dt = netCDF4.num2date(
+        ray_time = netCDF4.num2date(
             self.radar.time['data'][ray_num], self.radar.time['units'])
-        header = self._mandatory_header_template
-        header['year'] = dt.year - 2000
-        header['month'] = dt.month
-        header['day'] = dt.day
-        header['hour'] = dt.hour
-        header['minute'] = dt.minute
-        header['second'] = dt.second
+        header = self.mandatory_header_template
+        header['year'] = ray_time.year - 2000
+        header['month'] = ray_time.month
+        header['day'] = ray_time.day
+        header['hour'] = ray_time.hour
+        header['minute'] = ray_time.minute
+        header['second'] = ray_time.second
 
         # ray/sweep numbers
         sweep_num = self.ray_num_to_sweep_num[ray_num]
@@ -254,27 +290,31 @@ class UFRayCreator(object):
         return _pack_structure(header, UF_MANDATORY_HEADER)
 
     def make_optional_header(self):
-        header = self._optional_header_template
+        """ Return a byte string representing a UF optional header. """
+        header = self.optional_header_template
         return _pack_structure(header, UF_OPTIONAL_HEADER)
 
     def make_data_header(self):
-        header = self._data_header_template
-        header['ray_nfields'] = self.nfields
-        header['record_nfields'] = self.nfields
+        """ Return a byte string representing a UF data header. """
+        header = UF_DATA_HEADER_TEMPLATE.copy()
+        nfields = len(self.field_order)
+        header['ray_nfields'] = nfields
+        header['record_nfields'] = nfields
         return _pack_structure(header, UF_DATA_HEADER)
 
     def make_field_position_list(self):
+        """ Return a list of field position dictionaries. """
         # 62 words (124 bytes) are occuplied by the:
         # * mandatory header (90 bytes)
         # * optional header (28)
         # * data header (6)
         # This is followed by 2 words (4 bytes) for each field name/offset
         # Finally one must be added since the offset has origin of 1
-        offset = 62 + self.nfields * 2 + 1
+        offset = 62 + len(self.field_order) * 2 + 1
         field_positions = []
         for data_type in self.field_order:
             field_position = UF_FIELD_POSITION_TEMPLATE.copy()
-            field_position['data_type'] = data_type
+            field_position['data_type'] = bytes(data_type)
             field_position['offset_field_header'] = offset
             field_positions.append(field_position)
 
@@ -285,11 +325,13 @@ class UFRayCreator(object):
         return field_positions
 
     def make_field_position(self):
+        """ Return a byte string representing the UF field positions. """
         fps = self.make_field_position_list()
         return b''.join([_pack_structure(fp, UF_FIELD_POSITION) for fp in fps])
 
     def make_field_header(self, data_offset, ray_num, scale_factor):
-        field_header = self._field_header_template
+        """ Return a byte string representing a field header. """
+        field_header = self.field_header_template
         field_header['nbins'] = self.radar.ngates
         field_header['data_offset'] = data_offset
         field_header['scale_factor'] = scale_factor
@@ -317,6 +359,7 @@ class UFRayCreator(object):
         return _pack_structure(field_header, UF_FIELD_HEADER)
 
     def make_fsi_vel(self, ray_num, scale):
+        """ Return a byte string representing a UF FSI velocity structure. """
         fsi_vel = UF_FSI_VEL_TEMPLATE.copy()
         iparams = self.radar.instrument_parameters
         if iparams is not None and 'nyquist_velocity' in iparams:
@@ -327,11 +370,13 @@ class UFRayCreator(object):
         return _pack_structure(fsi_vel, UF_FSI_VEL)
 
     def make_data_array(self, field, ray_num, scale=100.):
+        """ Return an array of UF field data. """
         field_data = np.round(self.radar.fields[field]['data'][ray_num]*scale)
         return field_data.filled(-32768).astype('>i2')
 
 
-def d_to_dms(in_deg):
+def _d_to_dms(in_deg):
+    """ Degrees to degree, minutes, seconds. """
     # add or subtract a fraction of a second to fix round off issues
     epsilon = 0.01 / 3600.
     in_deg += epsilon * np.sign(in_deg)
@@ -348,9 +393,9 @@ def _pack_structure(dic, structure):
     return struct.pack(fmt, *values)
 
 
+# Constants
 UF_MISSING_VALUE = -32768
 UF_DEFAULT_SCALE_FACTOR = 100   # default field scale factor
-
 UF_SWEEP_MODES = {
     'calibration': 0,
     'ppi': 1,
@@ -361,11 +406,11 @@ UF_SWEEP_MODES = {
     'manual': 6,
     'idle': 7,
 }
-
 UF_VEL_DATA_TYPES = [b'VF', b'VE', b'VR', b'VT', b'VP']
 
+# Structure dictionary templates
 UF_MANDATORY_HEADER_TEMPLATE = {
-    'uf_string': 'UF',
+    'uf_string': b'UF',
     'record_length': 999,
     'offset_optional_header': 46,   # Always include the optional read
     'offset_local_use_header': 60,  # Never include a local use header
@@ -375,8 +420,8 @@ UF_MANDATORY_HEADER_TEMPLATE = {
     'ray_number': 999,
     'ray_record_number': 1,         # always one recorded per ray
     'sweep_number': 999,
-    'radar_name': 'XXXXXXXX',
-    'site_name': 'XXXXXXXX',
+    'radar_name': b'XXXXXXXX',
+    'site_name': b'XXXXXXXX',
     'latitude_degrees': 999,
     'latitude_minutes': 999,
     'latitude_seconds': 999,
@@ -390,7 +435,7 @@ UF_MANDATORY_HEADER_TEMPLATE = {
     'hour': 999,
     'minute': 999,
     'second': 999,
-    'time_zone': 'UT',
+    'time_zone': b'UT',
     'azimuth': 999,
     'elevation': 999,
     'sweep_mode': 999,
@@ -399,12 +444,12 @@ UF_MANDATORY_HEADER_TEMPLATE = {
     'generation_year': 999,
     'generation_month': 999,
     'generation_day': 999,
-    'generation_facility_name': 'XXXXXXXX',
+    'generation_facility_name': b'XXXXXXXX',
     'missing_data_value': UF_MISSING_VALUE,     # standard missing value
 }
 
 UF_OPTIONAL_HEADER_TEMPLATE = {
-    'project_name': 'XXXXXXXX',
+    'project_name': b'XXXXXXXX',
     'baseline_azimuth': UF_MISSING_VALUE,
     'baseline_elevation': UF_MISSING_VALUE,
     'volume_hour': 999,
@@ -421,7 +466,7 @@ UF_DATA_HEADER_TEMPLATE = {
 }
 
 UF_FIELD_POSITION_TEMPLATE = {
-    'data_type': 'XX',
+    'data_type': b'XX',
     'offset_field_header': 999,
 }
 
@@ -439,10 +484,10 @@ UF_FIELD_HEADER_TEMPLATE = {
     'polarization': 999,
     'wavelength_cm': 999,
     'sample_size': 90,          # Apparently defaults to 90?
-    'threshold_data': '  ',     # No thresholding field
+    'threshold_data': b'  ',    # No thresholding field
     'threshold_value': UF_MISSING_VALUE,
     'scale': UF_MISSING_VALUE,
-    'edit_code': '  ',          # unknown use, typically blank or null
+    'edit_code': b'  ',         # unknown use, typically blank or null
     'prt_ms': 999,
     'bits_per_bin': 16,         # 16 bits (2 bytes, 1 word) per bin or gate
 }
