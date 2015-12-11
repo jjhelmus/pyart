@@ -40,6 +40,8 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     # wradlib and dependencies
     conda install --yes sphinx gdal numpydoc h5py basemap
     conda list
+    ls /home/travis/miniconda2/envs/testenv/lib/python2.7/site-packages/osgeo
+    ldd /home/travis/miniconda2/envs/testenv/lib/python2.7/site-packages/osgeo/_gdal.so
     python -c "from mpl_toolkits.basemap import Basemap"
     python -c "from mpl_toolkits.basemap import pyproj"
     python -c "import gdal"
