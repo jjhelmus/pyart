@@ -76,3 +76,7 @@ if [[ "$FROM_RECIPE" == "true" ]]; then
 else
     python setup.py build_ext --inplace
 fi
+
+python -c "import pyart; print(pyart.graph.gridmapdisplay._BASEMAP_AVAILABLE)"
+python -c "from mpl_toolkits.basemap import Basemap"
+python -c "from mpl_toolkits.basemap import pyproj"
