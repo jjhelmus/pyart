@@ -43,7 +43,6 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     pip install sphinxcontrib-bibtex
     pip install xmltodict
     conda list
-    python -c "import pyart; print(pyart.graph.gridmapdisplay._BASEMAP_AVAILABLE)"
     python -c "from mpl_toolkits.basemap import Basemap"
     python -c "from mpl_toolkits.basemap import pyproj"
     python -c "import gdal"
