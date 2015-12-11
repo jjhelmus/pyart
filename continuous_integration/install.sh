@@ -39,6 +39,7 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
 
     # wradlib and dependencies
     conda install --yes sphinx gdal numpydoc h5py basemap
+    conda list
     python -c "from mpl_toolkits.basemap import Basemap"
     python -c "from mpl_toolkits.basemap import pyproj"
     python -c "import gdal"
