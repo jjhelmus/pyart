@@ -77,6 +77,7 @@ else
     python setup.py build_ext --inplace
 fi
 
+conda list
 python -c "import pyart; print(pyart.graph.gridmapdisplay._BASEMAP_AVAILABLE)"
 python -c "from mpl_toolkits.basemap import Basemap"
 python -c "from mpl_toolkits.basemap import pyproj"
