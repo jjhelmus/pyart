@@ -38,7 +38,7 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     conda install --yes -c http://conda.anaconda.org/jjhelmus cvxopt_glpk
 
     # wradlib and dependencies
-    conda install --yes sphinx gdal numpydoc h5py basemap
+    conda install --yes sphinx gdal numpydoc h5py basemap libgdal=2.0.0-0
     conda list
     ls /home/travis/miniconda2/envs/testenv/lib/python2.7/site-packages/osgeo
     ldd /home/travis/miniconda2/envs/testenv/lib/python2.7/site-packages/osgeo/_gdal.so
