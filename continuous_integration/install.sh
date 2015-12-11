@@ -42,6 +42,7 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     conda install --yes sphinx_rtd_theme
     pip install sphinxcontrib-bibtex
     pip install xmltodict
+    conda list
     pip install wradlib
 fi
 if [[ $PYTHON_VERSION == '3.3' ]]; then
