@@ -9,7 +9,7 @@
 
 set -e
 # use next line to debug this script
-#set -x
+set -x
 
 # Use Miniconda to provide a Python environment.  This allows us to perform
 # a conda based install of the SciPy stack on multiple versions of Python
@@ -47,8 +47,8 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     python -c "from mpl_toolkits.basemap import Basemap"
     python -c "from mpl_toolkits.basemap import pyproj"
     python -c "import gdal"
-    mkdir tmp
-    cd tmp
+    mkdir tmp2
+    cd tmp2
     wget https://pypi.python.org/packages/source/w/wradlib/wradlib-0.6.0.tar.gz
     tar xvfz wradlib-0.6.0.tar.gz
     cd wradlib-0.6.0
