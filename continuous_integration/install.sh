@@ -39,13 +39,13 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
 
     # wradlib and dependencies
     conda install --yes sphinx gdal numpydoc h5py basemap
+    python -c "from mpl_toolkits.basemap import Basemap"
+    python -c "from mpl_toolkits.basemap import pyproj"
+    python -c "import gdal"
     conda install --yes sphinx_rtd_theme
     pip install sphinxcontrib-bibtex
     pip install xmltodict
     conda list
-    python -c "from mpl_toolkits.basemap import Basemap"
-    python -c "from mpl_toolkits.basemap import pyproj"
-    python -c "import gdal"
     mkdir tmp2
     cd tmp2
     wget https://pypi.python.org/packages/source/w/wradlib/wradlib-0.6.0.tar.gz
