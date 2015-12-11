@@ -38,7 +38,7 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     conda install --yes -c http://conda.anaconda.org/jjhelmus cvxopt_glpk
 
     # wradlib and dependencies
-    conda install --yes sphinx gdal numpydoc h5py
+    conda install --yes sphinx gdal numpydoc h5py basemap
     conda install --yes sphinx_rtd_theme
     pip install sphinxcontrib-bibtex
     pip install xmltodict
