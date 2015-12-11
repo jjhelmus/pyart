@@ -43,8 +43,18 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     pip install sphinxcontrib-bibtex
     pip install xmltodict
     conda list
-    easy_install wradlib
-    pip install wradlib
+    python -c "import pyart; print(pyart.graph.gridmapdisplay._BASEMAP_AVAILABLE)"
+    python -c "from mpl_toolkits.basemap import Basemap"
+    python -c "from mpl_toolkits.basemap import pyproj"
+    python -c "import gdal"
+    mkdir tmp
+    cd tmp
+    wget https://pypi.python.org/packages/source/w/wradlib/wradlib-0.6.0.tar.gz
+    tar xvfz wradlib-0.6.0.tar.gz
+    cd wradlib-0.6.0
+    python setup.py install
+    #easy_install wradlib
+    #pip install wradlib
 fi
 if [[ $PYTHON_VERSION == '3.3' ]]; then
     conda install --yes basemap 
@@ -80,6 +90,3 @@ else
 fi
 
 conda list
-python -c "import pyart; print(pyart.graph.gridmapdisplay._BASEMAP_AVAILABLE)"
-python -c "from mpl_toolkits.basemap import Basemap"
-python -c "from mpl_toolkits.basemap import pyproj"
