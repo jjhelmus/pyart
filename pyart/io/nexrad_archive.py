@@ -24,11 +24,12 @@ from ..core.radar import Radar
 from .common import make_time_unit_str, _test_arguments, prepare_for_read
 from .nexrad_level2 import NEXRADLevel2File
 from ..lazydict import LazyLoadDict
+from .nexrad_common import get_nexrad_location
 
 
 def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
                         file_field_names=False, exclude_fields=None,
-                        delay_field_loading=False, **kwargs):
+                        delay_field_loading=False, station=None, **kwargs):
     """
     Read a NEXRAD Level 2 Archive file.
 
@@ -65,6 +66,11 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
         key in a particular field dictionary is accessed.  In this case
         the field attribute of the returned Radar object will contain
         LazyLoadDict objects not dict objects.
+    station : str or None
+        Four letter ICAO name of the NEXRAD station used to determine the
+        location in the returned radar object.  This parameter is only
+        used when the location is not contained in the file, which occur
+        in older NEXRAD files.
 
     Returns
     -------
@@ -139,7 +145,10 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
     longitude = filemetadata('longitude')
     altitude = filemetadata('altitude')
 
-    lat, lon, alt = nfile.location()
+    if nfile._msg_type == '1' and station is not None:
+        lat, lon, alt = get_nexrad_location(station)
+    else:
+        lat, lon, alt = nfile.location()
     latitude['data'] = np.array([lat], dtype='float64')
     longitude['data'] = np.array([lon], dtype='float64')
     altitude['data'] = np.array([alt], dtype='float64')

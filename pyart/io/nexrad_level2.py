@@ -278,6 +278,8 @@ class NEXRADLevel2File(object):
                 ngates = dic['doppler_nbins']
                 first_gate = dic['doppler_range_first']
                 gate_spacing = dic['doppler_range_step']
+            if first_gate > 2**15:
+                first_gate = first_gate - 2**16
 
         return np.arange(ngates) * gate_spacing + first_gate
 
@@ -353,7 +355,11 @@ class NEXRADLevel2File(object):
         """
         if scans is None:
             scans = range(self.nscans)
-        return self._msg31_array(scans, 'azimuth_angle')
+        if self._msg_type == '1':
+            scale = 180 / (4096 * 8.)
+        else:
+            scale = 1.
+        return self._msg31_array(scans, 'azimuth_angle') * scale
 
     def get_elevation_angles(self, scans=None):
         """
@@ -374,7 +380,11 @@ class NEXRADLevel2File(object):
         """
         if scans is None:
             scans = range(self.nscans)
-        return self._msg31_array(scans, 'elevation_angle')
+        if self._msg_type == '1':
+            scale = 180 / (4096 * 8.)
+        else:
+            scale = 1.
+        return self._msg31_array(scans, 'elevation_angle') * scale
 
     def get_target_angles(self, scans=None):
         """
@@ -401,11 +411,11 @@ class NEXRADLevel2File(object):
             return np.array([cp[i]['elevation_angle'] * scale for i in scans],
                             dtype='float32')
         else:
-            scale = (0.43945 / 8)
+            scale = 180 / (4096 * 8.)
             msgs = [self.msg31s[self.scan_msgs[i][0]] for i in scans]
-            return np.array(
+            return np.round(np.array(
                 [m['msg_header']['elevation_angle'] * scale for m in msgs],
-                dtype='float32')
+                dtype='float32'), 1)
 
     def get_nyquist_vel(self, scans=None):
         """
@@ -569,25 +579,27 @@ def _get_record_from_buf(buf, pos):
         msg_header_size = _structure_size(MSG_HEADER)
         msg1_header = _unpack_from_buf(buf, pos + msg_header_size, MSG_1)
         dic['msg_header'] = msg1_header
+        sur_nbins = int(msg1_header['sur_nbins'])
+        doppler_nbins = int(msg1_header['sur_nbins'])
         # XXX
         if msg1_header['sur_pointer']:
             dic['REF'] = {
-                'ngates': 100,
-                'data': np.zeros((100,)),
+                'ngates': sur_nbins,
+                'data': np.zeros((sur_nbins, )),
                 'scale': 1.,
                 'offset': 1,
             }
         if msg1_header['vel_pointer']:
             dic['VEL'] = {
-                'ngates': 100,
-                'data': np.zeros((100,)),
+                'ngates': doppler_nbins,
+                'data': np.zeros((doppler_nbins, )),
                 'scale': 1.,
                 'offset': 1,
             }
         if msg1_header['width_pointer']:
             dic['SW'] = {
-                'ngates': 100,
-                'data': np.zeros((100,)),
+                'ngates': doppler_nbins,
+                'data': np.zeros((doppler_nbins, )),
                 'scale': 1.,
                 'offset': 1,
             }
