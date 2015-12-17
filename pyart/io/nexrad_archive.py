@@ -199,10 +199,14 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
 
 def _find_max_range(nfile, scan_info):
     """ Return a range array with highest resolution and longest range. """
-    scan_max_gates = np.argmax([max(s['ngates']) for s in scan_info])
-    i = np.argmax(scan_info[scan_max_gates]['ngates'])
-    moment_max_gates = scan_info[scan_max_gates]['moments'][i]
-    return nfile.get_range(scan_max_gates, moment_max_gates)
+    min_first_gate = min([min(s['first_gate']) for s in scan_info])
+    min_gate_spacing = min([min(s['gate_spacing']) for s in scan_info])
+    max_range = max(
+        [np.max(np.array(s['first_gate']) +
+         np.array(s['gate_spacing']) * (np.array(s['ngates']) - 0.5))
+         for s in scan_info])
+    return np.arange(
+        min_first_gate, max_range, min_gate_spacing).astype('int64')
 
 
 class _NEXRADLevel2StagedField(object):
