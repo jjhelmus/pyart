@@ -223,9 +223,13 @@ class NEXRADLevel2File(object):
             nexrad_moments = ['REF', 'VEL', 'SW', 'ZDR', 'PHI', 'RHO']
             moments = [f for f in nexrad_moments if f in msg]
             ngates = [msg[f]['ngates'] for f in moments]
+            gate_spacing = [msg[f]['gate_spacing'] for f in moments]
+            first_gate = [msg[f]['first_gate'] for f in moments]
             info.append({
                 'nrays': nrays,
                 'ngates': ngates,
+                'gate_spacing': gate_spacing,
+                'first_gate': first_gate,
                 'moments': moments})
         return info
 
@@ -263,24 +267,10 @@ class NEXRADLevel2File(object):
             Range in meters from the antenna to the center of gate (bin).
 
         """
-        if self._msg_type == '31':
-            dic = self.msg31s[self.scan_msgs[scan_num][0]][moment]
-            ngates = dic['ngates']
-            first_gate = dic['first_gate']
-            gate_spacing = dic['gate_spacing']
-        else:  # msg 1
-            dic = self.msg31s[self.scan_msgs[scan_num][0]]['msg_header']
-            if moment == 'REF':
-                ngates = dic['sur_nbins']
-                first_gate = dic['sur_range_first']
-                gate_spacing = dic['sur_range_step']
-            else: # VEL and SW
-                ngates = dic['doppler_nbins']
-                first_gate = dic['doppler_range_first']
-                gate_spacing = dic['doppler_range_step']
-            if first_gate > 2**15:
-                first_gate = first_gate - 2**16
-
+        dic = self.msg31s[self.scan_msgs[scan_num][0]][moment]
+        ngates = dic['ngates']
+        first_gate = dic['first_gate']
+        gate_spacing = dic['gate_spacing']
         return np.arange(ngates) * gate_spacing + first_gate
 
     # helper functions for looping over scans
@@ -579,15 +569,25 @@ def _get_record_from_buf(buf, pos):
         msg_header_size = _structure_size(MSG_HEADER)
         msg1_header = _unpack_from_buf(buf, pos + msg_header_size, MSG_1)
         dic['msg_header'] = msg1_header
+
         sur_nbins = int(msg1_header['sur_nbins'])
         doppler_nbins = int(msg1_header['doppler_nbins'])
-        sur_step = int(msg1_header['sur_nbins'])
-        doppler_nbins = int(msg1_header['doppler_nbins'])
+
+        sur_step = int(msg1_header['sur_range_step'])
+        doppler_step = int(msg1_header['doppler_range_step'])
+
+        sur_first = int(msg1_header['sur_range_first'])
+        doppler_first = int(msg1_header['doppler_range_first'])
+        if doppler_first > 2**15:
+            doppler_first = doppler_first - 2**16
+
         if msg1_header['sur_pointer']:
             offset = pos + msg_header_size + msg1_header['sur_pointer']
             data = np.fromstring(buf[offset:offset+sur_nbins], '>u1')
             dic['REF'] = {
                 'ngates': sur_nbins,
+                'gate_spacing': sur_step,
+                'first_gate': sur_first,
                 'data': data,
                 'scale': 2.,
                 'offset': 66.,
@@ -597,6 +597,8 @@ def _get_record_from_buf(buf, pos):
             data = np.fromstring(buf[offset:offset+doppler_nbins], '>u1')
             dic['VEL'] = {
                 'ngates': doppler_nbins,
+                'gate_spacing': doppler_step,
+                'first_gate': doppler_first,
                 'data': data,
                 'scale': 2.,
                 'offset': 129.0,
@@ -606,6 +608,8 @@ def _get_record_from_buf(buf, pos):
             data = np.fromstring(buf[offset:offset+doppler_nbins], '>u1')
             dic['SW'] = {
                 'ngates': doppler_nbins,
+                'gate_spacing': doppler_step,
+                'first_gate': doppler_first,
                 'data': data,
                 'scale': 2.,
                 'offset': 129.0,
