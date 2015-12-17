@@ -14,6 +14,7 @@ Functions for reading NEXRAD Level II Archive files.
     :toctree: generated/
 
     read_nexrad_archive
+    _find_max_range
 
 """
 
@@ -103,16 +104,13 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
     time['units'] = make_time_unit_str(time_start)
 
     # range
-    scan_max_gates = np.argmax([max(s['ngates']) for s in scan_info])
-    i = np.argmax(scan_info[scan_max_gates]['ngates'])
-    moment_max_gates = scan_info[scan_max_gates]['moments'][i]
     _range = filemetadata('range')
-    _range['data'] = nfile.get_range(scan_max_gates, moment_max_gates)
+    _range['data'] = _find_max_range(nfile, scan_info)
     _range['meters_to_center_of_first_gate'] = _range['data'][0]
     _range['meters_between_gates'] = _range['data'][1] - _range['data'][0]
 
     # fields
-    max_ngates = max([max(s['ngates']) for s in scan_info])
+    max_ngates = len(_range['data'])
     available_moments = set([])
     for info in scan_info:
         for moment in info['moments']:
@@ -197,6 +195,14 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
         sweep_end_ray_index,
         azimuth, elevation,
         instrument_parameters=instrument_parameters)
+
+
+def _find_max_range(nfile, scan_info):
+    """ Return a range array with highest resolution and longest range. """
+    scan_max_gates = np.argmax([max(s['ngates']) for s in scan_info])
+    i = np.argmax(scan_info[scan_max_gates]['ngates'])
+    moment_max_gates = scan_info[scan_max_gates]['moments'][i]
+    return nfile.get_range(scan_max_gates, moment_max_gates)
 
 
 class _NEXRADLevel2StagedField(object):
