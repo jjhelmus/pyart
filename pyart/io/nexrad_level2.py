@@ -580,28 +580,35 @@ def _get_record_from_buf(buf, pos):
         msg1_header = _unpack_from_buf(buf, pos + msg_header_size, MSG_1)
         dic['msg_header'] = msg1_header
         sur_nbins = int(msg1_header['sur_nbins'])
-        doppler_nbins = int(msg1_header['sur_nbins'])
-        # XXX
+        doppler_nbins = int(msg1_header['doppler_nbins'])
+        sur_step = int(msg1_header['sur_nbins'])
+        doppler_nbins = int(msg1_header['doppler_nbins'])
         if msg1_header['sur_pointer']:
+            offset = pos + msg_header_size + msg1_header['sur_pointer']
+            data = np.fromstring(buf[offset:offset+sur_nbins], '>u1')
             dic['REF'] = {
                 'ngates': sur_nbins,
-                'data': np.zeros((sur_nbins, )),
-                'scale': 1.,
-                'offset': 1,
+                'data': data,
+                'scale': 2.,
+                'offset': 66.,
             }
         if msg1_header['vel_pointer']:
+            offset = pos + msg_header_size + msg1_header['vel_pointer']
+            data = np.fromstring(buf[offset:offset+doppler_nbins], '>u1')
             dic['VEL'] = {
                 'ngates': doppler_nbins,
-                'data': np.zeros((doppler_nbins, )),
-                'scale': 1.,
-                'offset': 1,
+                'data': data,
+                'scale': 2.,
+                'offset': 129.0,
             }
         if msg1_header['width_pointer']:
+            offset = pos + msg_header_size + msg1_header['width_pointer']
+            data = np.fromstring(buf[offset:offset+doppler_nbins], '>u1')
             dic['SW'] = {
                 'ngates': doppler_nbins,
-                'data': np.zeros((doppler_nbins, )),
-                'scale': 1.,
-                'offset': 1,
+                'data': data,
+                'scale': 2.,
+                'offset': 129.0,
             }
 
         new_pos = pos + RECORD_SIZE
