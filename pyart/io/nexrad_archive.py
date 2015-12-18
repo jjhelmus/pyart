@@ -14,7 +14,7 @@ Functions for reading NEXRAD Level II Archive files.
     :toctree: generated/
 
     read_nexrad_archive
-    _find_max_range
+    _find_range_params
 
 """
 
@@ -105,16 +105,15 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
 
     # range
     _range = filemetadata('range')
-    _range['data'] = _find_max_range(nfile, scan_info)
-    _range['meters_to_center_of_first_gate'] = _range['data'][0]
-    _range['meters_between_gates'] = _range['data'][1] - _range['data'][0]
+    first_gate, gate_spacing, last_gate = _find_range_params(scan_info)
+    _range['data'] = np.arange(first_gate, last_gate, gate_spacing, 'float32')
+    _range['meters_to_center_of_first_gate'] = float(first_gate)
+    _range['meters_between_gates'] = float(gate_spacing)
 
     # fields
     max_ngates = len(_range['data'])
-    available_moments = set([])
-    for info in scan_info:
-        for moment in info['moments']:
-            available_moments.add(moment)
+    available_moments = set([m for scan in scan_info for m in scan['moments']])
+    interpolate = _find_scans_to_interp(scan_info, first_gate, gate_spacing)
 
     fields = {}
     for moment in available_moments:
@@ -197,16 +196,33 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
         instrument_parameters=instrument_parameters)
 
 
-def _find_max_range(nfile, scan_info):
-    """ Return a range array with highest resolution and longest range. """
+def _find_range_params(scan_info):
+    """ Return range parameters, first_gate, gate_spacing, last_gate. """
     min_first_gate = min([min(s['first_gate']) for s in scan_info])
     min_gate_spacing = min([min(s['gate_spacing']) for s in scan_info])
-    max_range = max(
-        [np.max(np.array(s['first_gate']) +
-         np.array(s['gate_spacing']) * (np.array(s['ngates']) - 0.5))
-         for s in scan_info])
-    return np.arange(
-        min_first_gate, max_range, min_gate_spacing).astype('int64')
+    last_gates = [np.array(s['first_gate']) +
+                  np.array(s['gate_spacing']) * (np.array(s['ngates']) - 0.5)
+                  for s in scan_info]
+    max_last_gate = max([max(last_gate) for last_gate in last_gates])
+    return min_first_gate, min_gate_spacing, max_last_gate
+
+
+def _find_scans_to_interp(scan_info, first_gate, gate_spacing):
+    """ Return a dict indicating what moments/scans need interpolation.  """
+    moments = set([m for scan in scan_info for m in scan['moments']])
+    interpolate = dict([(moment, []) for moment in moments])
+    for scan_num, scan in enumerate(scan_info):
+        for moment in moments:
+            if moment not in scan['moments']:
+                continue
+            index = scan['moments'].index(moment)
+            first = scan['first_gate'][index]
+            spacing = scan['gate_spacing'][index]
+            if first != first_gate or spacing != gate_spacing:
+                interpolate[moment].append(scan_num)
+    # remove moments with no scans needing interpolation
+    interpolate = dict([(k, v) for k, v in interpolate.items() if len(v) != 0])
+    return interpolate
 
 
 class _NEXRADLevel2StagedField(object):
