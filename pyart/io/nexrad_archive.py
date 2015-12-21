@@ -15,6 +15,7 @@ Functions for reading NEXRAD Level II Archive files.
 
     read_nexrad_archive
     _find_range_params
+    _find_scans_to_interp
 
 """
 
@@ -110,26 +111,6 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
     _range['meters_to_center_of_first_gate'] = float(first_gate)
     _range['meters_between_gates'] = float(gate_spacing)
 
-    # fields
-    max_ngates = len(_range['data'])
-    available_moments = set([m for scan in scan_info for m in scan['moments']])
-    interpolate = _find_scans_to_interp(scan_info, first_gate, gate_spacing)
-
-    fields = {}
-    for moment in available_moments:
-        field_name = filemetadata.get_field_name(moment)
-        if field_name is None:
-            continue
-        dic = filemetadata(field_name)
-        dic['_FillValue'] = get_fillvalue()
-        if delay_field_loading:
-            dic = LazyLoadDict(dic)
-            data_call = _NEXRADLevel2StagedField(nfile, moment, max_ngates)
-            dic.set_lazy('data', data_call)
-        else:
-            dic['data'] = nfile.get_data(moment, max_ngates)
-        fields[field_name] = dic
-
     # metadata
     metadata = filemetadata('metadata')
     metadata['original_container'] = 'NEXRAD Level II'
@@ -176,6 +157,66 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
     azimuth['data'] = nfile.get_azimuth_angles()
     elevation['data'] = nfile.get_elevation_angles().astype('float32')
     fixed_angle['data'] = nfile.get_target_angles()
+
+    # fields
+    max_ngates = len(_range['data'])
+    available_moments = set([m for scan in scan_info for m in scan['moments']])
+    interpolate = _find_scans_to_interp(scan_info, first_gate, gate_spacing)
+
+    fields = {}
+    for moment in available_moments:
+        field_name = filemetadata.get_field_name(moment)
+        if field_name is None:
+            continue
+        dic = filemetadata(field_name)
+        dic['_FillValue'] = get_fillvalue()
+        if delay_field_loading and moment not in interpolate:
+            dic = LazyLoadDict(dic)
+            data_call = _NEXRADLevel2StagedField(nfile, moment, max_ngates)
+            dic.set_lazy('data', data_call)
+        else:
+            mdata = nfile.get_data(moment, max_ngates)
+            dic['data'] = nfile.get_data(moment, max_ngates)
+            if moment in interpolate:
+                for scan in interpolate[moment]:
+                    idx = scan_info[scan]['moments'].index(moment)
+                    moment_gate_spacing = scan_info[scan]['gate_spacing'][idx]
+                    moment_ngates = scan_info[scan]['ngates'][idx]
+                    moment_first_gate = scan_info[scan]['first_gate'][idx]
+                    moment_nrays = scan_info[scan]['nrays']
+                    # resolution of moment scan should be 1/4th the spacing
+                    # used for the radar
+                    assert moment_gate_spacing == gate_spacing * 4
+                    # the first gate for the moment scan should be one and half
+                    # times the radar spacing past the radar first gate
+                    assert first_gate + 1.5*gate_spacing == moment_first_gate
+                    start = sweep_start_ray_index['data'][scan]
+                    end = sweep_end_ray_index['data'][scan]
+
+                    for ray_num in range(start, end+1):
+                        ray = mdata[ray_num].copy()
+
+                        # repeat each gate value 4 times
+                        interp_ngates = 4 * moment_ngates
+                        ray[:interp_ngates] = np.repeat(ray[:moment_ngates], 4)
+
+                        # linear interpolate
+                        for i in range(2, interp_ngates - 4, 4):
+                            gate_val = ray[i]
+                            next_val = ray[i+4]
+                            if np.ma.is_masked(gate_val) or np.ma.is_masked(next_val):
+                                continue
+                            delta = (next_val - gate_val) / 4.
+                            ray[i+0] = gate_val + delta * 0.5
+                            ray[i+1] = gate_val + delta * 1.5
+                            ray[i+2] = gate_val + delta * 2.5
+                            ray[i+3] = gate_val + delta * 3.5
+
+                        mdata[ray_num] = ray[:]
+
+            dic['data'] = mdata
+        fields[field_name] = dic
+
 
     # instrument_parameters
     nyquist_velocity = filemetadata('nyquist_velocity')
