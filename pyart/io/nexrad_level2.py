@@ -612,6 +612,9 @@ def _get_record_from_buf(buf, pos):
                 'scale': 2.,
                 'offset': 129.0,
             }
+            if msg1_header['doppler_resolution'] == 4:
+                # 1 m/s resolution velocity, offset remains 129.
+                dic['VEL']['scale'] = 1.
         if msg1_header['width_pointer']:
             offset = pos + msg_header_size + msg1_header['width_pointer']
             data = np.fromstring(buf[offset:offset+doppler_nbins], '>u1')
