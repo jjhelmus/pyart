@@ -199,7 +199,7 @@ def read_nexrad_archive(filename, field_names=None, additional_metadata=None,
                 interp_scans = interpolate[moment]
                 warnings.warn(
                     "Gate spacing is not constant, interpolating data in " +
-                    "scans %s for moment %s." % (scans, moment),
+                    "scans %s for moment %s." % (interp_scans, moment),
                     UserWarning)
                 for scan in interp_scans:
                     idx = scan_info[scan]['moments'].index(moment)
