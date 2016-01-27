@@ -141,7 +141,7 @@ class GridMapDisplay(object):
             lon_lines, labels=[False, False, False, True])
 
     def plot_grid(
-            self, field, level=0, vmin=None, vmax=None, cmap='jet',
+            self, field, level=0, vmin=None, vmax=None, cmap=None,
             mask_outside=False, title=None, title_flag=True,
             axislabels=(None, None), axislabels_flag=False,
             colorbar_flag=True, colorbar_label=None,
@@ -159,8 +159,9 @@ class GridMapDisplay(object):
             Lower and upper range for the colormesh.  If either parameter is
             None, a value will be determined from the field attributes (if
             available) or the default values of -8, 64 will be used.
-        cmap : str
-            Matplotlib colormap name or colormap object.
+        cmap : str or None
+            Matplotlib colormap name. None will use the default colormap for
+            the field being plotted as specified by the Py-ART configuration.
         mask_outside : bool
             True to mask data outside of vmin, vmax.  False performs no
             masking.
@@ -200,6 +201,7 @@ class GridMapDisplay(object):
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
         vmin, vmax = common.parse_vmin_vmax(self.grid, field, vmin, vmax)
+        cmap = common.parse_cmap(cmap, field)
 
         basemap = self.get_basemap()
 
@@ -278,7 +280,7 @@ class GridMapDisplay(object):
         return
 
     def plot_latitude_slice(
-            self, field, lon=None, lat=None, vmin=None, vmax=None, cmap='jet',
+            self, field, lon=None, lat=None, vmin=None, vmax=None, cmap=None,
             mask_outside=False, title=None, title_flag=True,
             axislabels=(None, None), axislabels_flag=True, colorbar_flag=True,
             colorbar_label=None, colorbar_orient='vertical', edges=True,
@@ -297,8 +299,9 @@ class GridMapDisplay(object):
             Lower and upper range for the colormesh.  If either parameter is
             None, a value will be determined from the field attributes (if
             available) or the default values of -8, 64 will be used.
-        cmap : str
-            Matplotlib colormap name or colormap object.
+        cmap : str or None
+            Matplotlib colormap name. None will use the default colormap for
+            the field being plotted as specified by the Py-ART configuration.
         mask_outside : bool
             True to mask data outside of vmin, vmax.  False performs no
             masking.
@@ -345,7 +348,7 @@ class GridMapDisplay(object):
             colorbar_orient=colorbar_orient, edges=edges, ax=ax, fig=fig)
 
     def plot_latitudinal_level(
-            self, field, y_index, vmin=None, vmax=None, cmap='jet',
+            self, field, y_index, vmin=None, vmax=None, cmap=None,
             mask_outside=False, title=None, title_flag=True,
             axislabels=(None, None), axislabels_flag=True, colorbar_flag=True,
             colorbar_label=None, colorbar_orient='vertical', edges=True,
@@ -363,8 +366,9 @@ class GridMapDisplay(object):
             Lower and upper range for the colormesh.  If either parameter is
             None, a value will be determined from the field attributes (if
             available) or the default values of -8, 64 will be used.
-        cmap : str
-            Matplotlib colormap name or colormap object.
+        cmap : str or None
+            Matplotlib colormap name. None will use the default colormap for
+            the field being plotted as specified by the Py-ART configuration.
         mask_outside : bool
             True to mask data outside of vmin, vmax.  False performs no
             masking.
@@ -404,6 +408,7 @@ class GridMapDisplay(object):
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
         vmin, vmax = common.parse_vmin_vmax(self.grid, field, vmin, vmax)
+        cmap = common.parse_cmap(cmap, field)
 
         data = self.grid.fields[field]['data'][:, y_index, :]
 
@@ -442,7 +447,7 @@ class GridMapDisplay(object):
         return
 
     def plot_longitude_slice(
-            self, field, lon=None, lat=None, vmin=None, vmax=None, cmap='jet',
+            self, field, lon=None, lat=None, vmin=None, vmax=None, cmap=None,
             mask_outside=False, title=None, title_flag=True,
             axislabels=(None, None), axislabels_flag=True, colorbar_flag=True,
             colorbar_label=None, colorbar_orient='vertical', edges=True,
@@ -461,8 +466,9 @@ class GridMapDisplay(object):
             Lower and upper range for the colormesh.  If either parameter is
             None, a value will be determined from the field attributes (if
             available) or the default values of -8, 64 will be used.
-        cmap : str
-            Matplotlib colormap name or colormap object.
+        cmap : str or None
+            Matplotlib colormap name. None will use the default colormap for
+            the field being plotted as specified by the Py-ART configuration.
         mask_outside : bool
             True to mask data outside of vmin, vmax.  False performs no
             masking.
@@ -508,7 +514,7 @@ class GridMapDisplay(object):
             colorbar_orient=colorbar_orient, edges=edges, ax=ax, fig=fig)
 
     def plot_longitudinal_level(
-            self, field, x_index, vmin=None, vmax=None, cmap='jet',
+            self, field, x_index, vmin=None, vmax=None, cmap=None,
             mask_outside=False, title=None, title_flag=True,
             axislabels=(None, None), axislabels_flag=True, colorbar_flag=True,
             colorbar_label=None, colorbar_orient='vertical', edges=True,
@@ -526,8 +532,9 @@ class GridMapDisplay(object):
             Lower and upper range for the colormesh.  If either parameter is
             None, a value will be determined from the field attributes (if
             available) or the default values of -8, 64 will be used.
-        cmap : str
-            Matplotlib colormap name or colormap object.
+        cmap : str or None
+            Matplotlib colormap name. None will use the default colormap for
+            the field being plotted as specified by the Py-ART configuration.
         mask_outside : bool
             True to mask data outside of vmin, vmax.  False performs no
             masking.
@@ -567,6 +574,7 @@ class GridMapDisplay(object):
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
         vmin, vmax = common.parse_vmin_vmax(self.grid, field, vmin, vmax)
+        cmap = common.parse_cmap(cmap, field)
 
         data = self.grid.fields[field]['data'][:, :, x_index]
 

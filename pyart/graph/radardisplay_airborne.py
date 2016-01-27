@@ -150,7 +150,7 @@ class AirborneRadarDisplay(RadarDisplay):
 
     def plot_sweep_grid(
             self, field, sweep=0, mask_tuple=None, vmin=None, vmax=None,
-            cmap='jet', mask_outside=False, title=None, title_flag=True,
+            cmap=None, mask_outside=False, title=None, title_flag=True,
             axislabels=(None, None), axislabels_flag=True, colorbar_flag=True,
             colorbar_label=None, colorbar_orient='vertical', edges=True,
             filter_transitions=True, ax=None, fig=None, gatefilter=None):
@@ -174,8 +174,9 @@ class AirborneRadarDisplay(RadarDisplay):
             Luminance minimum value, None for default value.
         vmax : float
             Luminance maximum value, None for default value.
-        cmap : str
-            Matplotlib colormap name.
+        cmap : str or None
+            Matplotlib colormap name. None will use the default colormap for
+            the field being plotted as specified by the Py-ART configuration.
         mask_outside : bool
             True to mask data outside of vmin, vmax.  False performs no
             masking.
@@ -223,6 +224,7 @@ class AirborneRadarDisplay(RadarDisplay):
         # parse parameters
         ax, fig = common.parse_ax_fig(ax, fig)
         vmin, vmax = common.parse_vmin_vmax(self._radar, field, vmin, vmax)
+        cmap = common.parse_cmap(cmap, field)
 
         # get data for the plot
         data = self._get_data(

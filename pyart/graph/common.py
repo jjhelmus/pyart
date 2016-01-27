@@ -9,6 +9,7 @@ Common graphing routines.
 
     parse_ax
     parse_ax_fig
+    parse_cmap
     parse_vmin_vmax
     parse_lon_lat
     generate_colorbar_label
@@ -34,6 +35,7 @@ from netCDF4 import num2date
 
 # Depreciated function names in this name space
 from ..exceptions import _depreciated_alias
+from ..config import get_field_colormap
 from ..core import transforms as _transforms
 radar_coords_to_cart = _depreciated_alias(
     _transforms.antenna_to_cartesian,
@@ -64,6 +66,13 @@ def parse_ax_fig(ax, fig):
     if fig is None:
         fig = plt.gcf()
     return ax, fig
+
+
+def parse_cmap(cmap, field=None):
+    """ Parse and return the cmap parameter. """
+    if cmap is None:
+        cmap = get_field_colormap(field)
+    return cmap
 
 
 def parse_vmin_vmax(container, field, vmin, vmax):
