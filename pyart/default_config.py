@@ -1332,7 +1332,7 @@ DEFAULT_FIELD_COLORMAP = {
     rain_rate: 'pyart_RRate11',
     radar_estimated_rain_rate: 'pyart_RRate11',
     radar_echo_classification: 'pyart_EWilson17',
-    specific_attenuation: 'pyart_NWSVel',
+    specific_attenuation: 'pyart_Carbone17',
     differential_phase_texture: 'pyart_BlueBrown11',
     eastward_wind_component: 'pyart_NWSVel',
     northward_wind_component: 'pyart_NWSVel',
