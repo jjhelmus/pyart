@@ -42,8 +42,8 @@ def test_parse_vmin_vmax():
     radar.fields['foo'] = {}
 
     vmin, vmax = common.parse_vmin_vmax(radar, 'foo', None, None)
-    assert vmin == -6
-    assert vmax == 100
+    assert vmin == None
+    assert vmax == None
 
     vmin, vmax = common.parse_vmin_vmax(radar, 'foo', 10, 20)
     assert vmin == 10
