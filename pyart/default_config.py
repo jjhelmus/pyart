@@ -1276,12 +1276,11 @@ FIELD_MAPPINGS = {                  # Required variable
 
 
 def velocity_limit(container=None, selection=0):
-    import pyart
-    if isinstance(container, pyart.core.Radar):
+    if hasttr(container, 'get_nyquist_vel'):
         try:
             if selection >= 0 and selection < container.nsweeps:
-                vel = container.get_nyquist_vel(selection,
-                                                check_uniform=False)
+                vel = container.get_nyquist_vel(
+                    selection, check_uniform=False)
             else:
                 vel = container.get_nyquist_vel(0, check_uniform=False)
             return (-vel, vel)
