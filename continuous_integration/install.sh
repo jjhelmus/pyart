@@ -73,5 +73,6 @@ else
 fi
 
 # DEBUGGING
+conda install --yes libgfortran
 python -c "import cvxopt"
 python -c "import cylp.cy"
