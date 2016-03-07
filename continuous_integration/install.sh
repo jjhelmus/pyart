@@ -33,7 +33,7 @@ conda install --yes basemap
 conda install --yes -c http://conda.anaconda.org/jjhelmus trmm_rsl
 
 if [[ $PYTHON_VERSION == '2.7' ]]; then
-    conda install --yes -c http://conda.anaconda.org/jjhelmus cbc cylp
+    #conda install --yes -c http://conda.anaconda.org/jjhelmus cbc cylp
     conda install --yes -c http://conda.anaconda.org/jjhelmus glpk pyglpk
     conda install --yes -c http://conda.anaconda.org/jjhelmus cvxopt_glpk
 
