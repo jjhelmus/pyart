@@ -71,3 +71,7 @@ if [[ "$FROM_RECIPE" == "true" ]]; then
 else
     python setup.py build_ext --inplace
 fi
+
+# DEBUGGING
+python -c "import cvxopt"
+python -c "import cylp.cy"
