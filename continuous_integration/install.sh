@@ -30,7 +30,7 @@ source activate testenv
 # Install Py-ART dependencies
 conda install --yes numpy scipy matplotlib netcdf4 nose
 conda install --yes basemap
-conda install --yes -c conda-forge trmm_rsl
+conda install --yes -c jjhelmus trmm_rsl
 
 if [[ $PYTHON_VERSION == '2.7' ]]; then
     conda install --yes -c http://conda.anaconda.org/jjhelmus cbc cylp
