@@ -294,7 +294,7 @@ def _get_instrument_params(gfile, filemetadata):
             break
     if pw_name == 'pulse_width':
         dic['data'] = gfile.sweep_expand(
-        [0.2, 0.5, 1.0, 2.0][gfile.how_attrs(pw_name, 'int')] * 1e-6)
+            [0.2, 0.5, 1.0, 2.0][gfile.how_attrs(pw_name, 'int')[0]] * 1e-6)
     else:
         dic['data'] = gfile.sweep_expand(
             gfile.how_attrs(pw_name, 'float32') * 1e-6)
@@ -318,9 +318,10 @@ def _get_instrument_params(gfile, filemetadata):
     dic['data'] = gfile.sweep_expand(gfile.how_attrs('range', 'float32'))
     instrument_params['unambiguous_range'] = dic
 
-    dic = filemetadata('nyquist_velocity')
     if gfile.is_attr_in_group('/scan0/how/extended', 'nyquist_velocity'):
-        dic['data'] = gfile.sweep_expand(gfile.how_ext_attrs('nyquist_velocity'))
+        dic = filemetadata('nyquist_velocity')
+        nyquist = gfile.how_ext_attrs('nyquist_velocity')
+        dic['data'] = gfile.sweep_expand(nyquist)
         instrument_params['nyquist_velocity'] = dic
 
     dic = filemetadata('n_samples')
