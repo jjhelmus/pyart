@@ -135,6 +135,7 @@ def read_gamic(filename, field_names=None, additional_metadata=None,
 
     # sweep_type
     scan_type = gfile.raw_scan0_group_attr('what', 'scan_type').lower()
+    scan_type = scan_type.decode('ascii')
     # check that all scans in the volume are the same type
     if not gfile.is_file_single_scan_type():
         raise NotImplementedError('Mixed scan_type volume.')
