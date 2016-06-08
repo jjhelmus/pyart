@@ -15,6 +15,8 @@ Core classes
 
     Radar
     Grid
+    Sweep
+    Ray
 
 Coordinate transformations
 ==========================
@@ -34,6 +36,8 @@ Coordinate transformations
 
 from .radar import Radar
 from .grid import Grid
+from .sweep import Sweep
+from .ray import Ray
 
 from .transforms import antenna_to_cartesian
 from .transforms import antenna_vectors_to_cartesian
