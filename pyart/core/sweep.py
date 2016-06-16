@@ -16,7 +16,7 @@ _TIME_DIMENTIONED_INSTRUMENT_PARAMETERS = [
 # * refactor display classes to use this object?
 
 
-class Sweep:
+class Sweep(object):
     """
     A class storing data from a single radar sweep in antenna coordinates.
 
