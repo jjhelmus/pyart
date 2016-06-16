@@ -8,6 +8,13 @@ _TIME_DIMENTIONED_INSTRUMENT_PARAMETERS = [
     'pulse_width', 'prt', 'prt_ratio', 'nyquist_velocity',
     'unambiguous_range', 'n_samples', 'sampling_ratio']
 
+# TODO:
+# * detach sweep from radar
+# * make iterable
+# * make Radar produce sweep object during iteration
+# * gate_edges?
+# * refactor display classes to use this object?
+
 
 class Sweep:
     """
@@ -15,9 +22,42 @@ class Sweep:
 
     Parameters
     ----------
+    radar : Radar
+        Radar instance from which sweep is derived.
+    sweep_num : int
+        Number of sweep in radar to extract.
+    instr_param_keys : list, optional
+        List of entries in the radar's instrument_parameters attribute to
+        include in the sweep's instrument_parameters attribute. These entries
+        should have a leading 'sweep' dimensions. A value of None, the default,
+        will use a predefined list of instrument parameter which are typically
+        indexed by sweep.
 
     Attributes
     ----------
+    sweep_number : int
+        The number of the sweep, 0-based.
+    sweep_mode : str
+        Sweep mode for the sweep.
+    fixed_angle : float
+        Target angle for the sweep. Azimuth angle in RHI sweeps, elevation
+        angle in all other modes.
+    target_scan_rate : float or None
+        Intended scan rate for each sweep.  If not provided this attribute is
+        set to None, indicating this parameter is not available.
+    rays_are_indexed : str or None
+        Indication of whether ray angles are indexed to a regular grid in
+        each sweep.  If not provided this attribute is set to None, indicating
+        ray angle spacing is not determined.
+    ray_angle_res : float or None
+        If rays_are_indexed is not None, this provides the angular resolution
+        of the grid.  If not provided or available this attribute is set to
+        None.
+    ngates : int
+        Number of gates (bins) in the sweep, cannot be changed.
+    nrays : int
+        Number of rays in the volume, cannot be changed.
+
     time : dict
         Time at the center of each ray.
     range : dict
@@ -38,24 +78,6 @@ class Sweep:
     altitude_agl : dict or None
         Altitude of the instrument above ground level.  If not provided this
         attribute is set to None, indicating this parameter not available.
-    sweep_number : int
-        The number of the sweep, 0-based.
-    sweep_mode : str
-        Sweep mode for the sweep.
-    fixed_angle : float
-        Target angle for the sweep. Azimuth angle in RHI sweeps, elevation
-        angle in all other modes.
-    target_scan_rate : dict or None
-        Intended scan rate for each sweep.  If not provided this attribute is
-        set to None, indicating this parameter is not available.
-    rays_are_indexed : dict or None
-        Indication of whether ray angles are indexed to a regular grid in
-        each sweep.  If not provided this attribute is set to None, indicating
-        ray angle spacing is not determined.
-    ray_angle_res : dict or None
-        If rays_are_indexed is not None, this provides the angular resolution
-        of the grid.  If not provided or available this attribute is set to
-        None.
     azimuth : dict
         Azimuth of antenna, relative to true North.
     elevation : dict
@@ -100,21 +122,15 @@ class Sweep:
     radar_calibration : dict of dicts or None
         Instrument calibration parameters.  If not provided this attribute is
         set to None, indicating these parameters are not available
-    ngates : int
-        Number of gates (bins) in the sweep.
-    nrays : int
-        Number of rays in the volume.
 
     """
 
-    def __init__(self, radar, sweep_num, copy=False, instr_param_keys=None):
+    def __init__(self, radar, sweep_num, instr_param_keys=None):
         """
         """
-        # TODO copy
 
-        # sizes
-        self.ngates = radar.ngates
-        self.nrays = radar.rays_per_sweep['data'][sweep_num]
+        self._radar = radar
+        self._sweep_num = sweep_num
 
         # no change from complete volume
         self.range = radar.range
@@ -127,28 +143,6 @@ class Sweep:
         self.altitude = radar.altitude
         self.altitude_agl = radar.altitude_agl
         self.projection = radar.projection
-
-        # single values
-        # TODO make these attribute properties which update the radar instance
-        # backing the sweep (unless detached)
-        self.sweep_number = int(radar.sweep_number['data'][sweep_num])
-        self.sweep_mode = radar.sweep_mode['data'][sweep_num].decode('utf-8')
-        self.fixed_angle = float(radar.fixed_angle['data'][sweep_num])
-
-        self.target_scan_rate = None
-        if radar.target_scan_rate is not None:
-            self.target_scan_rate = float(
-                radar.target_scan_rate['data'][sweep_num])
-
-        self.rays_are_indexed = None
-        if radar.rays_are_indexed is not None:
-            rays_are_indexed = radar.rays_are_indexed['data'][sweep_num]
-            self.rays_are_indexed = rays_are_indexed.decode('utf-8')
-
-        self.ray_angle_res = None
-        if radar.ray_angle_res is not None:
-            self.rays_are_indexed = float(
-                radar.ray_angle_res['data'][sweep_num])
 
         # slice data per ray
         # TODO make these linked to the radar dictionaries
@@ -193,6 +187,78 @@ class Sweep:
         self.init_gate_altitude()
 
         return
+
+    # read only properties
+
+    @property
+    def ngates(self):
+        return self._radar.ngates
+
+    @property
+    def nrays(self):
+        return self._radar.rays_per_sweep['data'][self._sweep_num]
+
+    # single values extracted/set from the underlying radar instance
+
+    @property
+    def sweep_number(self):
+        return int(self._radar.sweep_number['data'][self._sweep_num])
+
+    @sweep_number.setter
+    def sweep_number(self, value):
+        self._radar.sweep_number['data'][self._sweep_num] = value
+
+    @property
+    def sweep_mode(self):
+        return str(self._radar.sweep_mode['data'][self._sweep_num])
+
+    @sweep_mode.setter
+    def sweep_mode(self, value):
+        self._radar.sweep_mode['data'][self._sweep_num] = value
+
+    @property
+    def fixed_angle(self):
+        return float(self._radar.fixed_angle['data'][self._sweep_num])
+
+    @fixed_angle.setter
+    def fixed_angle(self, value):
+        self._radar.fixed_angle['data'][self._sweep_num] = value
+
+    @property
+    def target_scan_rate(self):
+        if self._radar.target_scan_rate is None:
+            return None
+        return float(self._radar.target_scan_rate['data'][self._sweep_num])
+
+    @target_scan_rate.setter
+    def target_scan_rate(self, value):
+        if self._radar.target_scan_rate is None:
+            raise AttributeError("Radar attribute is None")
+        self._radar.target_scan_rate['data'][self._sweep_num] = value
+
+    @property
+    def rays_are_indexed(self):
+        if self._radar.rays_are_indexed is None:
+            return None
+        return str(self._radar.rays_are_indexed['data'][self._sweep_num])
+
+    @rays_are_indexed.setter
+    def rays_are_indexed(self, value):
+        if self._radar.rays_are_indexed is None:
+            raise AttributeError("Radar attribute is None")
+        self._radar.rays_are_indexed['data'][self._sweep_num] = value
+
+    @property
+    def ray_angle_res(self):
+        if self._radar.ray_angle_res is None:
+            return None
+        return float(self._radar.ray_angle_res['data'][self._sweep_num])
+
+    @ray_angle_res.setter
+    def ray_angle_res(self, value):
+        if self._radar.ray_angle_res is None:
+            raise AttributeError("Radar attribute is None")
+        self._radar.ray_angle_res['data'][self._sweep_num] = value
 
     def __getstate__(self):
         """ Return object's state which can be pickled. """
