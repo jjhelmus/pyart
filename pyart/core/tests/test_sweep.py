@@ -122,6 +122,32 @@ def test_sweep_nrays():
         sweep.nrays = 42
 
 
+def test_sweep_time():
+    radar = pyart.testing.make_empty_ppi_radar(5, 4, 2)
+    sweep = pyart.core.Sweep(radar, 0)
+
+    assert radar.time['data'][0] == 0
+    assert radar.time['data'][3] == 3
+    assert radar.time['data'][4] == 4
+    assert sweep.time['data'][0] == 0
+    assert sweep.time['data'][-1] == 3
+
+    sweep.time['data'][0] = 42
+    assert sweep.time['data'][0] == 42
+    assert radar.time['data'][0] == 42
+
+    sweep.time['data'][-1] = 43
+    assert sweep.time['data'][-1] == 43
+    assert radar.time['data'][3] == 43
+    assert radar.time['data'][4] == 4
+
+    assert sweep.time['standard_name'] == 'time'
+    assert radar.time['standard_name'] == 'time'
+    sweep.time['standard_name'] = 'foobar'
+    assert sweep.time['standard_name'] == 'foobar'
+    assert radar.time['standard_name'] == 'foobar'
+
+
 def test_sweep_picklable():
     # verify that Sweep instances are picklable
     radar = pyart.testing.make_empty_ppi_radar(5, 4, 2)

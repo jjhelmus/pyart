@@ -1,6 +1,7 @@
 
 from ..config import get_metadata
 from ..lazydict import LazyLoadDict
+from .refdict import RefDict
 from .transforms import antenna_vectors_to_cartesian, cartesian_to_geographic
 
 
@@ -316,8 +317,8 @@ class Sweep(object):
 def _dict_from_dict(radar_dict, sweep_slice):
     if radar_dict is None:
         return None
-    sweep_dict = radar_dict.copy()
-    sweep_dict['data'] = radar_dict['data'][sweep_slice]
+    sweep_dict = RefDict(radar_dict)
+    sweep_dict.set_nonref('data', radar_dict['data'][sweep_slice])
     return sweep_dict
 
 
