@@ -1,37 +1,28 @@
 #!/bin/bash
-# This script is adapted from the install.sh script from the scikit-learn
-# project: https://github.com/scikit-learn/scikit-learn
-
-# This script is meant to be called by the "install" step defined in
-# .travis.yml. See http://docs.travis-ci.com/ for more details.
-# The behavior of the script is controlled by environment variabled defined
-# in the .travis.yml in the top level folder of the project.
 
 set -e
 # use next line to debug this script
 set -x
 
-# Use Miniconda to provide a Python environment.  This allows us to perform
-# a conda based install of the SciPy stack on multiple versions of Python
-# as well as use conda and binstar to install additional modules which are not
-# in the default repository.
-wget http://repo.continuum.io/miniconda/Miniconda-latest-Linux-x86_64.sh \
+# Install Miniconda
+wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
     -O miniconda.sh
 chmod +x miniconda.sh
 ./miniconda.sh -b
-export PATH=/home/travis/miniconda2/bin:$PATH
+export PATH=/home/travis/miniconda3/bin:$PATH
 conda config --set always_yes yes
-conda update -q conda
+conda config --set show_channel_urls true
 conda update -q conda
 
-# Create a testenv with the correct Python version
-conda create -n testenv -q pip python=$PYTHON_VERSION
+## Create a testenv with the correct Python version
+conda env create -f continuous_integration/environment.yml
 source activate testenv
+conda install -c conda-forge pyproj   # KLUDGE to replace jjhelmus::pyproj 
 
 # Install Py-ART dependencies
-conda install -q numpy scipy matplotlib netcdf4 nose
-conda install -q basemap
-conda install -q -c jjhelmus trmm_rsl
+#conda install -q -c conda-forge numpy scipy matplotlib netcdf4 nose hdf4
+#conda install -q -c conda-forge basemap
+#conda install -q -c conda-forge trmm_rsl
 
 #if [[ $PYTHON_VERSION == '2.7' ]]; then
     #conda install -q -c http://conda.anaconda.org/jjhelmus cbc cylp
@@ -54,7 +45,7 @@ if [[ "$COVERALLS" == "true" ]]; then
 fi
 
 # install Py-ART
-export RSL_PATH=~/miniconda2/envs/testenv
+export RSL_PATH=~/miniconda3/envs/testenv
 
 if [[ "$FROM_RECIPE" == "true" ]]; then
     source deactivate
@@ -71,10 +62,3 @@ if [[ "$FROM_RECIPE" == "true" ]]; then
 else
     python setup.py build_ext --inplace
 fi
-
-# KLUDGE
-# cylp and cvxopt_glpk depend on BLAS and LAPACK which are provided by the
-# system and depend on the system libgfortran.  The conda libgfortran does not
-# export the symbols required for the system packages, so it must be removed.
-#conda install -q libgfortran
-#conda remove -q --force libgfortran
