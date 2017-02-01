@@ -16,21 +16,21 @@ env:
 
 matrix:
     include:
-      #    - python: 2.7
-      #      env:
-      #        - PYTHON_VERSION="2.7"
-      #        - NOSE_ARGS="-v --with-cov --cov pyart pyart"
-      #        - COVERALLS="true"
-      #    - python: 2.7
-      #      env:
-      #        - PYTHON_VERSION="2.7"
-      #        - NOSE_ARGS="-v --with-cov --cov pyart --exe pyart"
-      #        - FROM_RECIPE="true"
-      #        - DOC_BUILD="true"
-      #    - python: 3.4
-      #      env:
-      #        - PYTHON_VERSION="3.4"
-      #        - NOSE_ARGS="-v --with-cov --cov pyart pyart"
+    - python: 2.7
+      env:
+        - PYTHON_VERSION="2.7"
+        - NOSE_ARGS="-v --with-cov --cov pyart pyart"
+        - COVERALLS="true"
+    - python: 2.7
+      env:
+        - PYTHON_VERSION="2.7"
+        - NOSE_ARGS="-v --with-cov --cov pyart --exe pyart"
+        - FROM_RECIPE="true"
+        - DOC_BUILD="true"
+    - python: 3.4
+      env:
+        - PYTHON_VERSION="3.4"
+        - NOSE_ARGS="-v --with-cov --cov pyart pyart"
     - python: 3.5
       env:
         - PYTHON_VERSION="3.5"
