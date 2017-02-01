@@ -33,7 +33,7 @@ conda install -q numpy scipy matplotlib netcdf4 nose
 conda install -q basemap
 conda install -q -c jjhelmus trmm_rsl
 
-if [[ $PYTHON_VERSION == '2.7' ]]; then
+#if [[ $PYTHON_VERSION == '2.7' ]]; then
     #conda install -q -c http://conda.anaconda.org/jjhelmus cbc cylp
     #conda install -q -c http://conda.anaconda.org/jjhelmus glpk pyglpk
     #conda install -q -c http://conda.anaconda.org/jjhelmus cvxopt_glpk
@@ -45,7 +45,7 @@ if [[ $PYTHON_VERSION == '2.7' ]]; then
     # see: https://github.com/ContinuumIO/anaconda-issues/issues/584
     #conda install -q gdal basemap libgdal=2.0.0=0 krb5 proj4
     #conda install --no-deps -q -c conda-forge wradlib
-fi
+#fi
 
 # install coverage modules
 pip install nose-cov
