@@ -2,7 +2,7 @@
 
 set -e
 # use next line to debug this script
-set -x
+#set -x
 
 # Install Miniconda
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh \
@@ -18,8 +18,7 @@ conda update -q conda
 conda env create -f continuous_integration/environment-$PYTHON_VERSION.yml
 source activate testenv
 # KLUDGE to replace unwanted packages from the jjhelmus channel
-conda install -c conda-forge pyproj wradlib 
-
+conda install -c conda-forge pyproj wradlib
 # TODO install cbc, cylp, glpk, cvxopt_glpk in Python 2.7
 
 # install coverage modules
