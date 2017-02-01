@@ -9,7 +9,7 @@
 
 set -e
 # use next line to debug this script
-#set -x
+set -x
 
 # Use Miniconda to provide a Python environment.  This allows us to perform
 # a conda based install of the SciPy stack on multiple versions of Python
@@ -34,17 +34,17 @@ conda install -q basemap
 conda install -q -c jjhelmus trmm_rsl
 
 if [[ $PYTHON_VERSION == '2.7' ]]; then
-    conda install -q -c http://conda.anaconda.org/jjhelmus cbc cylp
-    conda install -q -c http://conda.anaconda.org/jjhelmus glpk pyglpk
-    conda install -q -c http://conda.anaconda.org/jjhelmus cvxopt_glpk
+    #conda install -q -c http://conda.anaconda.org/jjhelmus cbc cylp
+    #conda install -q -c http://conda.anaconda.org/jjhelmus glpk pyglpk
+    #conda install -q -c http://conda.anaconda.org/jjhelmus cvxopt_glpk
 
     # wradlib and dependencies
-    conda install -q h5py
+    #conda install -q h5py
     # KLUDGE libgdal does not report its version dependency on geos which
     # causes either gdal or basemap to break, force the exact libgdal version
     # see: https://github.com/ContinuumIO/anaconda-issues/issues/584
-    conda install -q gdal basemap libgdal=2.0.0=0 krb5 proj4
-    conda install --no-deps -q -c conda-forge wradlib
+    #conda install -q gdal basemap libgdal=2.0.0=0 krb5 proj4
+    #conda install --no-deps -q -c conda-forge wradlib
 fi
 
 # install coverage modules
@@ -76,5 +76,5 @@ fi
 # cylp and cvxopt_glpk depend on BLAS and LAPACK which are provided by the
 # system and depend on the system libgfortran.  The conda libgfortran does not
 # export the symbols required for the system packages, so it must be removed.
-conda install -q libgfortran
-conda remove -q --force libgfortran
+#conda install -q libgfortran
+#conda remove -q --force libgfortran
