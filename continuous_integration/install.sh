@@ -37,11 +37,12 @@ if [[ "$FROM_RECIPE" == "true" ]]; then
     conda install -q jinja2 setuptools
     conda config --add channels conda-forge
     conda config --add channels jjhelmus
-    source activate testenv
     conda build --no-test -q conda_recipe/
    
     export CONDA_PACKAGE=`conda build --output conda_recipe/ | grep bz2`
+    source activate testenv
     conda install -q $CONDA_PACKAGE
+    conda list
     mkdir foo   # required so source directory not picked up during tests
     cd foo
 else
